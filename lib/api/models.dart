@@ -1,4 +1,5 @@
 import '../l10n/strings.dart';
+import 'attachments.dart';
 
 /// Summary of a session row as `profiles.list {include_sessions: true}` reports it.
 class SessionSummary {
@@ -253,6 +254,9 @@ class ChatMessage {
   bool streaming;
   DateTime time;
   final List<ToolActivity> tools = [];
+
+  /// Images, files and links sent with a user message.
+  final List<ChatAttachment> attachments = [];
   bool interrupted = false;
   bool expanded = false;
 

@@ -219,6 +219,53 @@ class StringsCs extends Strings {
   String get stop => 'Zastavit';
   @override
   String get send => 'Odeslat';
+
+  // Attachments and sharing
+  @override
+  String get addAttachment => 'Přidat přílohu';
+  @override
+  String get takePhoto => 'Vyfotit';
+  @override
+  String get choosePhotos => 'Vybrat fotky';
+  @override
+  String get chooseFiles => 'Vybrat soubory';
+  @override
+  String get addLink => 'Přidat odkaz';
+  @override
+  String get pasteImage => 'Vložit obrázek ze schránky';
+  @override
+  String get noImageInClipboard => 'Ve schránce není žádný obrázek.';
+  @override
+  String get linkHint => 'https://…';
+  @override
+  String get linkInvalid =>
+      'Zadej celou adresu začínající http:// nebo https://';
+  @override
+  String get add => 'Přidat';
+  @override
+  String get removeAttachment => 'Odebrat přílohu';
+  @override
+  String uploadFailed(Object error) => 'Nahrání selhalo: $error';
+  @override
+  String get uploadNoPath => 'Server nevrátil cestu k nahranému souboru.';
+  @override
+  String attachmentTooLarge(int mb) => 'Soubor je větší než $mb MB.';
+  @override
+  String pickFailed(Object error) => 'Výběr se nepodařilo otevřít: $error';
+  @override
+  String get waitForUploads => 'Počkej, až se přílohy nahrají';
+  @override
+  String get linkOpenFailed => 'Odkaz se nepodařilo otevřít.';
+  @override
+  String get shareTitle => 'Poslat Hobíkovi';
+  @override
+  String shareSummary(int count) => switch (count) {
+    1 => '1 položka se vloží do konverzace. Odeslání je na tobě.',
+    2 || 3 || 4 => '$count položky se vloží do konverzace. Odeslání je na tobě.',
+    _ => '$count položek se vloží do konverzace. Odeslání je na tobě.',
+  };
+  @override
+  String get shareNoHobs => 'Zatím tu nejsou žádní Hobíci.';
   @override
   String get modelTooltip => 'Model Hobíka (mění se v profilu)';
   @override

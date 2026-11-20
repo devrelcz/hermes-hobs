@@ -29,6 +29,23 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>AppGroupId</key>
+	<string>$(CUSTOM_GROUP_ID)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ShareMedia-$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Hobs uses the camera to take a photo you send to a Hob.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Hobs opens your photo library so you can send photos to a Hob.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Face ID unlocks Hermes Hobs and signs you in without typing your password.</string>
 	<key>LSRequiresIPhoneOS</key>

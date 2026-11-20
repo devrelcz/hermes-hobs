@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,10 +7,12 @@ import '../api/hermes_rpc.dart';
 import '../api/models.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
+import '../state/share_inbox.dart';
 import 'hob_avatar.dart';
 import 'chat_screen.dart';
 import 'format.dart';
 import 'settings_screen.dart';
+import 'share_target_sheet.dart';
 import 'theme.dart';
 
 /// Hob roster grouped into the user's folders. On wide screens the chat
@@ -22,8 +26,46 @@ class HobsScreen extends StatefulWidget {
 
 class _HobsScreenState extends State<HobsScreen> {
   String? _selected;
+  bool _wide = false;
+
+  /// The share last offered, so one share opens the picker once.
+  List<SharedItem>? _offeredShare;
 
   static const _splitBreakpoint = 840.0;
+
+  /// A share from another app: once the Hob list is visible (signed in,
+  /// unlocked), ask which Hob gets it and open that chat with it in the
+  /// composer.
+  void _maybeOfferShare(AppState app) {
+    ShareInbox? inbox;
+    try {
+      inbox = context.watch<ShareInbox>();
+    } on ProviderNotFoundException {
+      return;
+    }
+    final items = inbox.pending;
+    if (items == null || app.locked || identical(items, _offeredShare)) {
+      return;
+    }
+    _offeredShare = items;
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _offerShare(inbox!, items),
+    );
+  }
+
+  Future<void> _offerShare(ShareInbox inbox, List<SharedItem> items) async {
+    if (!mounted) return;
+    final app = context.read<AppState>();
+    Navigator.of(context).popUntil((r) => r.isFirst);
+    final hob = await showShareTargetSheet(context, items);
+    if (!mounted) return;
+    if (hob == null) {
+      inbox.dismiss();
+      return;
+    }
+    await inbox.deliverTo(app.draftFor(hob));
+    if (mounted) unawaited(_open(hob, _wide));
+  }
 
   Future<void> _open(Hob hob, bool wide) async {
     final app = context.read<AppState>();
@@ -43,9 +85,10 @@ class _HobsScreenState extends State<HobsScreen> {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
+    _maybeOfferShare(app);
     return LayoutBuilder(
       builder: (context, c) {
-        final wide = c.maxWidth >= _splitBreakpoint;
+        final wide = _wide = c.maxWidth >= _splitBreakpoint;
         Hob? selected;
         for (final b in app.hobs) {
           if (b.name == _selected) selected = b;

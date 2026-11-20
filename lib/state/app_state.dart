@@ -12,6 +12,7 @@ import '../api/models.dart';
 import '../l10n/strings.dart';
 import 'biometrics.dart';
 import 'chat_controller.dart';
+import 'composer_draft.dart';
 import 'credentials_store.dart';
 
 enum AuthPhase { loading, signedOut, signedIn }
@@ -90,6 +91,7 @@ class AppState extends ChangeNotifier {
   bool loadingHobs = false;
   String? hobsError;
   final Map<String, ChatController> _chats = {};
+  final Map<String, ComposerDraft> _drafts = {};
 
   // Local, per-device bookkeeping (like the dashboard's own storage).
   Map<String, int> _seen = {}; // hob name -> last seen activity (ms)
@@ -105,6 +107,9 @@ class AppState extends ChangeNotifier {
   static const _rosterEvery = Duration(seconds: 20);
 
   HermesRpc? get rpc => _rpc;
+
+  /// Cookie-authenticated REST client (uploads, image thumbnails).
+  HermesHttp? get http => _http;
   ConnectionStatus get connection =>
       _rpc?.status ?? ConnectionStatus.disconnected;
 
@@ -273,6 +278,10 @@ class AppState extends ChangeNotifier {
       c.dispose();
     }
     _chats.clear();
+    for (final d in _drafts.values) {
+      d.dispose();
+    }
+    _drafts.clear();
     await _statusSub?.cancel();
     _statusSub = null;
     await _rpc?.dispose();
@@ -688,6 +697,14 @@ class AppState extends ChangeNotifier {
     _chats[hob.name] = c;
     unawaited(c.start());
     return c;
+  }
+
+  /// The composer attachments (and shared text) waiting for [hob]'s chat.
+  ComposerDraft draftFor(Hob hob) {
+    final http = _http;
+    final uploader = http == null ? null : AttachmentUploader(http, hob.name);
+    return (_drafts[hob.name] ??= ComposerDraft(uploader))
+      ..uploader = uploader;
   }
 
   void setOpenHob(String? name) {

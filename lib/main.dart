@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'l10n/strings.dart';
 import 'state/app_state.dart';
+import 'state/share_inbox.dart';
 import 'ui/hobs_screen.dart';
 import 'ui/lock_screen.dart';
 import 'ui/login_screen.dart';
@@ -17,8 +18,12 @@ void main() {
     Strings.resolve(binding.platformDispatcher.locales),
   );
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AppState()..init(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AppState()..init()),
+        // Shares from other apps wait here for the Hob list (see HobsScreen).
+        ChangeNotifierProvider(create: (_) => ShareInbox()..start()),
+      ],
       child: const HobsApp(),
     ),
   );

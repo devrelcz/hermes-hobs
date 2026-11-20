@@ -8,6 +8,8 @@ import '../api/models.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/chat_controller.dart';
+import '../state/composer_draft.dart';
+import 'attachments_ui.dart';
 import 'hob_avatar.dart';
 import 'hob_detail_screen.dart';
 import 'cron_sheet.dart';
@@ -25,10 +27,14 @@ class ChatScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.read<AppState>().chatFor(hob);
+    final app = context.read<AppState>();
+    final controller = app.chatFor(hob);
     return ChangeNotifierProvider.value(
       value: controller,
-      child: ChatView(embedded: embedded),
+      child: ChangeNotifierProvider.value(
+        value: app.draftFor(hob),
+        child: ChatView(embedded: embedded),
+      ),
     );
   }
 }
@@ -86,10 +92,12 @@ class _ChatViewState extends State<ChatView> {
   }
 
   void _send(ChatController c) {
+    final draft = context.read<ComposerDraft>();
     final text = _input.text;
-    if (text.trim().isEmpty || c.busy || !c.ready) return;
+    if (c.busy || !c.ready || !draft.ready) return;
+    if (text.trim().isEmpty && draft.isEmpty) return;
     _input.clear();
-    c.send(text);
+    c.send(text, attachments: draft.take());
     _focus.requestFocus();
     if (_scroll.hasClients) _jumpToBottom();
   }
@@ -97,10 +105,25 @@ class _ChatViewState extends State<ChatView> {
   @override
   Widget build(BuildContext context) {
     final c = context.watch<ChatController>();
+    final draft = context.watch<ComposerDraft>();
+    if (draft.prefill != null) {
+      // Text shared from another app: into the field, never sent by itself.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final shared = draft.takePrefill();
+        if (shared == null || !mounted) return;
+        final current = _input.text.trim();
+        _input.text = current.isEmpty ? shared : '$current\n\n$shared';
+      });
+    }
     final theme = Theme.of(context);
     final s = Strings.of(context);
     final working = c.busy || c.hob.workingNow;
-    final prompt = c.lastPrompt;
+    var prompt = c.lastPrompt;
+    if (prompt != null && prompt.isEmpty) {
+      // An attachment-only message: pin its file names instead.
+      final last = c.messages.lastWhere((m) => m.role == ChatRole.user);
+      prompt = last.attachments.map((a) => a.name).join(', ');
+    }
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: !widget.embedded,
@@ -219,6 +242,7 @@ class _ChatViewState extends State<ChatView> {
             controller: _input,
             focusNode: _focus,
             chat: c,
+            draft: draft,
             onSend: () => _send(c),
           ),
         ],
@@ -377,11 +401,27 @@ class _MessageRow extends StatelessWidget {
               color: cs.primaryContainer,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Text(
-              message.text,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: cs.onPrimaryContainer,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (message.attachments.isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.only(
+                      bottom: message.text.isEmpty ? 0 : 8,
+                    ),
+                    child: MessageAttachments(
+                      attachments: message.attachments,
+                      profile: controller.hob.name,
+                    ),
+                  ),
+                if (message.text.isNotEmpty)
+                  Text(
+                    message.text,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: cs.onPrimaryContainer,
+                    ),
+                  ),
+              ],
             ),
           ),
         );
@@ -669,12 +709,14 @@ class _Composer extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.chat,
+    required this.draft,
     required this.onSend,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final ChatController chat;
+  final ComposerDraft draft;
   final VoidCallback onSend;
 
   static const _effortLabels = {
@@ -707,8 +749,9 @@ class _Composer extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            DraftStrip(draft: draft),
             Container(
-              padding: const EdgeInsets.fromLTRB(14, 2, 4, 2),
+              padding: const EdgeInsets.fromLTRB(0, 2, 4, 2),
               decoration: BoxDecoration(
                 color: cs.surfaceContainerLowest,
                 border: Border.all(color: cs.outline.withValues(alpha: 0.5)),
@@ -717,6 +760,10 @@ class _Composer extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: AttachButton(draft: draft, enabled: canType),
+                  ),
                   Expanded(
                     child: CallbackShortcuts(
                       bindings: {
@@ -730,6 +777,22 @@ class _Composer extends StatelessWidget {
                         minLines: 1,
                         maxLines: 6,
                         textInputAction: TextInputAction.newline,
+                        // Android keyboards insert clipboard images and GIFs.
+                        contentInsertionConfiguration:
+                            ContentInsertionConfiguration(
+                              onContentInserted: (content) {
+                                final data = content.data;
+                                if (data == null || data.isEmpty) return;
+                                draft.addImage(
+                                  data,
+                                  Uri.tryParse(content.uri)
+                                          ?.pathSegments
+                                          .lastOrNull ??
+                                      'pasted-image',
+                                  mime: content.mimeType,
+                                );
+                              },
+                            ),
                         decoration: InputDecoration(
                           hintText: chat.ready ? s.messageHint : s.connecting,
                           filled: false,
@@ -754,8 +817,10 @@ class _Composer extends StatelessWidget {
                             icon: const Icon(Icons.stop, size: 20),
                           )
                         : IconButton.filled(
-                            tooltip: s.send,
-                            onPressed: chat.ready ? onSend : null,
+                            tooltip: draft.ready ? s.send : s.waitForUploads,
+                            onPressed: chat.ready && draft.ready
+                                ? onSend
+                                : null,
                             icon: const Icon(Icons.arrow_upward, size: 20),
                           ),
                   ),

@@ -151,6 +151,28 @@ abstract class Strings {
   String get messageHint;
   String get stop;
   String get send;
+
+  // Attachments and sharing
+  String get addAttachment;
+  String get takePhoto;
+  String get choosePhotos;
+  String get chooseFiles;
+  String get addLink;
+  String get pasteImage;
+  String get noImageInClipboard;
+  String get linkHint;
+  String get linkInvalid;
+  String get add;
+  String get removeAttachment;
+  String uploadFailed(Object error);
+  String get uploadNoPath;
+  String attachmentTooLarge(int mb);
+  String pickFailed(Object error);
+  String get waitForUploads;
+  String get linkOpenFailed;
+  String get shareTitle;
+  String shareSummary(int count);
+  String get shareNoHobs;
   String get modelTooltip;
   String get reasoningLevel;
   String get reasoning;

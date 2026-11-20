@@ -22,6 +22,7 @@ class FakeHermesServer {
   final Map<String, String> _subscriptions = {};
   static const _sessionVerbs = {
     'prompt.submit',
+    'file.attach',
     'session.interrupt',
     'session.mutate',
     'approval.respond',
@@ -65,6 +66,15 @@ class FakeHermesServer {
       'submission_id',
       'input_id',
       'queued',
+      'attachments',
+    },
+    'file.attach': {
+      'session_id',
+      'profile',
+      'path',
+      'data_url',
+      'name',
+      'staged_upload',
     },
     'session.interrupt': {'profile', 'session_id', 'execution_generation'},
     'approval.respond': {
@@ -157,6 +167,18 @@ class FakeHermesServer {
     {'role': 'system', 'text': 'scaffolding'},
   ];
 
+  /// Images stored by `POST /api/chat/image-upload`: host path -> bytes.
+  final Map<String, List<int>> images = {};
+
+  /// Every upload request: `{route, profile, name, bytes}`.
+  final List<Map<String, dynamic>> uploads = [];
+
+  /// When set, uploads wait for it before answering (cancel tests).
+  Completer<void>? holdUploads;
+
+  /// `GET /api/fs/download` requests (paths).
+  final List<String> downloads = [];
+
   /// When true, the next prompt triggers an approval request before replying.
   bool askApproval = false;
   final Completer<Map<String, dynamic>> approvalAnswer = Completer();
@@ -222,6 +244,72 @@ class FakeHermesServer {
     }
     if (!_authed(r)) {
       return _json(r, 401, {'error': 'unauthenticated', 'reason': 'no_cookie'});
+    }
+    final profile = r.uri.queryParameters['profile'] ?? 'default';
+    final home = '/srv/hermes/profiles/$profile';
+    if (path == '/api/chat/image-upload' && r.method == 'POST') {
+      final body = jsonDecode(await utf8.decodeStream(r)) as Map;
+      await holdUploads?.future;
+      final dataUrl = body['data_url'] as String;
+      final comma = dataUrl.indexOf(',');
+      final mime = dataUrl.substring(5, dataUrl.indexOf(';'));
+      final bytes = base64Decode(dataUrl.substring(comma + 1));
+      final name = body['filename'] as String;
+      final stored = '$home/cache/images/dashboard_1_$name';
+      images[stored] = bytes;
+      uploads.add({
+        'route': 'image',
+        'profile': profile,
+        'name': name,
+        'bytes': bytes,
+      });
+      return _json(r, 200, {
+        'ok': true,
+        'path': stored,
+        'name': 'dashboard_1_$name',
+        'bytes': bytes.length,
+        'mime_type': mime,
+      });
+    }
+    if (path == '/api/chat/file-upload' && r.method == 'POST') {
+      final raw = await r.fold<List<int>>([], (a, b) => a..addAll(b));
+      await holdUploads?.future;
+      final text = latin1.decode(raw);
+      final name = utf8.decode(
+        latin1.encode(
+          RegExp(r'filename="([^"]*)"').firstMatch(text)!.group(1)!,
+        ),
+      );
+      final start = text.indexOf('\r\n\r\n') + 4;
+      final end = text.lastIndexOf('\r\n--');
+      final bytes = raw.sublist(start, end);
+      final stored = '$home/uploads/u1_$name';
+      uploads.add({
+        'route': 'file',
+        'profile': profile,
+        'name': name,
+        'bytes': bytes,
+        'contentType': r.headers.contentType?.mimeType,
+      });
+      return _json(r, 200, {
+        'ok': true,
+        'path': stored,
+        'size': bytes.length,
+        'staged_upload': {
+          'install_id': 'i1',
+          'path': stored,
+          'profile_home': home,
+        },
+      });
+    }
+    if (path == '/api/fs/download' && r.method == 'GET') {
+      final p = r.uri.queryParameters['path'] ?? '';
+      downloads.add(p);
+      final bytes = images[p];
+      if (bytes == null) return _json(r, 404, {'detail': 'not found'});
+      r.response.headers.contentType = ContentType('image', 'png');
+      r.response.add(bytes);
+      return r.response.close();
     }
     switch (path) {
       case '/api/auth/me':
@@ -536,6 +624,28 @@ class FakeHermesServer {
               ],
             },
           });
+        case 'file.attach':
+          final staged = params['staged_upload'] as Map?;
+          final name = params['name'] as String;
+          final stored = '/srv/work/attachments/$name';
+          send({
+            'id': id,
+            'result': staged == null
+                ? {'attached': false, 'message': 'no upload'}
+                : {
+                    'attached': true,
+                    'name': name,
+                    'path': stored,
+                    'ref_path': 'attachments/$name',
+                    'ref_text': '@file:${formatRef('attachments/$name')}',
+                    'uploaded': true,
+                  },
+          });
+        case 'image.attach':
+          send({
+            'id': id,
+            'result': {'attached': true, 'path': params['path'], 'count': 1},
+          });
         case 'session.close':
           send({
             'id': id,
@@ -605,3 +715,7 @@ class FakeHermesServer {
     });
   }
 }
+
+/// The server's reference quoting (`format_reference_value`).
+String formatRef(String v) =>
+    RegExp(r'''[\s()\[\]{}<>"'`]''').hasMatch(v) ? '`$v`' : v;
