@@ -22,6 +22,7 @@ class CredentialsStore {
   static const _kCookies = 'session_cookies';
   static const _kPassword = 'password';
   static const _kAutoLogin = 'auto_login';
+  static const _kBiometricLock = 'biometric_lock';
   static const defaultServer = 'https://hermes.devrel.cz';
 
   final FlutterSecureStorage _secure;
@@ -68,6 +69,18 @@ class CredentialsStore {
   Future<void> setAutoLogin(bool value) async {
     final p = await SharedPreferences.getInstance();
     await p.setBool(_kAutoLogin, value);
+  }
+
+  /// Whether the app asks for Face ID / Touch ID / fingerprint before it
+  /// shows anything, and offers it instead of typing the password.
+  Future<bool> biometricLock() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getBool(_kBiometricLock) ?? false;
+  }
+
+  Future<void> setBiometricLock(bool value) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(_kBiometricLock, value);
   }
 
   Future<Map<String, String>> cookies() async {

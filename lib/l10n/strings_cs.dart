@@ -1,3 +1,4 @@
+import '../state/biometrics.dart';
 import 'strings.dart';
 
 /// Czech language pack. Informal voice: the app is on first-name terms.
@@ -326,7 +327,49 @@ class StringsCs extends Strings {
   @override
   String get jobFallback => 'Úloha';
 
+  // --- biometric lock ------------------------------------------------------
+  @override
+  String unlockWith(BiometricKind kind) => switch (kind) {
+    BiometricKind.faceId => 'Odemknout přes Face ID',
+    BiometricKind.touchId => 'Odemknout přes Touch ID',
+    BiometricKind.fingerprint => 'Odemknout otiskem prstu',
+    BiometricKind.face => 'Odemknout obličejem',
+    BiometricKind.generic => 'Odemknout biometrií',
+  };
+  @override
+  String signInWith(BiometricKind kind) => switch (kind) {
+    BiometricKind.faceId => 'Přihlásit přes Face ID',
+    BiometricKind.touchId => 'Přihlásit přes Touch ID',
+    BiometricKind.fingerprint => 'Přihlásit otiskem prstu',
+    BiometricKind.face => 'Přihlásit obličejem',
+    BiometricKind.generic => 'Přihlásit biometrií',
+  };
+  @override
+  String biometricSetting(BiometricKind kind) => switch (kind) {
+    BiometricKind.faceId => 'Odemykat přes Face ID',
+    BiometricKind.touchId => 'Odemykat přes Touch ID',
+    BiometricKind.fingerprint => 'Odemykat otiskem prstu',
+    BiometricKind.face => 'Odemykat obličejem',
+    BiometricKind.generic => 'Odemykat biometrií',
+  };
+  @override
+  String get biometricSettingHint =>
+      'Při spuštění a po minutě mimo aplikaci. Přihlášení bez psaní hesla.';
+  @override
+  String get biometricReason => 'Ověř, že jsi to ty';
+  @override
+  String get locked => 'Zamčeno';
+  @override
+  String get signInWithPassword => 'Přihlásit se heslem';
+  @override
+  String get biometricFailed => 'Ověření se nepovedlo, zkus to znovu.';
+  @override
+  String get biometricUnavailable =>
+      'Biometrie teď není k dispozici. Přihlas se heslem.';
+
   // --- settings ------------------------------------------------------------
+  @override
+  String get security => 'Zabezpečení';
   @override
   String get language => 'Jazyk';
   @override

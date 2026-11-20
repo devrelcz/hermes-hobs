@@ -42,6 +42,7 @@ dependencies:
   flutter_markdown_plus: ^1.0.12
   provider: ^6.1.5+1
   blobatar_flutter: ^0.1.0
+  local_auth: ^3.0.2
 
 dev_dependencies:
   flutter_test:

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
+import '../state/biometrics.dart';
+import 'lock_screen.dart';
 import 'splash_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -27,7 +29,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final app = context.read<AppState>();
     _server.text = app.serverUrl;
     _user.text = app.username;
-    _pass.text = app.savedPassword ?? '';
+    // With the biometric lock on, the remembered password is reached only
+    // through the biometric, never by just pressing Sign in.
+    if (!app.biometricLock) _pass.text = app.savedPassword ?? '';
     _error = app.authError;
   }
 
@@ -59,10 +63,28 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _biometricSignIn() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await context.read<AppState>().biometricSignIn();
+    } on BiometricException catch (e) {
+      if (mounted) setState(() => _error = describeBiometricFailure(e));
+    } catch (e) {
+      if (mounted) setState(() => _error = AppState.describeError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final s = Strings.of(context);
+    final app = context.watch<AppState>();
+    final biometric = app.canBiometricSignIn ? app.biometricKind : null;
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -168,6 +190,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             )
                           : Text(s.signIn),
                     ),
+                    if (biometric != null) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _busy ? null : _biometricSignIn,
+                        icon: Icon(biometricIcon(biometric)),
+                        label: Text(s.signInWith(biometric)),
+                      ),
+                    ],
                   ],
                 ),
               ),

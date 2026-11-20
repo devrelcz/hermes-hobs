@@ -12,6 +12,24 @@ flutter run -d macos   # or an iOS simulator / Android device
 
 Sign in with the dashboard's username and password (provider `basic`).
 
+### Face ID, Touch ID, fingerprint
+
+Settings → Security → *Unlock with Face ID* (or Touch ID / fingerprint; the
+switch only shows when the device has one enrolled). Turning it on asks for the
+biometric once. Then:
+
+- The app opens behind a lock screen at startup and after a minute in the
+  background (`AppState.relockAfter`). The lock covers every open route, so the
+  chat you were in is still there after unlocking. The device passcode works as
+  a fallback, like on the system lock screen.
+- After signing out, the login form no longer prefills the remembered password;
+  *Sign in with Face ID* verifies you and signs in with it instead.
+- *Sign in with password* on the lock screen signs out, for when the biometric
+  is unavailable.
+
+This is an app-level gate (`local_auth`). The password itself stays in the
+keychain/keystore as before; it is not bound to the biometric.
+
 ## How it talks to Hermes
 
 | Step | Call |
@@ -36,7 +54,8 @@ state, collapsed folders and folder order are stored locally on the device.
 - `lib/api/hermes_http.dart`: cookie-aware REST client (dart:io)
 - `lib/api/hermes_rpc.dart`: `/api/ws` JSON-RPC client (ticket, heartbeat, reconnect, server requests)
 - `lib/state/chat_controller.dart`: one conversation, event → message model
-- `lib/state/app_state.dart`: login, Hob list, chats per Hob
+- `lib/state/app_state.dart`: login, biometric lock, Hob list, chats per Hob
+- `lib/state/biometrics.dart`: `local_auth` wrapper (which biometric, prompt)
 - `lib/ui/`: login, Hob list (split view on wide screens), chat
 - `test/`: fake Hermes server covering the whole flow
 

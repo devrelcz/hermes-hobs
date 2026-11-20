@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/strings.dart';
 import 'state/app_state.dart';
 import 'ui/hobs_screen.dart';
+import 'ui/lock_screen.dart';
 import 'ui/login_screen.dart';
 import 'ui/splash_screen.dart';
 import 'ui/theme.dart';
@@ -45,15 +46,18 @@ class _HobsAppState extends State<HobsApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      context.read<AppState>().onAppResumed();
-    }
+    final app = context.read<AppState>();
+    if (state == AppLifecycleState.hidden) app.onAppHidden();
+    if (state == AppLifecycleState.resumed) app.onAppResumed();
   }
 
   @override
   Widget build(BuildContext context) {
     final phase = context.select<AppState, AuthPhase>((s) => s.phase);
     final language = context.select<AppState, String?>((s) => s.languageCode);
+    final locked = context.select<AppState, bool>(
+      (s) => s.locked && s.phase == AuthPhase.signedIn,
+    );
     return MaterialApp(
       title: 'Hermes Hobs',
       debugShowCheckedModeBanner: false,
@@ -67,6 +71,21 @@ class _HobsAppState extends State<HobsApp> with WidgetsBindingObserver {
       localeListResolutionCallback: (locales, _) => Strings.resolve(locales),
       theme: HobsTheme.lightTheme(),
       darkTheme: HobsTheme.darkTheme(),
+      // The lock sits above the navigator, so it also covers pushed routes
+      // (an open chat, settings) and they are still there after unlocking.
+      builder: (context, child) => Stack(
+        fit: StackFit.expand,
+        children: [
+          ExcludeFocus(
+            excluding: locked,
+            child: ExcludeSemantics(
+              excluding: locked,
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
+          if (locked) const LockScreen(),
+        ],
+      ),
       home: switch (phase) {
         AuthPhase.loading => const SplashScreen(),
         AuthPhase.signedOut => const LoginScreen(),

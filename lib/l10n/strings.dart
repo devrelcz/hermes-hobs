@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../state/biometrics.dart';
+
 import 'strings_cs.dart';
 import 'strings_en.dart';
 
@@ -194,7 +196,26 @@ abstract class Strings {
   String get failedTag;
   String get jobFallback;
 
+  // --- biometric lock ------------------------------------------------------
+  /// Lock screen button, e.g. "Unlock with Face ID".
+  String unlockWith(BiometricKind kind);
+
+  /// Login screen button, e.g. "Sign in with Face ID".
+  String signInWith(BiometricKind kind);
+
+  /// Settings switch, e.g. "Unlock with Face ID".
+  String biometricSetting(BiometricKind kind);
+  String get biometricSettingHint;
+
+  /// Shown by the system prompt itself.
+  String get biometricReason;
+  String get locked;
+  String get signInWithPassword;
+  String get biometricFailed;
+  String get biometricUnavailable;
+
   // --- settings ------------------------------------------------------------
+  String get security;
   String get language;
   String get languageSystem;
   String languageSystemNow(String name);

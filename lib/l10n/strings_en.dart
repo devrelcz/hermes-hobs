@@ -1,3 +1,4 @@
+import '../state/biometrics.dart';
 import 'strings.dart';
 
 /// English language pack. Same voice as the Czech one: short, plain, casual.
@@ -325,7 +326,40 @@ class StringsEn extends Strings {
   @override
   String get jobFallback => 'Job';
 
+  // --- biometric lock ------------------------------------------------------
+  @override
+  String unlockWith(BiometricKind kind) => 'Unlock with ${_name(kind)}';
+  @override
+  String signInWith(BiometricKind kind) => 'Sign in with ${_name(kind)}';
+  @override
+  String biometricSetting(BiometricKind kind) => 'Unlock with ${_name(kind)}';
+
+  static String _name(BiometricKind kind) => switch (kind) {
+    BiometricKind.faceId => 'Face ID',
+    BiometricKind.touchId => 'Touch ID',
+    BiometricKind.fingerprint => 'fingerprint',
+    BiometricKind.face => 'face',
+    BiometricKind.generic => 'biometrics',
+  };
+  @override
+  String get biometricSettingHint =>
+      'When the app starts and after a minute away. Sign in without typing '
+      'the password.';
+  @override
+  String get biometricReason => "Confirm it's you";
+  @override
+  String get locked => 'Locked';
+  @override
+  String get signInWithPassword => 'Sign in with password';
+  @override
+  String get biometricFailed => "Couldn't verify you. Try again.";
+  @override
+  String get biometricUnavailable =>
+      "Biometrics aren't available right now. Sign in with your password.";
+
   // --- settings ------------------------------------------------------------
+  @override
+  String get security => 'Security';
   @override
   String get language => 'Language';
   @override

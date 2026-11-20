@@ -3,16 +3,17 @@ import 'package:provider/provider.dart';
 
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
+import '../state/biometrics.dart';
+import 'lock_screen.dart';
 
-/// App settings. For now just the language: follow the device, or pin one of
-/// the language packs.
+/// App settings: the biometric lock (when the device has one) and the
+/// language (follow the device, or pin one of the language packs).
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
-    final theme = Theme.of(context);
     final s = Strings.of(context);
     final device = Strings.forLocale(
       Strings.resolve(View.of(context).platformDispatcher.locales),
@@ -21,17 +22,13 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: Text(s.settings)),
       body: ListView(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text(
-              s.language.toUpperCase(),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                letterSpacing: 0.8,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+          // Shown while it is on even without a biometric, so it can be
+          // turned off after the face or finger was removed.
+          if (app.biometricKind != null || app.biometricLock) ...[
+            _Header(s.security),
+            const _BiometricTile(),
+          ],
+          _Header(s.language),
           _LanguageTile(
             title: s.languageSystem,
             subtitle: s.languageSystemNow(device.languageName),
@@ -48,6 +45,72 @@ class SettingsScreen extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Text(
+        title.toUpperCase(),
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+          letterSpacing: 0.8,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _BiometricTile extends StatefulWidget {
+  const _BiometricTile();
+
+  @override
+  State<_BiometricTile> createState() => _BiometricTileState();
+}
+
+class _BiometricTileState extends State<_BiometricTile> {
+  bool _busy = false;
+
+  Future<void> _toggle(bool value) async {
+    final app = context.read<AppState>();
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      await app.setBiometricLock(value);
+    } on BiometricException catch (e) {
+      final message = describeBiometricFailure(e);
+      if (message != null) {
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppState>();
+    final s = Strings.of(context);
+    final kind = app.biometricKind;
+    return SwitchListTile(
+      secondary: Icon(biometricIcon(kind)),
+      title: Text(s.biometricSetting(kind ?? BiometricKind.generic)),
+      subtitle: Text(s.biometricSettingHint),
+      value: app.biometricLock,
+      // Turning it on needs a working biometric; turning it off never does.
+      onChanged: _busy || (kind == null && !app.biometricLock)
+          ? null
+          : _toggle,
     );
   }
 }

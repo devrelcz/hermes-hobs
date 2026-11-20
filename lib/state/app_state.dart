@@ -10,6 +10,7 @@ import '../api/hermes_http.dart';
 import '../api/hermes_rpc.dart';
 import '../api/models.dart';
 import '../l10n/strings.dart';
+import 'biometrics.dart';
 import 'chat_controller.dart';
 import 'credentials_store.dart';
 
@@ -33,9 +34,30 @@ class HobSection {
 /// summaries), local unread/collapse bookkeeping, and one live
 /// [ChatController] per hob that survives navigating away from the chat.
 class AppState extends ChangeNotifier {
-  AppState({CredentialsStore? store}) : _store = store ?? CredentialsStore();
+  AppState({CredentialsStore? store, Biometrics? biometrics})
+    : _store = store ?? CredentialsStore(),
+      _biometrics = biometrics ?? Biometrics();
 
   final CredentialsStore _store;
+  final Biometrics _biometrics;
+
+  /// The biometric this device offers right now; null when there is none.
+  BiometricKind? biometricKind;
+
+  /// The user wants Face ID / Touch ID / fingerprint before the app opens.
+  bool biometricLock = false;
+
+  /// Signed in, but hidden behind the lock screen until the user verifies.
+  bool locked = false;
+
+  /// Coming back after at least this long in the background locks again.
+  Duration relockAfter = const Duration(minutes: 1);
+
+  DateTime? _hiddenAt;
+
+  /// The system prompt can push the app to the background (Android's PIN
+  /// screen), which must not count as leaving the app.
+  bool _authenticating = false;
 
   AuthPhase phase = AuthPhase.loading;
   String serverUrl = CredentialsStore.defaultServer;
@@ -88,6 +110,9 @@ class AppState extends ChangeNotifier {
 
   Future<void> init() async {
     await _loadLanguage();
+    biometricLock = await _store.biometricLock();
+    biometricKind = await _biometrics.available();
+    locked = biometricLock;
     serverUrl = await _store.serverUrl();
     username = await _store.username();
     _password = await _store.password();
@@ -173,6 +198,7 @@ class AppState extends ChangeNotifier {
     bool rememberPassword = true,
   }) async {
     await _passwordLogin(serverUrl, username, password);
+    locked = false;
     this.serverUrl = serverUrl;
     this.username = username;
     _password = rememberPassword ? password : null;
@@ -222,6 +248,7 @@ class AppState extends ChangeNotifier {
     // Keep the password for the login form, but do not sign back in on our own.
     await _store.setAutoLogin(false);
     authError = null;
+    locked = false;
     phase = AuthPhase.signedOut;
     notifyListeners();
   }
@@ -698,8 +725,93 @@ class AppState extends ChangeNotifier {
   }
 
   void onAppResumed() {
+    final hiddenAt = _hiddenAt;
+    _hiddenAt = null;
+    if (biometricLock &&
+        phase == AuthPhase.signedIn &&
+        hiddenAt != null &&
+        DateTime.now().difference(hiddenAt) >= relockAfter) {
+      locked = true;
+      notifyListeners();
+    }
+    unawaited(_refreshBiometricKind());
     _rpc?.reconnectNow();
     if (phase == AuthPhase.signedIn) unawaited(refreshHobs(silent: true));
+  }
+
+  /// The app left the screen (backgrounded, minimized).
+  void onAppHidden() {
+    if (_authenticating) return;
+    _hiddenAt ??= DateTime.now();
+  }
+
+  // --- biometrics ----------------------------------------------------------
+
+  /// The user may have enrolled or removed a face/finger in the meantime.
+  Future<void> _refreshBiometricKind() async {
+    final kind = await _biometrics.available();
+    if (kind == biometricKind) return;
+    biometricKind = kind;
+    notifyListeners();
+  }
+
+  /// Runs the system prompt; throws [BiometricException] when it does not
+  /// let the user in.
+  Future<void> _verify() async {
+    _authenticating = true;
+    try {
+      await _biometrics.authenticate(Strings.current.biometricReason);
+    } finally {
+      _authenticating = false;
+    }
+  }
+
+  /// Lifts the lock screen once the user is verified.
+  Future<void> unlock() async {
+    await _verify();
+    locked = false;
+    _hiddenAt = null;
+    notifyListeners();
+  }
+
+  /// Turning the lock on asks for the biometric first, so nobody enables
+  /// something their device then refuses.
+  Future<void> setBiometricLock(bool value) async {
+    if (value == biometricLock) return;
+    if (value) await _verify();
+    biometricLock = value;
+    await _store.setBiometricLock(value);
+    notifyListeners();
+  }
+
+  /// The login screen can sign in with a biometric instead of the password:
+  /// the lock is on and the password is remembered.
+  bool get canBiometricSignIn =>
+      biometricLock &&
+      biometricKind != null &&
+      _password != null &&
+      username.isNotEmpty;
+
+  /// Verifies the user, then signs in with the remembered password.
+  Future<void> biometricSignIn() async {
+    final password = _password;
+    if (password == null) return;
+    await _verify();
+    try {
+      await login(
+        serverUrl: serverUrl,
+        username: username,
+        password: password,
+      );
+    } catch (e) {
+      if (e is HermesHttpException && e.isUnauthorized) {
+        // The server no longer takes it; do not offer it again.
+        _password = null;
+        await _store.savePassword(null);
+        notifyListeners();
+      }
+      rethrow;
+    }
   }
 
   // --- language ------------------------------------------------------------
