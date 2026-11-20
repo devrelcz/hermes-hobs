@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../api/attachments.dart';
 import '../api/hermes_rpc.dart';
 import '../api/models.dart';
 import '../l10n/strings.dart';
@@ -310,9 +311,15 @@ class ChatController extends ChangeNotifier {
       final text = (r['text'] ?? r['content'])?.toString() ?? '';
       switch (role) {
         case 'user':
-          final typed = Mentions.stripNote(text);
-          if (typed.trim().isEmpty) continue;
-          out.add(ChatMessage(role: ChatRole.user, text: typed, time: time));
+          // Images are appended after the text, the mention note sits at
+          // its end: take the references out first.
+          final parsed = parseAttachmentRefs(text);
+          final typed = Mentions.stripNote(parsed.text);
+          if (typed.trim().isEmpty && parsed.attachments.isEmpty) continue;
+          out.add(
+            ChatMessage(role: ChatRole.user, text: typed, time: time)
+              ..attachments.addAll(parsed.attachments),
+          );
         case 'assistant':
           if (text.trim().isEmpty) continue;
           out.add(
@@ -340,15 +347,23 @@ class ChatController extends ChangeNotifier {
     return out;
   }
 
-  Future<void> send(String text) async {
+  /// Sends [text] with already uploaded [attachments] (see
+  /// `ComposerDraft`), the way the dashboard composer does.
+  Future<void> send(
+    String text, {
+    List<ChatAttachment> attachments = const [],
+  }) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty && attachments.isEmpty) return;
     if (_sessionId == null) {
       error = Strings.current.chatNotReady;
       _notify();
       return;
     }
-    messages.add(ChatMessage(role: ChatRole.user, text: trimmed));
+    messages.add(
+      ChatMessage(role: ChatRole.user, text: trimmed)
+        ..attachments.addAll(attachments),
+    );
     // Tagged Hobs get an identification note, like on the dashboard; the
     // transcript keeps the text as typed.
     final prompt = Mentions.annotate(
@@ -361,12 +376,12 @@ class ChatController extends ChangeNotifier {
     statusText = null;
     _notify();
     try {
-      await _submit(prompt);
+      await _submit(prompt, attachments);
     } on RpcException catch (e) {
       if (e.isSessionGone && _storedId != null) {
         await _reattach();
         try {
-          await _submit(prompt);
+          await _submit(prompt, attachments);
           return;
         } catch (e2) {
           _failTurn('$e2');
@@ -379,12 +394,22 @@ class ChatController extends ChangeNotifier {
     }
   }
 
-  Future<void> _submit(String text) async {
+  Future<void> _submit(String text, List<ChatAttachment> attachments) async {
+    final turn = attachments.isEmpty
+        ? PreparedTurn(text, const [])
+        : await prepareTurn(
+            rpc,
+            sessionId: _sessionId!,
+            text: text,
+            attachments: attachments,
+            scoped: _scoped,
+          );
     await rpc.requestWith(
       'prompt.submit',
       _scoped({
         'session_id': _sessionId,
-        'text': text,
+        'text': turn.text,
+        if (turn.images.isNotEmpty) 'attachments': turn.images,
         // The canonical owner admits identified input only.
         if (rpc.canonical) 'submission_id': uuidV4(),
       }),

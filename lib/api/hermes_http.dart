@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 /// Thrown for any non-2xx response from the Hermes dashboard.
 class HermesHttpException implements Exception {
@@ -14,6 +15,31 @@ class HermesHttpException implements Exception {
 
   @override
   String toString() => 'HTTP $statusCode: $message';
+}
+
+/// Thrown by [HermesHttp.upload] after [UploadCancel.cancel].
+class UploadCancelled implements Exception {
+  const UploadCancelled();
+
+  @override
+  String toString() => 'Upload cancelled';
+}
+
+/// Lets the caller abort a running [HermesHttp.upload].
+class UploadCancel {
+  bool _cancelled = false;
+  HttpClientRequest? _request;
+
+  bool get cancelled => _cancelled;
+
+  void cancel() {
+    if (_cancelled) return;
+    _cancelled = true;
+    _request?.abort(const UploadCancelled());
+  }
+
+  void _attach(HttpClientRequest r) => _request = r;
+  void _detach() => _request = null;
 }
 
 /// Minimal cookie-aware HTTP client for the Hermes dashboard.
@@ -85,6 +111,18 @@ class HermesHttp {
   }) async {
     final uri = resolve(path, query);
     final req = await _client.openUrl(method, uri);
+    _prepare(req);
+    if (body != null) {
+      final bytes = utf8.encode(jsonEncode(body));
+      req.headers.contentType = ContentType.json;
+      req.contentLength = bytes.length;
+      req.add(bytes);
+    }
+    final resp = await req.close().timeout(const Duration(seconds: 30));
+    return _decode(resp);
+  }
+
+  void _prepare(HttpClientRequest req) {
     req.followRedirects = false;
     req.headers.set(HttpHeaders.acceptHeader, 'application/json');
     // Same-origin markers: the dashboard's CSRF/origin guard accepts these.
@@ -93,13 +131,65 @@ class HermesHttp {
     if (cookies.isNotEmpty) {
       req.headers.set(HttpHeaders.cookieHeader, cookieHeader);
     }
-    if (body != null) {
-      final bytes = utf8.encode(jsonEncode(body));
-      req.headers.contentType = ContentType.json;
-      req.contentLength = bytes.length;
-      req.add(bytes);
+  }
+
+  /// Sends [body] in chunks, reporting the bytes written so far, and decodes
+  /// the JSON reply like [postJson]. [cancel] aborts the request mid-way;
+  /// the future then fails with [UploadCancelled].
+  Future<dynamic> upload(
+    String path, {
+    required List<int> body,
+    required String contentType,
+    Map<String, String>? query,
+    void Function(int sent, int total)? onProgress,
+    UploadCancel? cancel,
+  }) async {
+    if (cancel?.cancelled ?? false) throw const UploadCancelled();
+    final req = await _client.openUrl('POST', resolve(path, query));
+    _prepare(req);
+    req.headers.set(HttpHeaders.contentTypeHeader, contentType);
+    req.contentLength = body.length;
+    cancel?._attach(req);
+    try {
+      const chunk = 64 * 1024;
+      var sent = 0;
+      onProgress?.call(0, body.length);
+      while (sent < body.length) {
+        if (cancel?.cancelled ?? false) throw const UploadCancelled();
+        final end = (sent + chunk).clamp(0, body.length);
+        req.add(body.sublist(sent, end));
+        await req.flush();
+        sent = end;
+        onProgress?.call(sent, body.length);
+      }
+      final resp = await req.close().timeout(const Duration(minutes: 2));
+      return await _decode(resp);
+    } catch (e) {
+      if (cancel?.cancelled ?? false) throw const UploadCancelled();
+      rethrow;
+    } finally {
+      cancel?._detach();
     }
+  }
+
+  /// Raw bytes of a GET (an image the dashboard serves); throws on non-2xx.
+  Future<Uint8List> getBytes(String path, {Map<String, String>? query}) async {
+    final req = await _client.openUrl('GET', resolve(path, query));
+    _prepare(req);
+    req.headers.set(HttpHeaders.acceptHeader, '*/*');
     final resp = await req.close().timeout(const Duration(seconds: 30));
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      return await _decode(resp) as Uint8List; // throws
+    }
+    _absorbCookies(resp);
+    final b = BytesBuilder(copy: false);
+    await for (final c in resp) {
+      b.add(c);
+    }
+    return b.takeBytes();
+  }
+
+  Future<dynamic> _decode(HttpClientResponse resp) async {
     _absorbCookies(resp);
     final text = await resp.transform(utf8.decoder).join();
     Object? decoded;

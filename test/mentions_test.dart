@@ -9,6 +9,7 @@ import 'package:hobs/api/hermes_rpc.dart';
 import 'package:hobs/api/models.dart';
 import 'package:hobs/l10n/strings.dart';
 import 'package:hobs/state/chat_controller.dart';
+import 'package:hobs/state/composer_draft.dart';
 import 'package:hobs/state/mentions.dart';
 import 'package:hobs/ui/chat_screen.dart';
 import 'package:provider/provider.dart';
@@ -180,8 +181,11 @@ void main() {
         await chat.start();
       });
       await tester.pumpWidget(
-        ChangeNotifierProvider.value(
-          value: chat,
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider.value(value: chat),
+            ChangeNotifierProvider(create: (_) => ComposerDraft(null)),
+          ],
           child: const MaterialApp(
             localizationsDelegates: [
               Strings.delegate,

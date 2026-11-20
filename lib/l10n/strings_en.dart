@@ -217,6 +217,51 @@ class StringsEn extends Strings {
   String get stop => 'Stop';
   @override
   String get send => 'Send';
+
+  // Attachments and sharing
+  @override
+  String get addAttachment => 'Add attachment';
+  @override
+  String get takePhoto => 'Take photo';
+  @override
+  String get choosePhotos => 'Choose photos';
+  @override
+  String get chooseFiles => 'Choose files';
+  @override
+  String get addLink => 'Add link';
+  @override
+  String get pasteImage => 'Paste image';
+  @override
+  String get noImageInClipboard => 'There is no image in the clipboard.';
+  @override
+  String get linkHint => 'https://…';
+  @override
+  String get linkInvalid =>
+      'Enter a full address starting with http:// or https://';
+  @override
+  String get add => 'Add';
+  @override
+  String get removeAttachment => 'Remove attachment';
+  @override
+  String uploadFailed(Object error) => 'Upload failed: $error';
+  @override
+  String get uploadNoPath => 'The server did not return a path for the upload.';
+  @override
+  String attachmentTooLarge(int mb) => 'The file is larger than $mb MB.';
+  @override
+  String pickFailed(Object error) => 'Could not open the picker: $error';
+  @override
+  String get waitForUploads => 'Wait until the attachments are uploaded';
+  @override
+  String get linkOpenFailed => 'Could not open the link.';
+  @override
+  String get shareTitle => 'Send to a Hob';
+  @override
+  String shareSummary(int count) => count == 1
+      ? '1 item goes into the chat; you send it yourself.'
+      : '$count items go into the chat; you send them yourself.';
+  @override
+  String get shareNoHobs => 'There are no Hobs yet.';
   @override
   String get modelTooltip => 'Model for this chat';
   @override
