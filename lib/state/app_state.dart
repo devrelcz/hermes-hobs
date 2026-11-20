@@ -715,6 +715,7 @@ class AppState extends ChangeNotifier {
       rpc: _rpc!,
       hob: hob,
       findCanonical: _findCanonical,
+      roster: () => hobs,
       onTurnSettled: (b) {
         if (openHob == b.name) markSeen(b.name);
         unawaited(refreshHobs(silent: true));

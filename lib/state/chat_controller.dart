@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../api/hermes_rpc.dart';
 import '../api/models.dart';
 import '../l10n/strings.dart';
+import 'mentions.dart';
 
 enum ChatPhase { starting, idle, running, failed }
 
@@ -21,6 +22,7 @@ class ChatController extends ChangeNotifier {
     required Hob hob,
     this.findCanonical,
     this.onTurnSettled,
+    this.roster,
   }) {
     _hob = hob;
     _eventSub = rpc.events.listen(_onEvent);
@@ -37,6 +39,21 @@ class ChatController extends ChangeNotifier {
 
   /// Called after a turn ends (roster preview / unread bookkeeping).
   final void Function(Hob hob)? onTurnSettled;
+
+  /// The Hobs this one can @-mention (the visible roster).
+  final List<Hob> Function()? roster;
+
+  /// Hobs offered for an `@query` typed in this chat.
+  List<Hob> mentionCandidates(String query) =>
+      Mentions.candidates(query, roster?.call() ?? const [], _hob.name);
+
+  /// True when [tag] (`@name`) names another Hob of the roster.
+  bool mentionsHob(String tag) =>
+      Mentions.resolve(tag, roster?.call() ?? const [], _hob.name).isNotEmpty;
+
+  /// The tag picking [other] inserts, without the `@`.
+  String mentionTag(Hob other) =>
+      Mentions.tag(other, roster?.call() ?? const []);
 
   late final StreamSubscription<GatewayEvent> _eventSub;
   late final StreamSubscription<ServerRequest> _requestSub;
@@ -293,8 +310,9 @@ class ChatController extends ChangeNotifier {
       final text = (r['text'] ?? r['content'])?.toString() ?? '';
       switch (role) {
         case 'user':
-          if (text.trim().isEmpty) continue;
-          out.add(ChatMessage(role: ChatRole.user, text: text, time: time));
+          final typed = Mentions.stripNote(text);
+          if (typed.trim().isEmpty) continue;
+          out.add(ChatMessage(role: ChatRole.user, text: typed, time: time));
         case 'assistant':
           if (text.trim().isEmpty) continue;
           out.add(
@@ -331,17 +349,24 @@ class ChatController extends ChangeNotifier {
       return;
     }
     messages.add(ChatMessage(role: ChatRole.user, text: trimmed));
+    // Tagged Hobs get an identification note, like on the dashboard; the
+    // transcript keeps the text as typed.
+    final prompt = Mentions.annotate(
+      trimmed,
+      roster?.call() ?? const [],
+      _hob.name,
+    );
     phase = ChatPhase.running;
     error = null;
     statusText = null;
     _notify();
     try {
-      await _submit(trimmed);
+      await _submit(prompt);
     } on RpcException catch (e) {
       if (e.isSessionGone && _storedId != null) {
         await _reattach();
         try {
-          await _submit(trimmed);
+          await _submit(prompt);
           return;
         } catch (e2) {
           _failTurn('$e2');

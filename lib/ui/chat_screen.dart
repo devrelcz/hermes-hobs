@@ -8,6 +8,7 @@ import '../api/models.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/chat_controller.dart';
+import '../state/mentions.dart';
 import 'hob_avatar.dart';
 import 'model_picker.dart';
 import 'hob_detail_screen.dart';
@@ -51,10 +52,75 @@ class _ChatViewState extends State<ChatView> {
   int _countWhenLeft = 0;
   bool _promptExpanded = false;
 
+  /// The `@word` being typed and the Hobs it can become.
+  ({int start, String query})? _mention;
+  List<Hob> _mentionOptions = const [];
+  int _mentionIndex = 0;
+
+  /// `@` position the user dismissed with Escape; stays closed until they
+  /// start another mention.
+  int? _mentionDismissedAt;
+
   @override
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
+    _input.addListener(_onInputChanged);
+  }
+
+  void _onInputChanged() {
+    final sel = _input.selection;
+    final active = sel.isValid && sel.isCollapsed
+        ? Mentions.activeQuery(_input.text, sel.baseOffset)
+        : null;
+    if (active?.start != _mentionDismissedAt) _mentionDismissedAt = null;
+    final options = active == null || _mentionDismissedAt != null
+        ? const <Hob>[]
+        : context.read<ChatController>().mentionCandidates(active.query);
+    if (options.isEmpty && _mentionOptions.isEmpty) {
+      _mention = active;
+      return;
+    }
+    setState(() {
+      if (active?.query != _mention?.query) _mentionIndex = 0;
+      _mention = active;
+      _mentionOptions = options;
+      if (_mentionIndex >= options.length) _mentionIndex = 0;
+    });
+  }
+
+  bool get _mentionOpen => _mentionOptions.isNotEmpty && _mention != null;
+
+  void _pickMention(Hob hob) {
+    final m = _mention;
+    if (m == null) return;
+    final c = context.read<ChatController>();
+    final text = _input.text;
+    final end = (m.start + 1 + m.query.length).clamp(0, text.length);
+    final insert = '@${c.mentionTag(hob)} ';
+    final next = text.replaceRange(m.start, end, insert);
+    _input.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: m.start + insert.length),
+    );
+    _focus.requestFocus();
+  }
+
+  void _moveMention(int delta) {
+    if (!_mentionOpen) return;
+    setState(() {
+      final n = _mentionOptions.length;
+      _mentionIndex = (_mentionIndex + delta + n) % n;
+    });
+  }
+
+  void _dismissMention() {
+    final m = _mention;
+    if (m == null) return;
+    setState(() {
+      _mentionDismissedAt = m.start;
+      _mentionOptions = const [];
+    });
   }
 
   void _onScroll() {
@@ -87,6 +153,11 @@ class _ChatViewState extends State<ChatView> {
   }
 
   void _send(ChatController c) {
+    // Enter while picking a Hob takes the highlighted one.
+    if (_mentionOpen) {
+      _pickMention(_mentionOptions[_mentionIndex]);
+      return;
+    }
     final text = _input.text;
     if (text.trim().isEmpty || c.busy || !c.ready) return;
     _input.clear();
@@ -216,11 +287,32 @@ class _ChatViewState extends State<ChatView> {
           if (c.approval != null) _ApprovalCard(controller: c),
           if (c.clarify != null)
             _ClarifyCard(key: ObjectKey(c.clarify), controller: c),
-          _Composer(
-            controller: _input,
-            focusNode: _focus,
-            chat: c,
-            onSend: () => _send(c),
+          if (_mentionOpen)
+            _MentionSuggestions(
+              options: _mentionOptions,
+              highlighted: _mentionIndex,
+              tagOf: c.mentionTag,
+              onPick: _pickMention,
+            ),
+          CallbackShortcuts(
+            bindings: _mentionOpen
+                ? {
+                    const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+                        _moveMention(1),
+                    const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+                        _moveMention(-1),
+                    const SingleActivator(LogicalKeyboardKey.tab): () =>
+                        _pickMention(_mentionOptions[_mentionIndex]),
+                    const SingleActivator(LogicalKeyboardKey.escape):
+                        _dismissMention,
+                  }
+                : const {},
+            child: _Composer(
+              controller: _input,
+              focusNode: _focus,
+              chat: c,
+              onSend: () => _send(c),
+            ),
           ),
         ],
       ),
@@ -289,6 +381,85 @@ class _ChatViewState extends State<ChatView> {
               (newer == null || newer.role == ChatRole.user);
           return _MessageRow(message: m, showMeta: endOfTurn, controller: c);
         },
+      ),
+    );
+  }
+}
+
+/// [text] with every `@tag` that names a Hob in [mentionStyle].
+TextSpan _withMentions(
+  String text,
+  ChatController chat,
+  TextStyle mentionStyle,
+) {
+  final spans = <InlineSpan>[];
+  var last = 0;
+  final pattern = RegExp(r'(^|\s)(@[a-z0-9][a-z0-9_-]*)', caseSensitive: false);
+  for (final m in pattern.allMatches(text)) {
+    final tag = m.group(2)!;
+    if (!chat.mentionsHob(tag)) continue;
+    final start = m.start + m.group(1)!.length;
+    if (start > last) spans.add(TextSpan(text: text.substring(last, start)));
+    spans.add(TextSpan(text: tag, style: mentionStyle));
+    last = start + tag.length;
+  }
+  if (spans.isEmpty) return TextSpan(text: text);
+  if (last < text.length) spans.add(TextSpan(text: text.substring(last)));
+  return TextSpan(children: spans);
+}
+
+/// The Hobs an `@word` in the composer can become.
+class _MentionSuggestions extends StatelessWidget {
+  const _MentionSuggestions({
+    required this.options,
+    required this.highlighted,
+    required this.tagOf,
+    required this.onPick,
+  });
+
+  final List<Hob> options;
+  final int highlighted;
+  final String Function(Hob) tagOf;
+  final void Function(Hob) onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+      child: Material(
+        key: const ValueKey('mention-suggestions'),
+        color: cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 232),
+          child: ListView.builder(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            itemCount: options.length,
+            itemBuilder: (context, i) {
+              final hob = options[i];
+              return ListTile(
+                dense: true,
+                selected: i == highlighted,
+                selectedTileColor: cs.secondaryContainer,
+                selectedColor: cs.onSecondaryContainer,
+                leading: HobAvatar(hob: hob, size: 28),
+                title: Text(hob.displayName, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  '@${tagOf(hob)}',
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+                onTap: () => onPick(hob),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -378,8 +549,12 @@ class _MessageRow extends StatelessWidget {
               color: cs.primaryContainer,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Text(
-              message.text,
+            child: Text.rich(
+              _withMentions(
+                message.text,
+                controller,
+                const TextStyle(fontWeight: FontWeight.w600),
+              ),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: cs.onPrimaryContainer,
               ),
