@@ -115,6 +115,34 @@ class StringsCs extends Strings {
   @override
   String get moveFolder => 'Přesunout složku';
 
+  // --- hob menu ------------------------------------------------------------
+  @override
+  String hobMenuLabel(String hob) => 'Možnosti: $hob';
+  @override
+  String get pinHob => 'Připnout';
+  @override
+  String get unpinHob => 'Odepnout';
+  @override
+  String get hideHob => 'Skrýt';
+  @override
+  String get unhideHob => 'Zobrazit v seznamu';
+  @override
+  String get moveToFolder => 'Přesunout do složky';
+  @override
+  String get removeFromFolder => 'Vyjmout ze složky';
+  @override
+  String get newFolder => 'Nová složka…';
+  @override
+  String get newFolderTitle => 'Nová složka';
+  @override
+  String get hiddenHobs => 'Skrytí Hobíci';
+  @override
+  String hobHidden(String hob) => '$hob je skrytý';
+  @override
+  String get undo => 'Zpět';
+  @override
+  String get hobChangeFailed => 'Změnu se nepodařilo uložit. Zkuste to znovu.';
+
   // --- hob profile ---------------------------------------------------------
   @override
   String get hobProfile => 'Profil Hobíka';
