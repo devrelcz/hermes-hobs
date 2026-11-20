@@ -208,10 +208,10 @@ void main() {
 
       await tester.tap(find.text('Skrýt'));
       await tester.pumpAndSettle();
-      // Both panes of the split view show the snackbar.
+      // Once across the split view, not once in each pane.
       expect(
         find.text('Změnu se nepodařilo uložit. Zkuste to znovu.'),
-        findsWidgets,
+        findsOneWidget,
       );
       expect(app.hobNamed('dev')!.hidden, isFalse);
     });

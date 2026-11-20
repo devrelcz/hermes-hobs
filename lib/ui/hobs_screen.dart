@@ -56,20 +56,25 @@ class _HobsScreenState extends State<HobsScreen> {
           onOpen: (b) => _open(b, wide),
         );
         if (!wide) return list;
-        return Row(
-          children: [
-            SizedBox(width: 340, child: list),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: selected == null
-                  ? const _EmptyDetail()
-                  : ChatScreen(
-                      key: ValueKey(selected.name),
-                      hob: selected,
-                      embedded: true,
-                    ),
-            ),
-          ],
+        // Both panes are Scaffolds. Under one outer Scaffold neither is a
+        // root one, so a snackbar shows once across the window instead of
+        // once in each pane.
+        return Scaffold(
+          body: Row(
+            children: [
+              SizedBox(width: 340, child: list),
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: selected == null
+                    ? const _EmptyDetail()
+                    : ChatScreen(
+                        key: ValueKey(selected.name),
+                        hob: selected,
+                        embedded: true,
+                      ),
+              ),
+            ],
+          ),
         );
       },
     );
