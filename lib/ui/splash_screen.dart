@@ -6,6 +6,8 @@ class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   static const moss = Color(0xFF2F6B4A);
+  static const ink = Color(0xFF2C2C2A);
+  static const amber = Color(0xFFFFAC02);
 
   @override
   Widget build(BuildContext context) {
@@ -24,11 +26,9 @@ class SplashScreen extends StatelessWidget {
 class HobGlyphPainter extends CustomPainter {
   const HobGlyphPainter();
 
-  static const _amber = Color(0xFFFFAC02);
   static const _amberDark = Color(0xFFD88F00);
   static const _cream = Color(0xFFFBEBC8);
   static const _skin = Color(0xFFF2C98A);
-  static const _ink = Color(0xFF2C2C2A);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -59,9 +59,9 @@ class HobGlyphPainter extends CustomPainter {
       ..cubicTo(76, 22, 68, 24, 64, 32)
       ..cubicTo(70, 40, 76, 50, 78, 58)
       ..close();
-    final eye = Paint()..color = _ink;
+    final eye = Paint()..color = SplashScreen.ink;
     canvas
-      ..drawPath(cap, Paint()..color = _amber)
+      ..drawPath(cap, Paint()..color = SplashScreen.amber)
       ..drawCircle(const Offset(84, 27), 5, Paint()..color = _cream)
       ..drawRRect(
         RRect.fromRectAndRadius(

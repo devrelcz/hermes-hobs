@@ -66,7 +66,7 @@ class _LockScreenState extends State<LockScreen> {
     const ink = SplashScreen.ink;
     const amber = SplashScreen.amber;
     return Scaffold(
-      backgroundColor: ink,
+      backgroundColor: SplashScreen.moss,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

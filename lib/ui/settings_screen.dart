@@ -108,9 +108,7 @@ class _BiometricTileState extends State<_BiometricTile> {
       subtitle: Text(s.biometricSettingHint),
       value: app.biometricLock,
       // Turning it on needs a working biometric; turning it off never does.
-      onChanged: _busy || (kind == null && !app.biometricLock)
-          ? null
-          : _toggle,
+      onChanged: _busy || (kind == null && !app.biometricLock) ? null : _toggle,
     );
   }
 }
