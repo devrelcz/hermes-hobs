@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../api/hermes_rpc.dart';
 import '../api/models.dart';
 import '../l10n/strings.dart';
+import 'notifications.dart';
 
 enum ChatPhase { starting, idle, running, failed }
 
@@ -21,6 +22,8 @@ class ChatController extends ChangeNotifier {
     required Hob hob,
     this.findCanonical,
     this.onTurnSettled,
+    this.onAlert,
+    this.onPromptSent,
   }) {
     _hob = hob;
     _eventSub = rpc.events.listen(_onEvent);
@@ -37,6 +40,14 @@ class ChatController extends ChangeNotifier {
 
   /// Called after a turn ends (roster preview / unread bookkeeping).
   final void Function(Hob hob)? onTurnSettled;
+
+  /// A finished reply or a prompt that blocks the hob, as it happens live.
+  /// Never fired for what a `session.resume` replays, and at most once per
+  /// prompt / turn, so a reconnect does not repeat it.
+  final void Function(Hob hob, HobAlert alert)? onAlert;
+
+  /// The user sent a prompt (a good moment to ask for notifications).
+  final void Function()? onPromptSent;
 
   late final StreamSubscription<GatewayEvent> _eventSub;
   late final StreamSubscription<ServerRequest> _requestSub;
@@ -73,6 +84,22 @@ class ChatController extends ChangeNotifier {
   String? _approvalPromptId;
   int? _approvalGeneration;
   final Map<String, int> _clarifyPrompts = {}; // prompt_id -> generation
+
+  /// Prompts (`prompt:<id>`, `request:<id>`) and turns (`turn:<generation>`)
+  /// already alerted or seen in a snapshot, so replays don't alert again.
+  /// Server-request ids are only unique while the request is open (a new
+  /// socket may count from the start again), so `request:` keys are dropped
+  /// once the request is answered or its turn ends.
+  final Set<String> _alerted = {};
+
+  void _forgetRequestAlerts() =>
+      _alerted.removeWhere((k) => k.startsWith('request:'));
+
+  /// True after the first `session.resume` / `session.create` of this chat.
+  /// Prompts in that first snapshot are what the user opens the chat to;
+  /// prompts first seen in a later (reconnect) snapshot arrived while the
+  /// socket was down and still deserve an alert.
+  bool _attached = false;
 
   Hob get hob => _hob;
   ConnectionStatus get connection => rpc.status;
@@ -171,6 +198,7 @@ class ChatController extends ChangeNotifier {
           '${pr['kind']}.request',
           Map<String, dynamic>.from(pr),
           (pr['execution_generation'] as num?)?.toInt(),
+          alert: _attached,
         );
       }
     }
@@ -190,10 +218,12 @@ class ChatController extends ChangeNotifier {
               Map<String, dynamic>.from(params)
                 ..putIfAbsent('session_id', () => _sessionId),
             ),
+            alert: _attached,
           );
         }
       }
     }
+    _attached = true;
     _notify();
   }
 
@@ -248,6 +278,7 @@ class ChatController extends ChangeNotifier {
     }
     messages.clear();
     phase = ChatPhase.idle;
+    _attached = true;
     _notify();
   }
 
@@ -257,7 +288,18 @@ class ChatController extends ChangeNotifier {
     final wasRunning = phase == ChatPhase.running;
     try {
       await _resume(stored);
-      if (wasRunning && phase != ChatPhase.running) onTurnSettled?.call(_hob);
+      if (wasRunning &&
+          phase != ChatPhase.running &&
+          approval == null &&
+          clarify == null) {
+        // The turn ended while the socket was down: its message.complete
+        // never reached us, so this is the only chance to tell the user.
+        // Only with a reply after the prompt: a turn lost to a server
+        // restart did not "finish".
+        final reply = _lastAssistantText();
+        if (reply.isNotEmpty) _alertReply(reply, key: null);
+        onTurnSettled?.call(_hob);
+      }
     } catch (e) {
       error = Strings.current.recoverFailed(e);
       _notify();
@@ -317,6 +359,7 @@ class ChatController extends ChangeNotifier {
     error = null;
     statusText = null;
     _notify();
+    onPromptSent?.call();
     try {
       await _submit(trimmed);
     } on RpcException catch (e) {
@@ -484,7 +527,9 @@ class ChatController extends ChangeNotifier {
             return null;
           });
     }
-    _approvalRequest?.respond({'choice': choice});
+    final answered = _approvalRequest;
+    answered?.respond({'choice': choice});
+    if (answered != null) _alerted.remove('request:${answered.id}');
     _approvalRequest = null;
     _approvalPromptId = null;
     approval = null;
@@ -516,6 +561,7 @@ class ChatController extends ChangeNotifier {
     }
     final req = _clarifyRequest;
     if (req != null) {
+      _alerted.remove('request:${req.id}');
       req.respond(
         answers == null ? {} : {'answers': answers, 'outcome': 'submitted'},
       );
@@ -549,10 +595,28 @@ class ChatController extends ChangeNotifier {
   void _onCanonicalPrompt(
     String type,
     Map<String, dynamic> p,
-    int? generation,
-  ) {
+    int? generation, {
+    required bool alert,
+  }) {
     final promptId = p['prompt_id']?.toString();
     if (promptId == null) return;
+    final kind = switch (type) {
+      'approval.request' => AlertKind.approval,
+      'clarify.request' => AlertKind.clarify,
+      _ => null,
+    };
+    if (kind != null) {
+      _raise(
+        'prompt:$promptId',
+        HobAlert(
+          kind,
+          kind == AlertKind.approval
+              ? _approvalText(p)
+              : p['question']?.toString() ?? '',
+        ),
+        live: alert,
+      );
+    }
     final gen = generation ?? _generation ?? 0;
     final choices =
         (p['choices'] as List?)?.map((e) => e.toString()).toList() ?? const [];
@@ -591,11 +655,16 @@ class ChatController extends ChangeNotifier {
     }
   }
 
-  void _onServerRequest(ServerRequest req) {
+  void _onServerRequest(ServerRequest req, {bool alert = true}) {
     if (req.sessionId == null || req.sessionId != _sessionId) return;
     final p = req.params;
     switch (req.method) {
       case 'approval':
+        _raise(
+          'request:${req.id}',
+          HobAlert(AlertKind.approval, _approvalText(p)),
+          live: alert,
+        );
         _approvalRequest = req;
         approval = PendingApproval(
           command: p['command']?.toString() ?? '',
@@ -608,6 +677,12 @@ class ChatController extends ChangeNotifier {
         _notify();
       case 'clarify':
         final qs = (p['questions'] as List?) ?? const [];
+        final first = qs.whereType<Map>().firstOrNull;
+        _raise(
+          'request:${req.id}',
+          HobAlert(AlertKind.clarify, first?['question']?.toString() ?? ''),
+          live: alert,
+        );
         _clarifyRequest = req;
         clarify = [
           for (final q in qs.whereType<Map>())
@@ -666,7 +741,7 @@ class ChatController extends ChangeNotifier {
     }
     switch (ev.type) {
       case 'approval.request' || 'clarify.request':
-        _onCanonicalPrompt(ev.type, p, gen);
+        _onCanonicalPrompt(ev.type, p, gen, alert: true);
       case 'approval.settled' || 'clarify.settled':
         final id = p['prompt_id']?.toString();
         if (id != null) _onPromptSettled(id);
@@ -733,7 +808,16 @@ class ChatController extends ChangeNotifier {
       case 'session.info':
         _applyInfo(p);
       case 'message.complete':
+        // A complete without a running turn is a replay (or a turn this
+        // chat never saw start): render it, but don't alert.
+        final live = phase == ChatPhase.running;
         _completeTurn(p);
+        if (live && p['status'] != 'interrupted') {
+          _alertReply(
+            _lastAssistantText(),
+            key: gen != null ? 'turn:$gen' : null,
+          );
+        }
       case 'request.cancel':
         final id = p['id'];
         if (_approvalRequest?.id == id) {
@@ -815,6 +899,39 @@ class ChatController extends ChangeNotifier {
     onTurnSettled?.call(_hob);
   }
 
+  // --- alerts --------------------------------------------------------------
+
+  static String _approvalText(Map p) {
+    final command = p['command']?.toString().trim() ?? '';
+    if (command.isNotEmpty) return command;
+    return p['description']?.toString().trim() ?? '';
+  }
+
+  String _lastAssistantText() {
+    for (final m in messages.reversed) {
+      if (m.role == ChatRole.user) break;
+      if (m.role == ChatRole.assistant && m.text.trim().isNotEmpty) {
+        return m.text;
+      }
+    }
+    return '';
+  }
+
+  void _alertReply(String text, {required String? key}) {
+    _raise(
+      key ?? 'turn:${DateTime.now().microsecondsSinceEpoch}',
+      HobAlert(AlertKind.reply, text),
+      live: true,
+    );
+  }
+
+  /// Alerts once per [key]. A snapshot ([live] false) only marks the key as
+  /// known, so the same prompt arriving live later stays quiet too.
+  void _raise(String key, HobAlert alert, {required bool live}) {
+    if (!_alerted.add(key) || !live || _disposed) return;
+    onAlert?.call(_hob, alert);
+  }
+
   void _finishTurn() {
     final m = _current;
     if (m != null) {
@@ -829,6 +946,7 @@ class ChatController extends ChangeNotifier {
     }
     _current = null;
     _clearPrompts();
+    _forgetRequestAlerts();
     statusText = null;
     phase = ChatPhase.idle;
   }

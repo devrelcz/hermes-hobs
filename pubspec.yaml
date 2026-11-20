@@ -43,6 +43,7 @@ dependencies:
   provider: ^6.1.5+1
   blobatar_flutter: ^0.1.0
   local_auth: ^3.0.2
+  flutter_local_notifications: ^23.0.3
 
 dev_dependencies:
   flutter_test:

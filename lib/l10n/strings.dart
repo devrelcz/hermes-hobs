@@ -223,6 +223,29 @@ abstract class Strings {
   /// This pack's language, written in that language.
   String get languageName;
 
+  // --- notifications -------------------------------------------------------
+  String get notifications;
+
+  /// Settings switch.
+  String get notificationsSetting;
+  String get notificationsHint;
+
+  /// The system refuses them (permission denied or turned off for the app).
+  String get notificationsBlocked;
+
+  /// Body of the notification for a pending approval.
+  String notifyApproval(String what);
+
+  /// Body of the notification for a clarify question.
+  String notifyClarify(String question);
+
+  /// Body when the finished reply has no text to preview.
+  String get notifyReplyDone;
+
+  /// Android notification channel shown in the system settings.
+  String get notifyChannelName;
+  String get notifyChannelDescription;
+
   // --- dates ---------------------------------------------------------------
   String get now;
   String get today;

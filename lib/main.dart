@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -49,6 +50,13 @@ class _HobsAppState extends State<HobsApp> with WidgetsBindingObserver {
     final app = context.read<AppState>();
     if (state == AppLifecycleState.hidden) app.onAppHidden();
     if (state == AppLifecycleState.resumed) app.onAppResumed();
+    // On macOS a window behind other apps is "inactive" but still running:
+    // the user isn't looking, so it should notify. On phones "inactive" is
+    // a brief overlay (control center, app switcher) and doesn't count.
+    if (state == AppLifecycleState.inactive &&
+        defaultTargetPlatform == TargetPlatform.macOS) {
+      app.setAppActive(false);
+    }
   }
 
   @override

@@ -379,6 +379,30 @@ class StringsCs extends Strings {
   @override
   String get languageName => 'Čeština';
 
+  // --- notifications -------------------------------------------------------
+  @override
+  String get notifications => 'Oznámení';
+  @override
+  String get notificationsSetting => 'Upozorňovat na Hobíky';
+  @override
+  String get notificationsHint =>
+      'Když Hobík dopíše odpověď nebo čeká na tvé schválení či odpověď, '
+      'zatímco je aplikace na pozadí.';
+  @override
+  String get notificationsBlocked =>
+      'Oznámení má tahle aplikace vypnutá v nastavení systému.';
+  @override
+  String notifyApproval(String what) => 'Žádá o schválení: $what';
+  @override
+  String notifyClarify(String question) => 'Ptá se: $question';
+  @override
+  String get notifyReplyDone => 'Dopsal odpověď.';
+  @override
+  String get notifyChannelName => 'Hobíci';
+  @override
+  String get notifyChannelDescription =>
+      'Dokončené odpovědi a otázky od tvých Hobíků';
+
   // --- dates ---------------------------------------------------------------
   @override
   String get now => 'teď';

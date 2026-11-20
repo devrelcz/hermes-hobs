@@ -369,6 +369,30 @@ class StringsEn extends Strings {
   @override
   String get languageName => 'English';
 
+  // --- notifications -------------------------------------------------------
+  @override
+  String get notifications => 'Notifications';
+  @override
+  String get notificationsSetting => 'Notify me about Hobs';
+  @override
+  String get notificationsHint =>
+      'When a Hob finishes a reply or waits for your approval or answer '
+      'while the app is in the background.';
+  @override
+  String get notificationsBlocked =>
+      'Notifications are turned off for this app in the system settings.';
+  @override
+  String notifyApproval(String what) => 'Wants your approval: $what';
+  @override
+  String notifyClarify(String question) => 'Asks: $question';
+  @override
+  String get notifyReplyDone => 'Finished the reply.';
+  @override
+  String get notifyChannelName => 'Hobs';
+  @override
+  String get notifyChannelDescription =>
+      'Finished replies and questions from your Hobs';
+
   // --- dates ---------------------------------------------------------------
   @override
   String get now => 'now';

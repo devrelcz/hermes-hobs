@@ -13,6 +13,7 @@ import '../l10n/strings.dart';
 import 'biometrics.dart';
 import 'chat_controller.dart';
 import 'credentials_store.dart';
+import 'notifications.dart';
 
 enum AuthPhase { loading, signedOut, signedIn }
 
@@ -34,12 +35,40 @@ class HobSection {
 /// summaries), local unread/collapse bookkeeping, and one live
 /// [ChatController] per hob that survives navigating away from the chat.
 class AppState extends ChangeNotifier {
-  AppState({CredentialsStore? store, Biometrics? biometrics})
-    : _store = store ?? CredentialsStore(),
-      _biometrics = biometrics ?? Biometrics();
+  AppState({
+    CredentialsStore? store,
+    Biometrics? biometrics,
+    Notifier? notifier,
+    BackgroundTime? backgroundTime,
+  }) : _store = store ?? CredentialsStore(),
+       _biometrics = biometrics ?? Biometrics(),
+       _notifier = notifier ?? LocalNotifier(),
+       _backgroundTime = backgroundTime ?? BackgroundTime();
 
   final CredentialsStore _store;
   final Biometrics _biometrics;
+  final Notifier _notifier;
+  final BackgroundTime _backgroundTime;
+  StreamSubscription<String>? _tapSub;
+
+  /// The user wants notifications (Settings). On by default; the system
+  /// permission is asked for when the first prompt is sent.
+  bool notificationsEnabled = true;
+
+  /// The system refuses notifications (denied, or turned off for the app).
+  bool notificationsBlocked = false;
+  bool _permissionAsked = false;
+
+  static const _notificationsKey = 'notifications';
+  static const _notificationsAskedKey = 'notifications_asked';
+
+  /// The app is on screen and focused. Notifications for the chat the user
+  /// is looking at are pointless; everything else notifies.
+  bool appActive = true;
+
+  /// A hob whose notification the user tapped; [takePendingChat] hands it to
+  /// the hob list once the app is unlocked and the hob is known.
+  String? pendingChat;
 
   /// The biometric this device offers right now; null when there is none.
   BiometricKind? biometricKind;
@@ -110,6 +139,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> init() async {
     await _loadLanguage();
+    await _initNotifications();
     biometricLock = await _store.biometricLock();
     biometricKind = await _biometrics.available();
     locked = biometricLock;
@@ -267,6 +297,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _teardown({required bool clearCookies}) async {
+    unawaited(_backgroundTime.end());
     _rosterTimer?.cancel();
     _rosterTimer = null;
     for (final c in _chats.values) {
@@ -683,7 +714,10 @@ class AppState extends ChangeNotifier {
       onTurnSettled: (b) {
         if (openHob == b.name) markSeen(b.name);
         unawaited(refreshHobs(silent: true));
+        _releaseBackgroundTime();
       },
+      onAlert: _onAlert,
+      onPromptSent: () => unawaited(_askNotificationPermissionOnce()),
     );
     _chats[hob.name] = c;
     unawaited(c.start());
@@ -693,7 +727,10 @@ class AppState extends ChangeNotifier {
   void setOpenHob(String? name) {
     final prev = openHob;
     openHob = name;
-    if (name != null) markSeen(name);
+    if (name != null) {
+      markSeen(name);
+      unawaited(_notifier.clear(name));
+    }
     if (prev != null && prev != name) markSeen(prev);
     Future.microtask(notifyListeners);
   }
@@ -727,6 +764,9 @@ class AppState extends ChangeNotifier {
   void onAppResumed() {
     final hiddenAt = _hiddenAt;
     _hiddenAt = null;
+    setAppActive(true);
+    unawaited(_backgroundTime.end());
+    unawaited(_refreshNotificationPermission());
     if (biometricLock &&
         phase == AuthPhase.signedIn &&
         hiddenAt != null &&
@@ -743,6 +783,125 @@ class AppState extends ChangeNotifier {
   void onAppHidden() {
     if (_authenticating) return;
     _hiddenAt ??= DateTime.now();
+    setAppActive(false);
+    // A reply still streaming gets iOS's short grace period to finish and
+    // notify; there is no keep-alive beyond that.
+    if (_chats.values.any((c) => c.busy)) unawaited(_backgroundTime.begin());
+  }
+
+  /// Whether the app is on screen and focused (macOS: the window is key).
+  void setAppActive(bool value) {
+    if (_authenticating && !value) return;
+    if (appActive == value) return;
+    appActive = value;
+    if (value && openHob != null) unawaited(_notifier.clear(openHob!));
+  }
+
+  void _releaseBackgroundTime() {
+    if (_chats.values.any((c) => c.busy)) return;
+    unawaited(_backgroundTime.end());
+  }
+
+  // --- notifications -------------------------------------------------------
+
+  Future<void> _initNotifications() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      notificationsEnabled = p.getBool(_notificationsKey) ?? true;
+      _permissionAsked = p.getBool(_notificationsAskedKey) ?? false;
+    } catch (_) {}
+    _tapSub ??= _notifier.taps.listen(openChatFromNotification);
+    final launchedFor = await _notifier.init();
+    if (launchedFor != null) pendingChat = launchedFor;
+    if (_permissionAsked) await _refreshNotificationPermission();
+  }
+
+  /// Whether a notification for [hob] would tell the user anything new: not
+  /// when they are looking at that chat right now.
+  bool _chatVisible(String hob) => appActive && !locked && openHob == hob;
+
+  void _onAlert(Hob hob, HobAlert alert) {
+    if (!notificationsEnabled || _chatVisible(hob.name)) return;
+    final s = Strings.current;
+    final preview = notificationPreview(alert.text);
+    final body = switch (alert.kind) {
+      AlertKind.reply => preview.isEmpty ? s.notifyReplyDone : preview,
+      AlertKind.approval => s.notifyApproval(preview),
+      AlertKind.clarify => s.notifyClarify(preview),
+    };
+    unawaited(
+      _notifier.show(
+        hob: hob.name,
+        title: hob.displayName,
+        body: body,
+        blocking: alert.blocking,
+      ),
+    );
+    if (alert.kind == AlertKind.reply) _releaseBackgroundTime();
+  }
+
+  /// The first prompt the user sends is when a notification starts to make
+  /// sense ("tell me when it's done"), so that is when the system asks.
+  Future<void> _askNotificationPermissionOnce() async {
+    if (_permissionAsked || !notificationsEnabled) return;
+    _permissionAsked = true;
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setBool(_notificationsAskedKey, true);
+    } catch (_) {}
+    final granted = await _notifier.requestPermission();
+    if (notificationsBlocked != !granted) {
+      notificationsBlocked = !granted;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _refreshNotificationPermission() async {
+    if (!_permissionAsked) return;
+    final ok = await _notifier.permitted();
+    if (ok == null || notificationsBlocked == !ok) return;
+    notificationsBlocked = !ok;
+    notifyListeners();
+  }
+
+  /// Settings switch. Turning it on asks the system for permission; the
+  /// switch stays on even when the system refuses, and [notificationsBlocked]
+  /// tells the user where to fix it.
+  Future<void> setNotificationsEnabled(bool value) async {
+    notificationsEnabled = value;
+    notifyListeners();
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setBool(_notificationsKey, value);
+      if (value) await p.setBool(_notificationsAskedKey, true);
+    } catch (_) {}
+    if (!value) return;
+    _permissionAsked = true;
+    final granted = await _notifier.requestPermission();
+    notificationsBlocked = !granted;
+    notifyListeners();
+  }
+
+  /// The user tapped a notification for [hob]: open its chat as soon as the
+  /// app is unlocked.
+  void openChatFromNotification(String hob) {
+    pendingChat = hob;
+    notifyListeners();
+  }
+
+  /// The hob to open for a tapped notification, once it can be shown: the
+  /// app is signed in and unlocked and the roster knows the hob. Consumes it.
+  Hob? takePendingChat() {
+    final name = pendingChat;
+    if (name == null || phase != AuthPhase.signedIn || locked) return null;
+    final hob = _chats[name]?.hob ?? hobNamed(name);
+    if (hob == null) {
+      // Not in the roster (yet): wait for it, unless it is gone for good.
+      if (hobs.isNotEmpty && !loadingHobs) pendingChat = null;
+      return null;
+    }
+    pendingChat = null;
+    return hob;
   }
 
   // --- biometrics ----------------------------------------------------------
@@ -798,11 +957,7 @@ class AppState extends ChangeNotifier {
     if (password == null) return;
     await _verify();
     try {
-      await login(
-        serverUrl: serverUrl,
-        username: username,
-        password: password,
-      );
+      await login(serverUrl: serverUrl, username: username, password: password);
     } catch (e) {
       if (e is HermesHttpException && e.isUnauthorized) {
         // The server no longer takes it; do not offer it again.
@@ -908,8 +1063,19 @@ class AppState extends ChangeNotifier {
     return e.toString();
   }
 
+  bool _disposed = false;
+
+  /// Async work (a roster refresh, a reconnect) may finish after sign-out
+  /// tore the state down; its last repaint is then a no-op.
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
+
   @override
   void dispose() {
+    _disposed = true;
+    _tapSub?.cancel();
     _teardown(clearCookies: false);
     super.dispose();
   }

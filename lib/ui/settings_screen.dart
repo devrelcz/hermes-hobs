@@ -6,8 +6,8 @@ import '../state/app_state.dart';
 import '../state/biometrics.dart';
 import 'lock_screen.dart';
 
-/// App settings: the biometric lock (when the device has one) and the
-/// language (follow the device, or pin one of the language packs).
+/// App settings: the biometric lock (when the device has one),
+/// notifications and the language (follow the device, or pin one of the language packs).
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -28,6 +28,18 @@ class SettingsScreen extends StatelessWidget {
             _Header(s.security),
             const _BiometricTile(),
           ],
+          _Header(s.notifications),
+          SwitchListTile(
+            secondary: const Icon(Icons.notifications_outlined),
+            title: Text(s.notificationsSetting),
+            subtitle: Text(
+              app.notificationsEnabled && app.notificationsBlocked
+                  ? s.notificationsBlocked
+                  : s.notificationsHint,
+            ),
+            value: app.notificationsEnabled,
+            onChanged: app.setNotificationsEnabled,
+          ),
           _Header(s.language),
           _LanguageTile(
             title: s.languageSystem,
