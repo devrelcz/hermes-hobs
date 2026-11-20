@@ -45,16 +45,19 @@ keychain/keystore as before; it is not bound to the biometric.
 | Folders | Rename: `profiles.configure {name, ui_meta:{"hermes-bots":{…,sectionName}}, ui_meta_expected_revisions}` for every Hob in the folder (the write replaces the whole `hermes-bots` block, so the app sends it back complete). Folder order is local to the device, like on the dashboard. |
 | Hob profile | Tapping the Hob's avatar in the chat header opens its profile. Title, shape and color: `profiles.configure` with the whole `hermes-bots` block, like folders. Description: `cli.exec {argv:["profile","describe",name,"--text",…]}`. Model: `profiles.describe {name}` reads it, `model.options` lists providers, `profiles.configure {name, provider, model}` switches it (`confirm_expensive_model` after the server asks); inheriting again is `cli.exec` `config unset model`. SOUL.md: read from `profiles.describe`, replaced with `profiles.configure {name, soul}`. |
 | Scheduled jobs | `cron.manage {action:"list", profile}` (read-only) |
+| Group chats | Rooms of 2–6 Hobs, held by the default profile's gateway; every `groups.*` call carries `profile`. `groups.capabilities` (`driver:true`, `methods`, `seatable_profiles`) decides whether the app offers them. List: `groups.list {limit, offset}` (paged by `next_offset`). Create: `groups.create {room_id:<uuid>, name, members:[{member_id, profile, handle, target:{kind:"local", profile}}]}`. Open: `groups.state {room_id}` (room, `driver_status` with `member_activity` and `pending_actions`) and `groups.log {room_id, since_seq, limit}` (gapless, append-only: `message.user`, `message.member`, `turn.settled/failed/cancelled`, `room.activity`). Send: `groups.send {room_id, event_id, payload:{text, attachments:[], thread_id:event_id}}`; `@handle` at the start assigns the message. The event `groups.changed {room_ids}` triggers a reread; the app also polls (2 s while members work, 15 s otherwise). Control: `groups.stop {room_id, cancel_id}`, `groups.continue {room_id, discussion_event_id}` after a round hit its cap, `groups.approve / retry / discard {room_id, member_id, task_id, execution_generation[, request_id, choice]}`, `groups.rename {room_id, event_id, name}`, `groups.disband {room_id, cancel_id}` (returns a `tombstone`). |
 | Reconnect | auto backoff, then `session.resume` with the stored id |
 
-The SESSIONS tab and group chats from the dashboard are out of scope. Unread
-state, collapsed folders and folder order are stored locally on the device.
+The SESSIONS tab, group chats with Hobs of another gateway (peers), routing
+settings and attachments in group chats are out of scope. Unread state,
+collapsed folders and folder order are stored locally on the device.
 
 ## Layout
 
 - `lib/api/hermes_http.dart`: cookie-aware REST client (dart:io)
 - `lib/api/hermes_rpc.dart`: `/api/ws` JSON-RPC client (ticket, heartbeat, reconnect, server requests)
 - `lib/state/chat_controller.dart`: one conversation, event → message model
+- `lib/state/group_chat_controller.dart`: one group chat (room state, log, sending, member status)
 - `lib/state/app_state.dart`: login, biometric lock, Hob list, chats per Hob
 - `lib/state/biometrics.dart`: `local_auth` wrapper (which biometric, prompt)
 - `lib/ui/`: login, Hob list (split view on wide screens), chat

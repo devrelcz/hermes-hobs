@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../api/group_models.dart';
 import '../api/hermes_rpc.dart';
 import '../api/models.dart';
 import '../l10n/strings.dart';
@@ -8,6 +9,8 @@ import '../state/app_state.dart';
 import 'hob_avatar.dart';
 import 'chat_screen.dart';
 import 'format.dart';
+import 'group_chat_screen.dart';
+import 'new_group_sheet.dart';
 import 'settings_screen.dart';
 import 'theme.dart';
 
@@ -23,12 +26,19 @@ class HobsScreen extends StatefulWidget {
 class _HobsScreenState extends State<HobsScreen> {
   String? _selected;
 
+  /// Room id of the group chat open beside the list (wide screens).
+  String? _selectedGroup;
+
   static const _splitBreakpoint = 840.0;
 
   Future<void> _open(Hob hob, bool wide) async {
     final app = context.read<AppState>();
+    app.setOpenGroup(null);
     if (wide) {
-      setState(() => _selected = hob.name);
+      setState(() {
+        _selected = hob.name;
+        _selectedGroup = null;
+      });
       app.setOpenHob(hob.name);
       return;
     }
@@ -38,6 +48,29 @@ class _HobsScreenState extends State<HobsScreen> {
     if (!mounted) return;
     app.setOpenHob(null);
     app.refreshHobs(silent: true);
+  }
+
+  Future<void> _openGroup(GroupRoom room, bool wide) async {
+    final app = context.read<AppState>();
+    app.setOpenHob(null);
+    app.setOpenGroup(room.roomId);
+    if (wide) {
+      setState(() {
+        _selectedGroup = room.roomId;
+        _selected = null;
+      });
+      return;
+    }
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => GroupChatScreen(room: room)));
+    if (!mounted) return;
+    app.setOpenGroup(null);
+  }
+
+  Future<void> _newGroup(bool wide) async {
+    final room = await showNewGroupDialog(context);
+    if (room == null || !mounted) return;
+    await _openGroup(room, wide);
   }
 
   @override
@@ -50,9 +83,15 @@ class _HobsScreenState extends State<HobsScreen> {
         for (final b in app.hobs) {
           if (b.name == _selected) selected = b;
         }
+        final group = _selectedGroup == null
+            ? null
+            : app.groupById(_selectedGroup!);
         final list = _HobList(
           selected: wide ? _selected : null,
+          selectedGroup: wide ? _selectedGroup : null,
           onOpen: (b) => _open(b, wide),
+          onOpenGroup: (r) => _openGroup(r, wide),
+          onNewGroup: () => _newGroup(wide),
         );
         if (!wide) return list;
         return Row(
@@ -60,7 +99,14 @@ class _HobsScreenState extends State<HobsScreen> {
             SizedBox(width: 340, child: list),
             const VerticalDivider(width: 1),
             Expanded(
-              child: selected == null
+              child: group != null
+                  ? GroupChatScreen(
+                      key: ValueKey('group:${group.roomId}'),
+                      room: group,
+                      embedded: true,
+                      onClosed: () => setState(() => _selectedGroup = null),
+                    )
+                  : selected == null
                   ? const _EmptyDetail()
                   : ChatScreen(
                       key: ValueKey(selected.name),
@@ -104,10 +150,19 @@ class _EmptyDetail extends StatelessWidget {
 }
 
 class _HobList extends StatefulWidget {
-  const _HobList({required this.onOpen, this.selected});
+  const _HobList({
+    required this.onOpen,
+    required this.onOpenGroup,
+    required this.onNewGroup,
+    this.selected,
+    this.selectedGroup,
+  });
 
   final void Function(Hob hob) onOpen;
+  final void Function(GroupRoom room) onOpenGroup;
+  final VoidCallback onNewGroup;
   final String? selected;
+  final String? selectedGroup;
 
   @override
   State<_HobList> createState() => _HobListState();
@@ -143,7 +198,9 @@ class _HobListState extends State<_HobList> {
     final theme = Theme.of(context);
     final s = Strings.of(context);
     final sections = app.sections;
-    final unread = app.hobs.where(app.isUnread).length;
+    final unread =
+        app.hobs.where(app.isUnread).length +
+        app.groups.where(app.isGroupUnread).length;
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
@@ -157,6 +214,12 @@ class _HobListState extends State<_HobList> {
           ],
         ),
         actions: [
+          if (app.groupsSupported == true)
+            IconButton(
+              tooltip: s.newGroupChat,
+              onPressed: widget.onNewGroup,
+              icon: const Icon(Icons.group_add_outlined),
+            ),
           _AccountButton(app: app),
           const SizedBox(width: 4),
         ],
@@ -244,7 +307,9 @@ class _HobListState extends State<_HobList> {
         ],
       );
     }
-    if (sections.isEmpty) {
+    final rooms = app.visibleGroups;
+    final groupSection = rooms.isEmpty ? null : _groups(app, rooms);
+    if (sections.isEmpty && groupSection == null) {
       return ListView(
         children: [
           const SizedBox(height: 100),
@@ -255,6 +320,15 @@ class _HobListState extends State<_HobList> {
     if (!app.hasFolders) {
       return ListView(
         children: [
+          ?groupSection,
+          if (groupSection != null && sections.isNotEmpty)
+            _SectionHeader(
+              title: s.unassigned,
+              count: sections.expand((s) => s.hobs).length,
+              collapsed: false,
+              unread: 0,
+              onTap: () {},
+            ),
           for (final b in sections.expand((s) => s.hobs)) _hobRow(app, b),
           const SizedBox(height: 24),
         ],
@@ -270,6 +344,7 @@ class _HobListState extends State<_HobList> {
         if (s.key == HobSection.unassignedKey) s,
     ];
     return ReorderableListView.builder(
+      header: groupSection,
       buildDefaultDragHandles: false,
       itemCount: folders.length,
       onReorderItem: (from, to) {
@@ -295,6 +370,38 @@ class _HobListState extends State<_HobList> {
           const SizedBox(height: 24),
         ],
       ),
+    );
+  }
+
+  /// The group chats' folder: rooms newest first, collapsible like the rest.
+  Widget _groups(AppState app, List<GroupRoom> rooms) {
+    const key = HobSection.groupsKey;
+    final isCollapsed = app.collapsed.contains(key) && app.query.isEmpty;
+    final s = Strings.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _SectionHeader(
+          title: s.groupChats,
+          icon: Icons.forum_outlined,
+          count: rooms.length,
+          collapsed: isCollapsed,
+          unread: rooms.where(app.isGroupUnread).length,
+          onTap: () => app.toggleSection(key),
+        ),
+        if (!isCollapsed)
+          for (final r in rooms)
+            _GroupRow(
+              room: r,
+              hobs: [for (final m in r.members) app.memberHob(m)],
+              preview: app.groupPreview(r),
+              lastActive: app.groupLastActive(r),
+              selected: r.roomId == widget.selectedGroup,
+              unread: app.isGroupUnread(r),
+              working: app.isGroupWorking(r),
+              onTap: () => widget.onOpenGroup(r),
+            ),
+      ],
     );
   }
 
@@ -403,11 +510,13 @@ class _SectionHeader extends StatelessWidget {
     required this.collapsed,
     required this.unread,
     required this.onTap,
+    this.icon = Icons.folder_outlined,
     this.dragIndex,
     this.onRename,
   });
 
   final String title;
+  final IconData icon;
   final int count;
   final bool collapsed;
   final int unread;
@@ -439,7 +548,7 @@ class _SectionHeader extends StatelessWidget {
               color: muted,
             ),
             const SizedBox(width: 4),
-            Icon(Icons.folder_outlined, size: 16, color: muted),
+            Icon(icon, size: 16, color: muted),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -589,6 +698,114 @@ class _HobRow extends StatelessWidget {
                         Expanded(
                           child: Text(
                             preview.isEmpty ? s.noMessagesYet : preview,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: unread
+                                  ? cs.onSurface
+                                  : cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        if (unread) ...[
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.circle,
+                            size: 8,
+                            color: HobsColors.of(context).lantern,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One group chat in the list: the members' faces, the room name, and the
+/// newest message once the app has the room open.
+class _GroupRow extends StatelessWidget {
+  const _GroupRow({
+    required this.room,
+    required this.hobs,
+    required this.preview,
+    required this.lastActive,
+    required this.selected,
+    required this.unread,
+    required this.working,
+    required this.onTap,
+  });
+
+  final GroupRoom room;
+  final List<Hob> hobs;
+  final String? preview;
+  final DateTime? lastActive;
+  final bool selected;
+  final bool unread;
+  final bool working;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final s = Strings.of(context);
+    final line = preview == null
+        ? '${s.groupMembers(room.members.length)} · '
+              '${hobs.map((b) => b.displayName).join(', ')}'
+        : plainPreview(preview!);
+    return Material(
+      color: selected
+          ? cs.secondaryContainer.withValues(alpha: 0.6)
+          : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          child: Row(
+            children: [
+              GroupAvatars(hobs: hobs, size: 38),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            room.name.isEmpty ? s.groupChats : room.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: unread
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          working ? s.working : relativeAge(lastActive),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: working
+                                ? HobsColors.of(context).working
+                                : (unread ? cs.primary : cs.outline),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            line,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodySmall?.copyWith(

@@ -180,6 +180,40 @@ class FakeHermesServer {
     {'role': 'system', 'text': 'scaffolding'},
   ];
 
+  /// Group chats (`groups.*`): room id -> room, and each room's log.
+  bool groupsEnabled = true;
+  final Map<String, Map<String, dynamic>> rooms = {};
+  final Map<String, List<Map<String, dynamic>>> roomLogs = {};
+
+  /// When set, members wait for it before answering a group message.
+  Completer<void>? groupHold;
+  final List<Map<String, dynamic>> groupActivity = [];
+  int _broadcast = 0;
+
+  Map<String, dynamic> _roomState(String id) => {
+    ...rooms[id]!,
+    'latest_seq': roomLogs[id]!.length,
+  };
+
+  void _appendRoom(
+    String id,
+    String kind,
+    Map<String, dynamic> actor,
+    Map<String, dynamic> payload,
+  ) {
+    final log = roomLogs[id]!;
+    log.add({
+      'room_id': id,
+      'seq': log.length + 1,
+      'event_id': '$kind:${log.length + 1}',
+      'kind': kind,
+      'actor': actor,
+      'authority_epoch': 1,
+      'payload': payload,
+      'created_at': 1795205956 + log.length,
+    });
+  }
+
   /// When true, the next prompt triggers an approval request before replying.
   bool askApproval = false;
   final Completer<Map<String, dynamic>> approvalAnswer = Completer();
@@ -268,6 +302,7 @@ class FakeHermesServer {
         ws.add(jsonEncode({'jsonrpc': '2.0', ...m}));
       } on StateError catch (_) {}
     }
+
     void event(String type, String sid, [Map<String, dynamic>? payload]) =>
         send({
           'method': 'event',
@@ -618,6 +653,165 @@ class FakeHermesServer {
               ],
             },
           });
+        case 'groups.capabilities' when groupsEnabled:
+          send({
+            'id': id,
+            'result': {
+              'protocol_version': 2,
+              'driver': true,
+              'methods': [
+                'groups.list',
+                'groups.state',
+                'groups.log',
+                'groups.create',
+                'groups.send',
+                'groups.stop',
+                'groups.rename',
+                'groups.disband',
+              ],
+              'seatable_profiles': [for (final r in roster) r['name']],
+            },
+          });
+        case 'groups.list' when groupsEnabled:
+          send({
+            'id': id,
+            'result': {
+              'rooms': [for (final rid in rooms.keys) _roomState(rid)],
+              'next_offset': null,
+            },
+          });
+        case 'groups.create' when groupsEnabled:
+          final rid = params['room_id'] as String;
+          rooms[rid] = {
+            'room_id': rid,
+            'name': params['name'],
+            'members': params['members'],
+            'authority_epoch': 1,
+            'created_at': 1795205794,
+            'updated_at': 1795205794,
+          };
+          roomLogs[rid] = [];
+          send({
+            'id': id,
+            'result': {'room': _roomState(rid)},
+          });
+        case 'groups.state' when groupsEnabled:
+          final rid = params['room_id'] as String;
+          send({
+            'id': id,
+            'result': {
+              'room': _roomState(rid),
+              'change_events': true,
+              'context': {'routing': 'everyone'},
+              'driver_status': {
+                'running': true,
+                'working': groupActivity.isNotEmpty,
+                'member_activity': groupActivity,
+                'pending_actions': [],
+                'max_rounds': 3,
+              },
+            },
+          });
+        case 'groups.log' when groupsEnabled:
+          final rid = params['room_id'] as String;
+          final since = params['since_seq'] as int;
+          final limit = params['limit'] as int;
+          final rest = roomLogs[rid]!.skip(since).toList();
+          send({
+            'id': id,
+            'result': {
+              'events': rest.take(limit).toList(),
+              'latest_seq': roomLogs[rid]!.length,
+              'has_more': rest.length > limit,
+            },
+          });
+        case 'groups.rename' when groupsEnabled:
+          final rid = params['room_id'] as String;
+          rooms[rid]!['name'] = params['name'];
+          send({
+            'id': id,
+            'result': {'room': _roomState(rid)},
+          });
+        case 'groups.disband' when groupsEnabled:
+          final rid = params['room_id'] as String;
+          rooms.remove(rid);
+          send({
+            'id': id,
+            'result': {
+              'tombstone': {'room_id': rid, 'disbanded_at': 1795206000.5},
+            },
+          });
+        case 'groups.send' when groupsEnabled:
+          final rid = params['room_id'] as String;
+          final eventId = params['event_id'] as String;
+          final payload = (params['payload'] as Map).cast<String, dynamic>();
+          _appendRoom(rid, 'message.user', {
+            'id': 'desktop',
+            'kind': 'user',
+          }, payload);
+          final discussion = roomLogs[rid]!.last['event_id'];
+          send({
+            'id': id,
+            'result': {'accepted': true, 'client_event_id': eventId},
+          });
+          void changed() => send({
+            'method': 'event',
+            'params': {
+              'type': 'groups.changed',
+              'session_id': '',
+              'payload': {
+                'room_ids': [rid],
+                'broadcast_id': 'b:${++_broadcast}',
+              },
+            },
+          });
+          changed();
+          final members = (rooms[rid]!['members'] as List).cast<Map>();
+          final hold = groupHold;
+          if (hold != null) {
+            groupActivity
+              ..clear()
+              ..add({
+                'member_id': members.first['member_id'],
+                'status': 'running',
+                'started_at': 1795205957,
+                'tool': 'web_search',
+              });
+            changed();
+            await hold.future;
+            groupActivity.clear();
+          }
+          for (final m in members) {
+            final mid = m['member_id'] as String;
+            _appendRoom(
+              rid,
+              'message.member',
+              {'id': mid, 'kind': 'member', 'profile': m['profile']},
+              {
+                'discussion_event_id': discussion,
+                'member_id': mid,
+                'text': 'Ahoj od $mid',
+                'thread_id': payload['thread_id'],
+              },
+            );
+            _appendRoom(
+              rid,
+              'turn.settled',
+              {'id': 'install:fake', 'kind': 'gateway'},
+              {
+                'discussion_event_id': discussion,
+                'member_id': mid,
+                'passed': false,
+              },
+            );
+          }
+          _appendRoom(
+            rid,
+            'room.activity',
+            {'id': 'install:fake', 'kind': 'gateway'},
+            {'status': 'settled', 'reason_code': 'silent_round'},
+          );
+          changed();
         case 'session.close':
           send({
             'id': id,

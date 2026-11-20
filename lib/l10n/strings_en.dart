@@ -326,6 +326,86 @@ class StringsEn extends Strings {
   @override
   String get replyFailed => 'The reply ended with an error';
 
+  // --- group chats ---------------------------------------------------------
+  @override
+  String get groupChats => 'Group chats';
+  @override
+  String get newGroupChat => 'New group chat';
+  @override
+  String get groupPickTitle => 'New group chat';
+  @override
+  String get groupPickHint => 'Pick 2 to 6 Hobs to talk together.';
+  @override
+  String get groupNameLabel => 'Group name';
+  @override
+  String get create => 'Create';
+  @override
+  String get groupCreateFailed => 'Could not create the group chat.';
+  @override
+  String groupLoadFailed(String reason) =>
+      'Could not load the group chat: $reason';
+  @override
+  String get groupSendUnconfirmed =>
+      'The server did not confirm the message. Check the chat and send it again if needed.';
+  @override
+  String get groupDisbandUnconfirmed =>
+      'The server did not confirm ending the group. Try again.';
+  @override
+  String groupMembers(int n) => n == 1 ? '1 Hob' : '$n Hobs';
+  @override
+  String get groupMessageHint => 'Message the group, @mention to assign';
+  @override
+  String get groupEmpty => 'Write the first message; every Hob answers.';
+  @override
+  String get groupOptions => 'Group options';
+  @override
+  String get renameGroup => 'Rename';
+  @override
+  String get renameGroupTitle => 'Rename group';
+  @override
+  String get disbandGroup => 'End group';
+  @override
+  String get disbandGroupBody =>
+      'The group chat ends on every device. The Hobs stop talking in it and '
+      'it cannot be brought back.';
+  @override
+  String get disband => 'End';
+  @override
+  String get groupDisbanded => 'This group chat has ended.';
+  @override
+  String get you => 'You';
+  @override
+  String mention(String handle) => 'Mention @$handle';
+  @override
+  String memberStateLabel(String state) => switch (state) {
+    'queued' => 'queued',
+    'working' => 'working',
+    'replied' => 'replied',
+    'passed' => 'passed',
+    'failed' => 'failed',
+    'cancelled' => 'stopped',
+    _ => 'idle',
+  };
+  @override
+  String get roundCapped => 'The Hobs reached the round limit.';
+  @override
+  String get continueRound => 'Continue';
+  @override
+  String turnFailed(String member, String? reason) =>
+      reason == null || reason.isEmpty
+      ? '$member did not answer.'
+      : '$member did not answer: $reason';
+  @override
+  String get turnCancelled => 'Stopped.';
+  @override
+  String memberAsks(String member) => '$member asks for approval';
+  @override
+  String memberFailed(String member) => "$member's turn failed";
+  @override
+  String get discardTurn => 'Discard';
+  @override
+  String groupWorking(String members) => 'working: $members';
+
   // --- scheduled jobs ------------------------------------------------------
   @override
   String get refresh => 'Refresh';

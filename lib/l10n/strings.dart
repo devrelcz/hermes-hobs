@@ -194,6 +194,39 @@ abstract class Strings {
   String get interruptedNotice;
   String get replyFailed;
 
+  // --- group chats ---------------------------------------------------------
+  String get groupChats;
+  String get newGroupChat;
+  String get groupPickTitle;
+  String get groupPickHint;
+  String get groupNameLabel;
+  String get create;
+  String get groupCreateFailed;
+  String groupLoadFailed(String reason);
+  String get groupSendUnconfirmed;
+  String get groupDisbandUnconfirmed;
+  String groupMembers(int n);
+  String get groupMessageHint;
+  String get groupEmpty;
+  String get groupOptions;
+  String get renameGroup;
+  String get renameGroupTitle;
+  String get disbandGroup;
+  String get disbandGroupBody;
+  String get disband;
+  String get groupDisbanded;
+  String get you;
+  String mention(String handle);
+  String memberStateLabel(String state);
+  String get roundCapped;
+  String get continueRound;
+  String turnFailed(String member, String? reason);
+  String get turnCancelled;
+  String memberAsks(String member);
+  String memberFailed(String member);
+  String get discardTurn;
+  String groupWorking(String members);
+
   // --- scheduled jobs ------------------------------------------------------
   String get refresh;
   String jobsLoadFailed(Object? e);
