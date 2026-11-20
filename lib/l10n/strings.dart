@@ -101,6 +101,22 @@ abstract class Strings {
   String get folderOptions;
   String get moveFolder;
 
+  // --- hob menu (long-press / right-click on a row) ------------------------
+  String hobMenuLabel(String hob);
+  String get pinHob;
+  String get unpinHob;
+  String get hideHob;
+  String get unhideHob;
+  String get moveToFolder;
+  String get removeFromFolder;
+  String get newFolder;
+  String get newFolderTitle;
+  String get create;
+  String get hiddenHobs;
+  String hobHidden(String hob);
+  String get undo;
+  String get hobChangeFailed;
+
   // --- hob profile ---------------------------------------------------------
   String get hobProfile;
   String editHob(String hob);

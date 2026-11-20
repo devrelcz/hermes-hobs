@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -425,16 +426,8 @@ class AppState extends ChangeNotifier {
           .hobs
           .add(b);
     }
-    int byActivity(Hob a, Hob b) {
-      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
-      final ta = a.lastActive?.millisecondsSinceEpoch ?? 0;
-      final tb = b.lastActive?.millisecondsSinceEpoch ?? 0;
-      if (ta != tb) return tb.compareTo(ta);
-      return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
-    }
-
     for (final s in byKey.values) {
-      s.hobs.sort(byActivity);
+      s.hobs.sort(_byActivity);
     }
     int rank(HobSection s) {
       final i = sectionOrder.indexOf(s.key);
@@ -450,6 +443,56 @@ class AppState extends ChangeNotifier {
           });
     final rest = byKey[HobSection.unassignedKey];
     return [...named, ?rest];
+  }
+
+  /// The dashboard's roster order: pinned first, then newest activity.
+  static int _byActivity(Hob a, Hob b) {
+    if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+    final ta = a.lastActive?.millisecondsSinceEpoch ?? 0;
+    final tb = b.lastActive?.millisecondsSinceEpoch ?? 0;
+    if (ta != tb) return tb.compareTo(ta);
+    return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+  }
+
+  /// Hidden hobs that match the search and filter, in roster order. The list
+  /// shows them in their own collapsed group at the end, like the dashboard.
+  List<Hob> get hiddenHobs =>
+      _hiddenHobs.where(_matchesFilter).toList()..sort(_byActivity);
+
+  @visibleForTesting
+  set hiddenHobsForTest(List<Hob> list) => _hiddenHobs = list;
+
+  /// Whether the hidden group is open. Not kept: it starts closed.
+  bool hiddenExpanded = false;
+
+  void toggleHidden() {
+    hiddenExpanded = !hiddenExpanded;
+    notifyListeners();
+  }
+
+  /// Every folder a hob belongs to (hidden hobs included), in the order the
+  /// list shows them. What "Move to folder" offers.
+  List<({String id, String name})> get folders {
+    final byId = <String, String>{};
+    for (final b in [...hobs, ..._hiddenHobs]) {
+      final id = b.sectionId;
+      if (id == null) continue;
+      byId.putIfAbsent(
+        id,
+        () => b.sectionName ?? Strings.current.folderFallback,
+      );
+    }
+    int rank(String id) {
+      final i = sectionOrder.indexOf('section:$id');
+      return i < 0 ? sectionOrder.length : i;
+    }
+
+    return [for (final e in byId.entries) (id: e.key, name: e.value)]
+      ..sort((a, b) {
+        final byRank = rank(a.id).compareTo(rank(b.id));
+        if (byRank != 0) return byRank;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
   }
 
   /// True when the server has no user folders at all: draw a flat list.
@@ -492,27 +535,116 @@ class AppState extends ChangeNotifier {
   /// Throws when the server refuses a write.
   Future<void> renameSection(String key, String name) async {
     final title = name.trim();
-    final rpc = _rpc;
-    if (title.isEmpty || rpc == null || key == HobSection.unassignedKey) return;
+    if (title.isEmpty || _rpc == null || key == HobSection.unassignedKey) {
+      return;
+    }
     try {
       for (final b in [...hobs, ..._hiddenHobs]) {
         if ('section:${b.sectionId}' != key || b.sectionName == title) continue;
-        if (!await _writeSectionName(rpc, b, title)) {
-          // Someone else edited the hob meanwhile: reread it and retry once.
-          final fresh = (await _fetchAllHobs()).where((x) => x.name == b.name);
-          if (fresh.isEmpty ||
-              !await _writeSectionName(rpc, fresh.first, title)) {
-            throw StateError(Strings.current.renameFolderFailed);
-          }
-        }
+        await _editMeta(
+          b,
+          (x) => {...x.meta, 'sectionName': title},
+          refused: Strings.current.renameFolderFailed,
+        );
       }
     } finally {
       await refreshHobs(silent: true);
     }
   }
 
-  Future<bool> _writeSectionName(HermesRpc rpc, Hob b, String title) =>
-      _writeMeta(rpc, b, {...b.meta, 'sectionName': title});
+  // --- hob menu: pin, hide, move to folder ---------------------------------
+  //
+  // Same keys the dashboard writes. Turning a flag off writes false and
+  // leaving a folder writes null rather than dropping the key: the dashboard
+  // merges what it reads over what it already has, so a missing key would
+  // not clear it there.
+
+  Future<void> setHobPinned(Hob hob, bool pinned) =>
+      _editMetaNow(hob, (b) => {...b.meta, 'pinned': pinned});
+
+  Future<void> setHobHidden(Hob hob, bool hidden) =>
+      _editMetaNow(hob, (b) => {...b.meta, 'hidden': hidden});
+
+  /// Moves the hob into folder [sectionId] named [sectionName]; a null id
+  /// takes it out of its folder.
+  Future<void> moveHobToFolder(
+    Hob hob,
+    String? sectionId,
+    String? sectionName,
+  ) => _editMetaNow(
+    hob,
+    (b) => {
+      ...b.meta,
+      'sectionId': sectionId,
+      'sectionName': sectionId == null ? null : sectionName,
+    },
+  );
+
+  /// Creates folder [name] with the hob as its first member. A folder exists
+  /// only through its members, like on the dashboard.
+  Future<void> moveHobToNewFolder(Hob hob, String name) {
+    final title = name.trim();
+    if (title.isEmpty) return Future.value();
+    return moveHobToFolder(hob, newFolderId(), title);
+  }
+
+  /// A folder id in the dashboard's format (`sec-<time>-<random>`).
+  static String newFolderId() {
+    final rnd = Random();
+    final tail = List.generate(
+      5,
+      (_) => rnd.nextInt(36).toRadixString(36),
+    ).join();
+    return 'sec-${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}'
+        '-$tail';
+  }
+
+  /// Shows the edited hob at once, then writes it. Puts the hob back the way
+  /// it was and rethrows when the server refuses.
+  Future<void> _editMetaNow(
+    Hob hob,
+    Map<String, dynamic> Function(Hob b) edit,
+  ) async {
+    final before = hobNamed(hob.name) ?? hob;
+    _putHob(before.withMeta(edit(before)));
+    try {
+      await _editMeta(before, edit, refused: Strings.current.hobChangeFailed);
+    } catch (_) {
+      _putHob(before);
+      rethrow;
+    } finally {
+      await refreshHobs(silent: true);
+    }
+  }
+
+  /// Puts [hob] in place of the roster's copy, in the visible or the hidden
+  /// list as its flag says.
+  void _putHob(Hob hob) {
+    hobs = [...hobs.where((b) => b.name != hob.name), if (!hob.hidden) hob];
+    _hiddenHobs = [
+      ..._hiddenHobs.where((b) => b.name != hob.name),
+      if (hob.hidden) hob,
+    ];
+    notifyListeners();
+  }
+
+  /// Rewrites the hob's whole `hermes-bots` block as [edit] makes it from the
+  /// current one. When someone else edited the hob meanwhile, rereads it and
+  /// retries once. Throws a [StateError] saying [refused] when the server
+  /// still refuses.
+  Future<void> _editMeta(
+    Hob hob,
+    Map<String, dynamic> Function(Hob b) edit, {
+    required String refused,
+  }) async {
+    final rpc = _connected;
+    if (await _writeMeta(rpc, hob, edit(hob))) return;
+    final fresh = (await _fetchAllHobs()).where((x) => x.name == hob.name);
+    if (fresh.isEmpty ||
+        !await _writeMeta(rpc, fresh.first, edit(fresh.first))) {
+      throw StateError(refused);
+    }
+  }
 
   /// Replaces the hob's whole `hermes-bots` block. False when the server
   /// refused it, e.g. because someone else edited the hob meanwhile.
@@ -582,7 +714,6 @@ class AppState extends ChangeNotifier {
     required String? shape,
     required String? color,
   }) async {
-    final rpc = _connected;
     Map<String, dynamic> edited(Hob b) {
       final meta = {...b.meta};
       void put(String key, String? value) =>
@@ -596,13 +727,7 @@ class AppState extends ChangeNotifier {
       return meta;
     }
 
-    if (await _writeMeta(rpc, hob, edited(hob))) return;
-    // Someone else edited the hob meanwhile: reread it and retry once.
-    final fresh = (await _fetchAllHobs()).where((x) => x.name == hob.name);
-    if (fresh.isEmpty ||
-        !await _writeMeta(rpc, fresh.first, edited(fresh.first))) {
-      throw StateError(Strings.current.hobSaveRefused);
-    }
+    await _editMeta(hob, edited, refused: Strings.current.hobSaveRefused);
   }
 
   /// Saves the hob's description (`hermes profile describe`).
@@ -798,11 +923,7 @@ class AppState extends ChangeNotifier {
     if (password == null) return;
     await _verify();
     try {
-      await login(
-        serverUrl: serverUrl,
-        username: username,
-        password: password,
-      );
+      await login(serverUrl: serverUrl, username: username, password: password);
     } catch (e) {
       if (e is HermesHttpException && e.isUnauthorized) {
         // The server no longer takes it; do not offer it again.

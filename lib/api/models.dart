@@ -140,6 +140,32 @@ class Hob {
     );
   }
 
+  /// This hob as it reads once [meta] replaced its `hermes-bots` block: what
+  /// the roster shows before the server confirms a write.
+  Hob withMeta(Map<String, dynamic> meta) {
+    String? str(Object? v) =>
+        v is String && v.trim().isNotEmpty ? v.trim() : null;
+    return Hob(
+      name: name,
+      displayName: displayName,
+      description: description,
+      model: model,
+      provider: provider,
+      isDefault: isDefault,
+      sectionId: str(meta['sectionId']),
+      sectionName: str(meta['sectionName']),
+      color: str(meta['color']),
+      shape: str(meta['shape']),
+      pinned: meta['pinned'] == true,
+      hidden: meta['hidden'] == true,
+      canonical: canonical,
+      lastSession: lastSession,
+      workerActiveAt: workerActiveAt,
+      meta: meta,
+      metaRevision: metaRevision,
+    );
+  }
+
   /// The title the user typed for this hob; empty when the name stands in.
   String get customTitle {
     final t = meta['title'];
