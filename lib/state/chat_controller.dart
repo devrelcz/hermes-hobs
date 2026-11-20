@@ -203,6 +203,15 @@ class ChatController extends ChangeNotifier {
       }
     }
     final pending = res['open_requests'];
+    // Server requests from before the reconnect are gone unless the server
+    // still lists them; their ids may be reused by the new socket.
+    final stillOpen = {
+      if (pending is List)
+        for (final r in pending.whereType<Map>()) 'request:${r['id']}',
+    };
+    _alerted.removeWhere(
+      (k) => k.startsWith('request:') && !stillOpen.contains(k),
+    );
     if (pending is List) {
       for (final r in pending.whereType<Map>()) {
         // Requests opened before we attached: answer through request.answer.

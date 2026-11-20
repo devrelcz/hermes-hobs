@@ -252,6 +252,30 @@ void main() {
     },
   );
 
+  test('a request id reused after a reconnect notifies again', () async {
+    server.askApproval = true;
+    final app = await signedIn();
+    final chat = await openChat(app);
+    app.onAppHidden();
+
+    unawaited(chat.send('ls'));
+    await waitFor(() => notifier.shown.length == 1);
+
+    // The socket drops before anyone answers; the turn is gone with it.
+    final resumes = server.resumed.length;
+    await server.dropSockets();
+    await waitFor(() => server.resumed.length > resumes);
+    await waitFor(() => !chat.busy);
+
+    // The next turn's request arrives with the same id on the new socket.
+    server.approvalAnswer = Completer();
+    unawaited(chat.send('ls'));
+    await waitFor(() => notifier.shown.where((n) => n.blocking).length == 2);
+    chat.answerApproval('once');
+    await waitFor(() => !chat.busy);
+    app.dispose();
+  });
+
   test('history replay on reconnect does not notify', () async {
     server.replayCompleteOnResume = true;
     final app = await signedIn();

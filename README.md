@@ -46,8 +46,8 @@ screen is up, or you are looking at another Hob or at the list. One
 notification per Hob; a newer one replaces it and opening the chat clears it.
 Replies and prompts that `session.resume` replays after a reconnect don't
 notify again (each prompt id / turn notifies once); a prompt that first shows
-up in a reconnect snapshot, or a turn that ended while the socket was down,
-does notify.
+up in a reconnect snapshot, or a turn that ended with a reply while the socket
+was down, does notify.
 
 Tapping a notification opens that Hob's chat (pushed on phones, beside the
 list on wide screens). With the biometric lock on, the lock screen comes first
