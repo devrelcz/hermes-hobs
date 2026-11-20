@@ -151,7 +151,36 @@ abstract class Strings {
   String get messageHint;
   String get stop;
   String get send;
+
+  // Attachments and sharing
+  String get addAttachment;
+  String get takePhoto;
+  String get choosePhotos;
+  String get chooseFiles;
+  String get addLink;
+  String get pasteImage;
+  String get noImageInClipboard;
+  String get linkHint;
+  String get linkInvalid;
+  String get add;
+  String get removeAttachment;
+  String uploadFailed(Object error);
+  String get uploadNoPath;
+  String attachmentTooLarge(int mb);
+  String pickFailed(Object error);
+  String get waitForUploads;
+  String get linkOpenFailed;
+  String get shareTitle;
+  String shareSummary(int count);
+  String get shareNoHobs;
   String get modelTooltip;
+  String get sessionModelTitle;
+  String get sessionModelHint;
+  String get hobDefaultTag;
+  String get useHobDefaultModel;
+  String get sessionModelTag;
+  String modelSwitchDeferred(String model);
+  String get modelsUnavailable;
   String get reasoningLevel;
   String get reasoning;
   String get approvalModeTooltip;
@@ -178,6 +207,7 @@ abstract class Strings {
   String get chatNotReady;
   String interruptFailed(Object e);
   String reasoningChangeFailed(Object e);
+  String modelChangeFailed(Object e);
   String approvalModeChangeFailed(Object e);
   String approvalAnswerFailed(Object e);
   String clarifyAnswerFailed(Object e);
@@ -185,6 +215,39 @@ abstract class Strings {
   String get unknownError;
   String get interruptedNotice;
   String get replyFailed;
+
+  // --- group chats ---------------------------------------------------------
+  String get groupChats;
+  String get newGroupChat;
+  String get groupPickTitle;
+  String get groupPickHint;
+  String get groupNameLabel;
+  String get create;
+  String get groupCreateFailed;
+  String groupLoadFailed(String reason);
+  String get groupSendUnconfirmed;
+  String get groupDisbandUnconfirmed;
+  String groupMembers(int n);
+  String get groupMessageHint;
+  String get groupEmpty;
+  String get groupOptions;
+  String get renameGroup;
+  String get renameGroupTitle;
+  String get disbandGroup;
+  String get disbandGroupBody;
+  String get disband;
+  String get groupDisbanded;
+  String get you;
+  String mention(String handle);
+  String memberStateLabel(String state);
+  String get roundCapped;
+  String get continueRound;
+  String turnFailed(String member, String? reason);
+  String get turnCancelled;
+  String memberAsks(String member);
+  String memberFailed(String member);
+  String get discardTurn;
+  String groupWorking(String members);
 
   // --- scheduled jobs ------------------------------------------------------
   String get refresh;

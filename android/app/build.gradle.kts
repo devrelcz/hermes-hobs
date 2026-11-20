@@ -6,8 +6,8 @@ plugins {
 
 android {
     namespace = "cz.devrel.hobs"
-    // flutter_local_notifications 23 (and its androidx.core) need API 37.
-    compileSdk = 37
+    // receive_sharing_intent 1.9 (share sheet) compiles against API 37.
+    compileSdk = maxOf(flutter.compileSdkVersion, 37)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

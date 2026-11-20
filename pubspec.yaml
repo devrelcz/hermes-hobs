@@ -44,6 +44,13 @@ dependencies:
   blobatar_flutter: ^0.1.0
   local_auth: ^3.0.2
   flutter_local_notifications: ^23.0.3
+  image_picker: ^1.2.4
+  file_selector: ^1.1.0
+  receive_sharing_intent: ^1.9.0
+  url_launcher: ^6.3.3
+  pasteboard: ^0.6.2
+  image: ^4.13.1
+  mime: ^2.1.0
 
 dev_dependencies:
   flutter_test:

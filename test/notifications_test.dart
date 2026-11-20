@@ -185,7 +185,7 @@ void main() {
       },
     ];
     final resumes = server.resumed.length;
-    await server.dropSockets();
+    await server.dropConnections();
     await waitFor(() => server.resumed.length > resumes);
     await waitFor(() => chat.approval != null);
     await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -263,7 +263,7 @@ void main() {
 
     // The socket drops before anyone answers; the turn is gone with it.
     final resumes = server.resumed.length;
-    await server.dropSockets();
+    await server.dropConnections();
     await waitFor(() => server.resumed.length > resumes);
     await waitFor(() => !chat.busy);
 
@@ -284,7 +284,7 @@ void main() {
     app.onAppHidden();
 
     final resumes = server.resumed.length;
-    await server.dropSockets();
+    await server.dropConnections();
     await waitFor(() => server.resumed.length > resumes);
     await waitFor(() => app.connection == ConnectionStatus.connected);
     await Future<void>.delayed(const Duration(milliseconds: 100));

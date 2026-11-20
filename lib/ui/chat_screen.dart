@@ -8,7 +8,11 @@ import '../api/models.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/chat_controller.dart';
+import '../state/composer_draft.dart';
+import 'attachments_ui.dart';
+import '../state/mentions.dart';
 import 'hob_avatar.dart';
+import 'model_picker.dart';
 import 'hob_detail_screen.dart';
 import 'cron_sheet.dart';
 import 'format.dart';
@@ -25,10 +29,14 @@ class ChatScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.read<AppState>().chatFor(hob);
+    final app = context.read<AppState>();
+    final controller = app.chatFor(hob);
     return ChangeNotifierProvider.value(
       value: controller,
-      child: ChatView(embedded: embedded),
+      child: ChangeNotifierProvider.value(
+        value: app.draftFor(hob),
+        child: ChatView(embedded: embedded),
+      ),
     );
   }
 }
@@ -50,10 +58,75 @@ class _ChatViewState extends State<ChatView> {
   int _countWhenLeft = 0;
   bool _promptExpanded = false;
 
+  /// The `@word` being typed and the Hobs it can become.
+  ({int start, String query})? _mention;
+  List<Hob> _mentionOptions = const [];
+  int _mentionIndex = 0;
+
+  /// `@` position the user dismissed with Escape; stays closed until they
+  /// start another mention.
+  int? _mentionDismissedAt;
+
   @override
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
+    _input.addListener(_onInputChanged);
+  }
+
+  void _onInputChanged() {
+    final sel = _input.selection;
+    final active = sel.isValid && sel.isCollapsed
+        ? Mentions.activeQuery(_input.text, sel.baseOffset)
+        : null;
+    if (active?.start != _mentionDismissedAt) _mentionDismissedAt = null;
+    final options = active == null || _mentionDismissedAt != null
+        ? const <Hob>[]
+        : context.read<ChatController>().mentionCandidates(active.query);
+    if (options.isEmpty && _mentionOptions.isEmpty) {
+      _mention = active;
+      return;
+    }
+    setState(() {
+      if (active?.query != _mention?.query) _mentionIndex = 0;
+      _mention = active;
+      _mentionOptions = options;
+      if (_mentionIndex >= options.length) _mentionIndex = 0;
+    });
+  }
+
+  bool get _mentionOpen => _mentionOptions.isNotEmpty && _mention != null;
+
+  void _pickMention(Hob hob) {
+    final m = _mention;
+    if (m == null) return;
+    final c = context.read<ChatController>();
+    final text = _input.text;
+    final end = (m.start + 1 + m.query.length).clamp(0, text.length);
+    final insert = '@${c.mentionTag(hob)} ';
+    final next = text.replaceRange(m.start, end, insert);
+    _input.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: m.start + insert.length),
+    );
+    _focus.requestFocus();
+  }
+
+  void _moveMention(int delta) {
+    if (!_mentionOpen) return;
+    setState(() {
+      final n = _mentionOptions.length;
+      _mentionIndex = (_mentionIndex + delta + n) % n;
+    });
+  }
+
+  void _dismissMention() {
+    final m = _mention;
+    if (m == null) return;
+    setState(() {
+      _mentionDismissedAt = m.start;
+      _mentionOptions = const [];
+    });
   }
 
   void _onScroll() {
@@ -86,10 +159,17 @@ class _ChatViewState extends State<ChatView> {
   }
 
   void _send(ChatController c) {
+    // Enter while picking a Hob takes the highlighted one.
+    if (_mentionOpen) {
+      _pickMention(_mentionOptions[_mentionIndex]);
+      return;
+    }
+    final draft = context.read<ComposerDraft>();
     final text = _input.text;
-    if (text.trim().isEmpty || c.busy || !c.ready) return;
+    if (c.busy || !c.ready || !draft.ready) return;
+    if (text.trim().isEmpty && draft.isEmpty) return;
     _input.clear();
-    c.send(text);
+    c.send(text, attachments: draft.take());
     _focus.requestFocus();
     if (_scroll.hasClients) _jumpToBottom();
   }
@@ -97,10 +177,25 @@ class _ChatViewState extends State<ChatView> {
   @override
   Widget build(BuildContext context) {
     final c = context.watch<ChatController>();
+    final draft = context.watch<ComposerDraft>();
+    if (draft.prefill != null) {
+      // Text shared from another app: into the field, never sent by itself.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final shared = draft.takePrefill();
+        if (shared == null || !mounted) return;
+        final current = _input.text.trim();
+        _input.text = current.isEmpty ? shared : '$current\n\n$shared';
+      });
+    }
     final theme = Theme.of(context);
     final s = Strings.of(context);
     final working = c.busy || c.hob.workingNow;
-    final prompt = c.lastPrompt;
+    var prompt = c.lastPrompt;
+    if (prompt != null && prompt.isEmpty) {
+      // An attachment-only message: pin its file names instead.
+      final last = c.messages.lastWhere((m) => m.role == ChatRole.user);
+      prompt = last.attachments.map((a) => a.name).join(', ');
+    }
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: !widget.embedded,
@@ -215,11 +310,33 @@ class _ChatViewState extends State<ChatView> {
           if (c.approval != null) _ApprovalCard(controller: c),
           if (c.clarify != null)
             _ClarifyCard(key: ObjectKey(c.clarify), controller: c),
-          _Composer(
-            controller: _input,
-            focusNode: _focus,
-            chat: c,
-            onSend: () => _send(c),
+          if (_mentionOpen)
+            _MentionSuggestions(
+              options: _mentionOptions,
+              highlighted: _mentionIndex,
+              tagOf: c.mentionTag,
+              onPick: _pickMention,
+            ),
+          CallbackShortcuts(
+            bindings: _mentionOpen
+                ? {
+                    const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+                        _moveMention(1),
+                    const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+                        _moveMention(-1),
+                    const SingleActivator(LogicalKeyboardKey.tab): () =>
+                        _pickMention(_mentionOptions[_mentionIndex]),
+                    const SingleActivator(LogicalKeyboardKey.escape):
+                        _dismissMention,
+                  }
+                : const {},
+            child: _Composer(
+              controller: _input,
+              focusNode: _focus,
+              chat: c,
+              draft: draft,
+              onSend: () => _send(c),
+            ),
           ),
         ],
       ),
@@ -288,6 +405,85 @@ class _ChatViewState extends State<ChatView> {
               (newer == null || newer.role == ChatRole.user);
           return _MessageRow(message: m, showMeta: endOfTurn, controller: c);
         },
+      ),
+    );
+  }
+}
+
+/// [text] with every `@tag` that names a Hob in [mentionStyle].
+TextSpan _withMentions(
+  String text,
+  ChatController chat,
+  TextStyle mentionStyle,
+) {
+  final spans = <InlineSpan>[];
+  var last = 0;
+  final pattern = RegExp(r'(^|\s)(@[a-z0-9][a-z0-9_-]*)', caseSensitive: false);
+  for (final m in pattern.allMatches(text)) {
+    final tag = m.group(2)!;
+    if (!chat.mentionsHob(tag)) continue;
+    final start = m.start + m.group(1)!.length;
+    if (start > last) spans.add(TextSpan(text: text.substring(last, start)));
+    spans.add(TextSpan(text: tag, style: mentionStyle));
+    last = start + tag.length;
+  }
+  if (spans.isEmpty) return TextSpan(text: text);
+  if (last < text.length) spans.add(TextSpan(text: text.substring(last)));
+  return TextSpan(children: spans);
+}
+
+/// The Hobs an `@word` in the composer can become.
+class _MentionSuggestions extends StatelessWidget {
+  const _MentionSuggestions({
+    required this.options,
+    required this.highlighted,
+    required this.tagOf,
+    required this.onPick,
+  });
+
+  final List<Hob> options;
+  final int highlighted;
+  final String Function(Hob) tagOf;
+  final void Function(Hob) onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+      child: Material(
+        key: const ValueKey('mention-suggestions'),
+        color: cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 232),
+          child: ListView.builder(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            itemCount: options.length,
+            itemBuilder: (context, i) {
+              final hob = options[i];
+              return ListTile(
+                dense: true,
+                selected: i == highlighted,
+                selectedTileColor: cs.secondaryContainer,
+                selectedColor: cs.onSecondaryContainer,
+                leading: HobAvatar(hob: hob, size: 28),
+                title: Text(hob.displayName, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  '@${tagOf(hob)}',
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+                onTap: () => onPick(hob),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -377,11 +573,31 @@ class _MessageRow extends StatelessWidget {
               color: cs.primaryContainer,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Text(
-              message.text,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: cs.onPrimaryContainer,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (message.attachments.isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.only(
+                      bottom: message.text.isEmpty ? 0 : 8,
+                    ),
+                    child: MessageAttachments(
+                      attachments: message.attachments,
+                      profile: controller.hob.name,
+                    ),
+                  ),
+                if (message.text.isNotEmpty)
+                  Text.rich(
+                    _withMentions(
+                      message.text,
+                      controller,
+                      const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: cs.onPrimaryContainer,
+                    ),
+                  ),
+              ],
             ),
           ),
         );
@@ -669,12 +885,14 @@ class _Composer extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.chat,
+    required this.draft,
     required this.onSend,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final ChatController chat;
+  final ComposerDraft draft;
   final VoidCallback onSend;
 
   static const _effortLabels = {
@@ -707,8 +925,9 @@ class _Composer extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            DraftStrip(draft: draft),
             Container(
-              padding: const EdgeInsets.fromLTRB(14, 2, 4, 2),
+              padding: const EdgeInsets.fromLTRB(0, 2, 4, 2),
               decoration: BoxDecoration(
                 color: cs.surfaceContainerLowest,
                 border: Border.all(color: cs.outline.withValues(alpha: 0.5)),
@@ -717,6 +936,10 @@ class _Composer extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: AttachButton(draft: draft, enabled: canType),
+                  ),
                   Expanded(
                     child: CallbackShortcuts(
                       bindings: {
@@ -730,6 +953,22 @@ class _Composer extends StatelessWidget {
                         minLines: 1,
                         maxLines: 6,
                         textInputAction: TextInputAction.newline,
+                        // Android keyboards insert clipboard images and GIFs.
+                        contentInsertionConfiguration:
+                            ContentInsertionConfiguration(
+                              onContentInserted: (content) {
+                                final data = content.data;
+                                if (data == null || data.isEmpty) return;
+                                draft.addImage(
+                                  data,
+                                  Uri.tryParse(content.uri)
+                                          ?.pathSegments
+                                          .lastOrNull ??
+                                      'pasted-image',
+                                  mime: content.mimeType,
+                                );
+                              },
+                            ),
                         decoration: InputDecoration(
                           hintText: chat.ready ? s.messageHint : s.connecting,
                           filled: false,
@@ -754,8 +993,10 @@ class _Composer extends StatelessWidget {
                             icon: const Icon(Icons.stop, size: 20),
                           )
                         : IconButton.filled(
-                            tooltip: s.send,
-                            onPressed: chat.ready ? onSend : null,
+                            tooltip: draft.ready ? s.send : s.waitForUploads,
+                            onPressed: chat.ready && draft.ready
+                                ? onSend
+                                : null,
                             icon: const Icon(Icons.arrow_upward, size: 20),
                           ),
                   ),
@@ -767,24 +1008,7 @@ class _Composer extends StatelessWidget {
               children: [
                 if (chat.model != null)
                   Flexible(
-                    child: Tooltip(
-                      message: s.modelTooltip,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: cs.outlineVariant),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          chat.model!,
-                          style: chipStyle,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
+                    child: _ModelChip(chat: chat, style: chipStyle),
                   ),
                 const SizedBox(width: 6),
                 PopupMenuButton<String>(
@@ -1074,6 +1298,61 @@ class _ClarifyCardState extends State<_ClarifyCard> {
                   FilledButton(onPressed: _submit, child: Text(s.answer)),
                 ],
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The session's model in the composer. Tapping it picks a model for this
+/// chat only; a chat off the hob's default model is outlined and tagged.
+class _ModelChip extends StatelessWidget {
+  const _ModelChip({required this.chat, required this.style});
+
+  final ChatController chat;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Strings.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final overridden = chat.modelOverridden;
+    final label = chat.sessionModel?.shortLabel ?? chat.model!;
+    return Tooltip(
+      message: overridden
+          ? '${s.modelTooltip} · ${s.sessionModelTag}'
+          : s.modelTooltip,
+      child: InkWell(
+        key: const ValueKey('session-model'),
+        borderRadius: BorderRadius.circular(12),
+        onTap: chat.ready ? () => pickSessionModel(context, chat) : null,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: overridden ? cs.primary : cs.outlineVariant,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (overridden) ...[
+                Icon(Icons.push_pin_outlined, size: 12, color: cs.primary),
+                const SizedBox(width: 4),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  style: overridden
+                      ? style?.copyWith(color: cs.primary)
+                      : style,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(Icons.arrow_drop_down, size: 16, color: cs.onSurfaceVariant),
             ],
           ),
         ),

@@ -22,6 +22,7 @@ class FakeHermesServer {
   final Map<String, String> _subscriptions = {};
   static const _sessionVerbs = {
     'prompt.submit',
+    'file.attach',
     'session.interrupt',
     'session.mutate',
     'approval.respond',
@@ -65,6 +66,15 @@ class FakeHermesServer {
       'submission_id',
       'input_id',
       'queued',
+      'attachments',
+    },
+    'file.attach': {
+      'session_id',
+      'profile',
+      'path',
+      'data_url',
+      'name',
+      'staged_upload',
     },
     'session.interrupt': {'profile', 'session_id', 'execution_generation'},
     'approval.respond': {
@@ -103,6 +113,29 @@ class FakeHermesServer {
 
   /// Switching to this model needs `confirm_expensive_model`.
   String expensiveModel = 'hermes-4-pro';
+
+  /// Session-only model switches: stored session id -> {provider, model}.
+  /// `model.options {session_id}` reports them; the profile keeps its own.
+  final Map<String, Map<String, String>> sessionModels = {};
+  final Map<String, String> _storedOf = {}; // runtime id -> stored id
+  static const _modelConfirmToken = 'confirm-expensive-1';
+  final List<WebSocket> _sockets = [];
+
+  /// Closes every open socket, like a network drop (the client reconnects).
+  Future<void> dropConnections() async {
+    for (final ws in List.of(_sockets)) {
+      await ws.close();
+    }
+    _sockets.clear();
+  }
+
+  Map<String, String> _profileDefault() {
+    final model = profileModel['default']?.toString() ?? '';
+    // An inheriting profile runs on the launch profile's model.
+    return model.isEmpty
+        ? {'provider': 'nous', 'model': 'hermes-4'}
+        : {'provider': '${profileModel['provider']}', 'model': model};
+  }
 
   /// Profile-wide `approvals.mode` served by `config.get`.
   String approvalMode = 'manual';
@@ -165,14 +198,50 @@ class FakeHermesServer {
   /// resumed session, like a server replaying the last turn's events.
   bool replayCompleteOnResume = false;
 
-  final List<WebSocket> _sockets = [];
+  /// Images stored by `POST /api/chat/image-upload`: host path -> bytes.
+  final Map<String, List<int>> images = {};
 
-  /// Drops every open socket, like a network blip; the client reconnects.
-  Future<void> dropSockets() async {
-    for (final ws in [..._sockets]) {
-      await ws.close(1001, 'going away');
-    }
-    _sockets.clear();
+  /// Every upload request: `{route, profile, name, bytes}`.
+  final List<Map<String, dynamic>> uploads = [];
+
+  /// When set, uploads wait for it before answering (cancel tests).
+  Completer<void>? holdUploads;
+
+  /// `GET /api/fs/download` requests (paths).
+  final List<String> downloads = [];
+
+  /// Group chats (`groups.*`): room id -> room, and each room's log.
+  bool groupsEnabled = true;
+  final Map<String, Map<String, dynamic>> rooms = {};
+  final Map<String, List<Map<String, dynamic>>> roomLogs = {};
+
+  /// When set, members wait for it before answering a group message.
+  Completer<void>? groupHold;
+  final List<Map<String, dynamic>> groupActivity = [];
+  int _broadcast = 0;
+
+  Map<String, dynamic> _roomState(String id) => {
+    ...rooms[id]!,
+    'latest_seq': roomLogs[id]!.length,
+  };
+
+  void _appendRoom(
+    String id,
+    String kind,
+    Map<String, dynamic> actor,
+    Map<String, dynamic> payload,
+  ) {
+    final log = roomLogs[id]!;
+    log.add({
+      'room_id': id,
+      'seq': log.length + 1,
+      'event_id': '$kind:${log.length + 1}',
+      'kind': kind,
+      'actor': actor,
+      'authority_epoch': 1,
+      'payload': payload,
+      'created_at': 1795205956 + log.length,
+    });
   }
 
   /// When true, the next prompt triggers an approval request before replying.
@@ -244,6 +313,72 @@ class FakeHermesServer {
     if (!_authed(r)) {
       return _json(r, 401, {'error': 'unauthenticated', 'reason': 'no_cookie'});
     }
+    final profile = r.uri.queryParameters['profile'] ?? 'default';
+    final home = '/srv/hermes/profiles/$profile';
+    if (path == '/api/chat/image-upload' && r.method == 'POST') {
+      final body = jsonDecode(await utf8.decodeStream(r)) as Map;
+      await holdUploads?.future;
+      final dataUrl = body['data_url'] as String;
+      final comma = dataUrl.indexOf(',');
+      final mime = dataUrl.substring(5, dataUrl.indexOf(';'));
+      final bytes = base64Decode(dataUrl.substring(comma + 1));
+      final name = body['filename'] as String;
+      final stored = '$home/cache/images/dashboard_1_$name';
+      images[stored] = bytes;
+      uploads.add({
+        'route': 'image',
+        'profile': profile,
+        'name': name,
+        'bytes': bytes,
+      });
+      return _json(r, 200, {
+        'ok': true,
+        'path': stored,
+        'name': 'dashboard_1_$name',
+        'bytes': bytes.length,
+        'mime_type': mime,
+      });
+    }
+    if (path == '/api/chat/file-upload' && r.method == 'POST') {
+      final raw = await r.fold<List<int>>([], (a, b) => a..addAll(b));
+      await holdUploads?.future;
+      final text = latin1.decode(raw);
+      final name = utf8.decode(
+        latin1.encode(
+          RegExp(r'filename="([^"]*)"').firstMatch(text)!.group(1)!,
+        ),
+      );
+      final start = text.indexOf('\r\n\r\n') + 4;
+      final end = text.lastIndexOf('\r\n--');
+      final bytes = raw.sublist(start, end);
+      final stored = '$home/uploads/u1_$name';
+      uploads.add({
+        'route': 'file',
+        'profile': profile,
+        'name': name,
+        'bytes': bytes,
+        'contentType': r.headers.contentType?.mimeType,
+      });
+      return _json(r, 200, {
+        'ok': true,
+        'path': stored,
+        'size': bytes.length,
+        'staged_upload': {
+          'install_id': 'i1',
+          'path': stored,
+          'profile_home': home,
+        },
+      });
+    }
+    if (path == '/api/fs/download' && r.method == 'GET') {
+      final p = r.uri.queryParameters['path'] ?? '';
+      downloads.add(p);
+      final bytes = images[p];
+      if (bytes == null) return _json(r, 404, {'detail': 'not found'});
+      r.response.headers.contentType = ContentType('image', 'png');
+      r.response.add(bytes);
+      return r.response.close();
+    }
     switch (path) {
       case '/api/auth/me':
         return _json(r, 200, {'user_id': 'u', 'provider': 'basic'});
@@ -261,7 +396,7 @@ class FakeHermesServer {
   void _serveWs(WebSocket ws) {
     _sockets.add(ws);
     void send(Map<String, dynamic> m) {
-      // A dropped socket ([dropSockets]) may still have handlers in flight.
+      // A dropped socket ([dropConnections]) may still have handlers in flight.
       if (ws.closeCode != null) return;
       try {
         ws.add(jsonEncode({'jsonrpc': '2.0', ...m}));
@@ -352,6 +487,28 @@ class FakeHermesServer {
           send({
             'id': id,
             'result': {'status': 'interrupted'},
+          });
+        case 'session.mutate' when params['operation'] == 'model':
+          final payload = (params['payload'] as Map).cast<String, dynamic>();
+          final ask =
+              payload['model'] == expensiveModel &&
+              payload['confirm'] != _modelConfirmToken;
+          if (!ask) {
+            sessionModels[_storedOf[params['session_id']]!] = {
+              'provider': payload['provider'] as String,
+              'model': payload['model'] as String,
+            };
+          }
+          send({
+            'id': id,
+            'result': {
+              'session_id': params['session_id'],
+              'operation': 'model',
+              'revision': 2,
+              'status': ask ? 'confirmation_required' : 'applied',
+              if (ask) 'confirm': _modelConfirmToken,
+              if (ask) 'confirm_message': 'Pricey.',
+            },
           });
         case 'session.mutate':
           send({
@@ -447,9 +604,14 @@ class FakeHermesServer {
             },
           });
         case 'model.options':
+          final stored = _storedOf[params['session_id']];
+          final current =
+              (stored == null ? null : sessionModels[stored]) ??
+              _profileDefault();
           send({
             'id': id,
             'result': {
+              ...current,
               'providers': [
                 {
                   'slug': 'nous',
@@ -490,6 +652,7 @@ class FakeHermesServer {
           createParams.add(params);
           _subscriptions['rt$sessionCounter'] =
               (params['profile'] ?? 'default') as String;
+          _storedOf['rt$sessionCounter'] = 'st$sessionCounter';
           send({
             'id': id,
             'result': {
@@ -517,6 +680,7 @@ class FakeHermesServer {
           sessionCounter++;
           _subscriptions['rt$sessionCounter'] =
               (params['profile'] ?? 'default') as String;
+          _storedOf['rt$sessionCounter'] = params['session_id'] as String;
           send({
             'id': id,
             'result': {
@@ -553,6 +717,31 @@ class FakeHermesServer {
           if (params['key'] == 'approvals.mode') {
             approvalMode = params['value'] as String;
           }
+          if (params['key'] == 'model') {
+            // The dashboard's `<model> --provider <slug> --session`.
+            final words = (params['value'] as String).split(' ');
+            final scoped = words.contains('--session');
+            final provider = words[words.indexOf('--provider') + 1];
+            if (words.first == expensiveModel &&
+                params['confirm_expensive_model'] != true) {
+              send({
+                'id': id,
+                'result': {
+                  'confirm_required': true,
+                  'confirm_message': 'Pricey.',
+                },
+              });
+              return;
+            }
+            if (scoped) {
+              sessionModels[_storedOf[params['session_id']]!] = {
+                'provider': provider,
+                'model': words.first,
+              };
+            } else {
+              profileModel = {'provider': provider, 'default': words.first};
+            }
+          }
           send({
             'id': id,
             'result': {'key': params['key'], 'value': params['value']},
@@ -574,6 +763,187 @@ class FakeHermesServer {
               ],
             },
           });
+        case 'file.attach':
+          final staged = params['staged_upload'] as Map?;
+          final name = params['name'] as String;
+          final stored = '/srv/work/attachments/$name';
+          send({
+            'id': id,
+            'result': staged == null
+                ? {'attached': false, 'message': 'no upload'}
+                : {
+                    'attached': true,
+                    'name': name,
+                    'path': stored,
+                    'ref_path': 'attachments/$name',
+                    'ref_text': '@file:${formatRef('attachments/$name')}',
+                    'uploaded': true,
+                  },
+          });
+        case 'image.attach':
+          send({
+            'id': id,
+            'result': {'attached': true, 'path': params['path'], 'count': 1},
+          });
+        case 'groups.capabilities' when groupsEnabled:
+          send({
+            'id': id,
+            'result': {
+              'protocol_version': 2,
+              'driver': true,
+              'methods': [
+                'groups.list',
+                'groups.state',
+                'groups.log',
+                'groups.create',
+                'groups.send',
+                'groups.stop',
+                'groups.rename',
+                'groups.disband',
+              ],
+              'seatable_profiles': [for (final r in roster) r['name']],
+            },
+          });
+        case 'groups.list' when groupsEnabled:
+          send({
+            'id': id,
+            'result': {
+              'rooms': [for (final rid in rooms.keys) _roomState(rid)],
+              'next_offset': null,
+            },
+          });
+        case 'groups.create' when groupsEnabled:
+          final rid = params['room_id'] as String;
+          rooms[rid] = {
+            'room_id': rid,
+            'name': params['name'],
+            'members': params['members'],
+            'authority_epoch': 1,
+            'created_at': 1795205794,
+            'updated_at': 1795205794,
+          };
+          roomLogs[rid] = [];
+          send({
+            'id': id,
+            'result': {'room': _roomState(rid)},
+          });
+        case 'groups.state' when groupsEnabled:
+          final rid = params['room_id'] as String;
+          send({
+            'id': id,
+            'result': {
+              'room': _roomState(rid),
+              'change_events': true,
+              'context': {'routing': 'everyone'},
+              'driver_status': {
+                'running': true,
+                'working': groupActivity.isNotEmpty,
+                'member_activity': groupActivity,
+                'pending_actions': [],
+                'max_rounds': 3,
+              },
+            },
+          });
+        case 'groups.log' when groupsEnabled:
+          final rid = params['room_id'] as String;
+          final since = params['since_seq'] as int;
+          final limit = params['limit'] as int;
+          final rest = roomLogs[rid]!.skip(since).toList();
+          send({
+            'id': id,
+            'result': {
+              'events': rest.take(limit).toList(),
+              'latest_seq': roomLogs[rid]!.length,
+              'has_more': rest.length > limit,
+            },
+          });
+        case 'groups.rename' when groupsEnabled:
+          final rid = params['room_id'] as String;
+          rooms[rid]!['name'] = params['name'];
+          send({
+            'id': id,
+            'result': {'room': _roomState(rid)},
+          });
+        case 'groups.disband' when groupsEnabled:
+          final rid = params['room_id'] as String;
+          rooms.remove(rid);
+          send({
+            'id': id,
+            'result': {
+              'tombstone': {'room_id': rid, 'disbanded_at': 1795206000.5},
+            },
+          });
+        case 'groups.send' when groupsEnabled:
+          final rid = params['room_id'] as String;
+          final eventId = params['event_id'] as String;
+          final payload = (params['payload'] as Map).cast<String, dynamic>();
+          _appendRoom(rid, 'message.user', {
+            'id': 'desktop',
+            'kind': 'user',
+          }, payload);
+          final discussion = roomLogs[rid]!.last['event_id'];
+          send({
+            'id': id,
+            'result': {'accepted': true, 'client_event_id': eventId},
+          });
+          void changed() => send({
+            'method': 'event',
+            'params': {
+              'type': 'groups.changed',
+              'session_id': '',
+              'payload': {
+                'room_ids': [rid],
+                'broadcast_id': 'b:${++_broadcast}',
+              },
+            },
+          });
+          changed();
+          final members = (rooms[rid]!['members'] as List).cast<Map>();
+          final hold = groupHold;
+          if (hold != null) {
+            groupActivity
+              ..clear()
+              ..add({
+                'member_id': members.first['member_id'],
+                'status': 'running',
+                'started_at': 1795205957,
+                'tool': 'web_search',
+              });
+            changed();
+            await hold.future;
+            groupActivity.clear();
+          }
+          for (final m in members) {
+            final mid = m['member_id'] as String;
+            _appendRoom(
+              rid,
+              'message.member',
+              {'id': mid, 'kind': 'member', 'profile': m['profile']},
+              {
+                'discussion_event_id': discussion,
+                'member_id': mid,
+                'text': 'Ahoj od $mid',
+                'thread_id': payload['thread_id'],
+              },
+            );
+            _appendRoom(
+              rid,
+              'turn.settled',
+              {'id': 'install:fake', 'kind': 'gateway'},
+              {
+                'discussion_event_id': discussion,
+                'member_id': mid,
+                'passed': false,
+              },
+            );
+          }
+          _appendRoom(
+            rid,
+            'room.activity',
+            {'id': 'install:fake', 'kind': 'gateway'},
+            {'status': 'settled', 'reason_code': 'silent_round'},
+          );
+          changed();
         case 'session.close':
           send({
             'id': id,
@@ -644,3 +1014,7 @@ class FakeHermesServer {
     });
   }
 }
+
+/// The server's reference quoting (`format_reference_value`).
+String formatRef(String v) =>
+    RegExp(r'''[\s()\[\]{}<>"'`]''').hasMatch(v) ? '`$v`' : v;
