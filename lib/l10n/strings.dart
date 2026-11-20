@@ -152,6 +152,13 @@ abstract class Strings {
   String get stop;
   String get send;
   String get modelTooltip;
+  String get sessionModelTitle;
+  String get sessionModelHint;
+  String get hobDefaultTag;
+  String get useHobDefaultModel;
+  String get sessionModelTag;
+  String modelSwitchDeferred(String model);
+  String get modelsUnavailable;
   String get reasoningLevel;
   String get reasoning;
   String get approvalModeTooltip;
@@ -178,6 +185,7 @@ abstract class Strings {
   String get chatNotReady;
   String interruptFailed(Object e);
   String reasoningChangeFailed(Object e);
+  String modelChangeFailed(Object e);
   String approvalModeChangeFailed(Object e);
   String approvalAnswerFailed(Object e);
   String clarifyAnswerFailed(Object e);

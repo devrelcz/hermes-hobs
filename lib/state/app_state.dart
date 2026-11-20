@@ -567,11 +567,7 @@ class AppState extends ChangeNotifier {
       'include_unconfigured': true,
       'explicit_only': false,
     }, timeout: const Duration(seconds: 30));
-    final rows = res is Map ? res['providers'] : null;
-    return (rows as List? ?? const [])
-        .map(ModelProvider.fromJson)
-        .nonNulls
-        .toList();
+    return ModelOptions.fromJson(res).providers;
   }
 
   /// Saves the hob's title and face. A null [shape] or [color] goes back to

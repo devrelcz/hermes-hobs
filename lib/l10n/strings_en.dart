@@ -218,7 +218,23 @@ class StringsEn extends Strings {
   @override
   String get send => 'Send';
   @override
-  String get modelTooltip => 'The Hob\'s model (change it in the profile)';
+  String get modelTooltip => 'Model for this chat';
+  @override
+  String get sessionModelTitle => 'Model for this chat';
+  @override
+  String get sessionModelHint =>
+      'Applies to this chat only. The Hob keeps its default model.';
+  @override
+  String get hobDefaultTag => 'Hob\'s default';
+  @override
+  String get useHobDefaultModel => 'Use the Hob\'s default';
+  @override
+  String get sessionModelTag => 'this chat only';
+  @override
+  String modelSwitchDeferred(String model) =>
+      '$model takes over once the current reply is done.';
+  @override
+  String get modelsUnavailable => 'Couldn\'t load the list of models.';
   @override
   String get reasoningLevel => 'Reasoning level';
   @override
@@ -289,6 +305,8 @@ class StringsEn extends Strings {
   String get chatNotReady => 'The chat isn\'t ready yet.';
   @override
   String interruptFailed(Object e) => 'Couldn\'t stop the Hob: $e';
+  @override
+  String modelChangeFailed(Object e) => 'Couldn\'t switch the model: $e';
   @override
   String reasoningChangeFailed(Object e) =>
       'Couldn\'t change the reasoning level: $e';
