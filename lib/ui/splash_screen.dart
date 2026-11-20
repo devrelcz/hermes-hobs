@@ -20,58 +20,84 @@ class SplashScreen extends StatelessWidget {
   }
 }
 
-/// The hob: a little elf in a pointed cap with a bent tip, pointed ears and two
-/// eyes, drawn on a 100x100 grid. Keep in sync with the glyph in
+/// The hob: a little elf with a fringe of dark hair under a pointed cap whose
+/// tip curls over to a pompom, a darker band round the cap, pointed ears and
+/// two eyes, drawn on a 100x100 grid. Keep in sync with the glyph in
 /// tool/generate_icons.sh.
 class HobGlyphPainter extends CustomPainter {
   const HobGlyphPainter();
 
-  static const _amberDark = Color(0xFFD88F00);
+  static const _amberDark = Color(0xFFCC8700);
   static const _cream = Color(0xFFFBEBC8);
-  static const _skin = Color(0xFFF2C98A);
+  static const _skin = Color(0xFFF8C77E);
+  static const _hair = Color(0xFF1E5636);
 
   @override
   void paint(Canvas canvas, Size size) {
     canvas.scale(size.width / 100, size.height / 100);
     final skin = Paint()..color = _skin;
-    canvas
-      ..drawPath(
-        Path()..addPolygon(const [
-          Offset(22, 66),
-          Offset(8, 54),
-          Offset(30, 60),
-        ], true),
-        skin,
+    final hair = Path()
+      ..moveTo(23, 73)
+      ..cubicTo(23, 52, 34, 45, 50, 45)
+      ..cubicTo(66, 45, 77, 52, 77, 73)
+      ..close();
+    final leftEar = Path()
+      ..moveTo(8.5, 57.5)
+      ..cubicTo(14, 59, 21, 61, 28, 63)
+      ..lineTo(29, 77)
+      ..cubicTo(20, 75, 12, 67, 8.5, 57.5)
+      ..close();
+    final rightEar = Path()
+      ..moveTo(91.5, 57.5)
+      ..cubicTo(86, 59, 79, 61, 72, 63)
+      ..lineTo(71, 77)
+      ..cubicTo(80, 75, 88, 67, 91.5, 57.5)
+      ..close();
+    // The chin is the lower half of a circle; the top edge sweeps up into a
+    // lock of the fringe left of center.
+    final face = Path()
+      ..moveTo(27.5, 68)
+      ..arcToPoint(
+        const Offset(72.5, 68),
+        radius: const Radius.circular(22.5),
+        clockwise: false,
       )
-      ..drawPath(
-        Path()..addPolygon(const [
-          Offset(78, 66),
-          Offset(92, 54),
-          Offset(70, 60),
-        ], true),
-        skin,
-      )
-      ..drawCircle(const Offset(50, 66), 22, skin);
+      ..cubicTo(71, 61, 63, 56.5, 53, 56.8)
+      ..cubicTo(48.5, 57, 44.8, 56.5, 43, 53.3)
+      ..cubicTo(40, 58, 31, 61, 27.5, 68)
+      ..close();
     final cap = Path()
-      ..moveTo(22, 58)
-      ..cubicTo(26, 36, 40, 20, 56, 14)
-      ..cubicTo(68, 10, 80, 16, 84, 26)
-      ..cubicTo(76, 22, 68, 24, 64, 32)
-      ..cubicTo(70, 40, 76, 50, 78, 58)
+      ..moveTo(21, 60.5)
+      ..quadraticBezierTo(17.6, 60.5, 17.7, 56)
+      ..cubicTo(18, 44, 26, 32, 37, 23)
+      ..cubicTo(45, 16, 54, 12.5, 62, 12.2)
+      ..cubicTo(72, 12, 79, 20, 81, 29)
+      ..cubicTo(76, 25, 69, 25, 65, 27)
+      ..cubicTo(62, 28.5, 62.5, 31.5, 64.5, 33.5)
+      ..cubicTo(71, 41, 77, 49, 78.6, 56)
+      ..quadraticBezierTo(79.4, 60.5, 76, 60.5)
+      ..cubicTo(66, 47, 34, 47, 21, 60.5)
+      ..close();
+    final band = Path()
+      ..moveTo(0, 46)
+      ..quadraticBezierTo(50, 33, 100, 46)
+      ..lineTo(100, 100)
+      ..lineTo(0, 100)
       ..close();
     final eye = Paint()..color = SplashScreen.ink;
     canvas
+      ..drawPath(hair, Paint()..color = _hair)
+      ..drawPath(leftEar, skin)
+      ..drawPath(rightEar, skin)
+      ..drawPath(face, skin)
       ..drawPath(cap, Paint()..color = SplashScreen.amber)
-      ..drawCircle(const Offset(84, 27), 5, Paint()..color = _cream)
-      ..drawRRect(
-        RRect.fromRectAndRadius(
-          const Rect.fromLTWH(20, 52, 60, 11),
-          const Radius.circular(5.5),
-        ),
-        Paint()..color = _amberDark,
-      )
-      ..drawCircle(const Offset(42, 71), 3.8, eye)
-      ..drawCircle(const Offset(58, 71), 3.8, eye);
+      ..save()
+      ..clipPath(cap)
+      ..drawPath(band, Paint()..color = _amberDark)
+      ..restore()
+      ..drawCircle(const Offset(83.5, 33), 7, Paint()..color = _cream)
+      ..drawCircle(const Offset(40, 69), 3.5, eye)
+      ..drawCircle(const Offset(61, 69), 3.5, eye);
   }
 
   @override
