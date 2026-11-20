@@ -90,8 +90,26 @@ class _HobsScreenState extends State<HobsScreen> {
     await Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => ChatScreen(hob: hob)));
     if (!mounted) return;
-    app.setOpenHob(null);
+    // A notification may have replaced this chat with another one already.
+    if (app.openHob == hob.name) app.setOpenHob(null);
     app.refreshHobs(silent: true);
+  }
+
+  bool _openingPending = false;
+
+  /// A tapped notification: once the lock is gone and the hob is known, show
+  /// its chat on top of the list (closing whatever was open above it).
+  void _openPending(bool wide) {
+    if (_openingPending) return;
+    _openingPending = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openingPending = false;
+      if (!mounted) return;
+      final hob = context.read<AppState>().takePendingChat();
+      if (hob == null) return;
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      _open(hob, wide);
+    });
   }
 
   Future<void> _openGroup(GroupRoom room, bool wide) async {
@@ -124,6 +142,7 @@ class _HobsScreenState extends State<HobsScreen> {
     return LayoutBuilder(
       builder: (context, c) {
         final wide = _wide = c.maxWidth >= _splitBreakpoint;
+        if (app.pendingChat != null && !app.locked) _openPending(wide);
         // Hidden hobs stay open too: they can be opened from their group.
         final name = _selected;
         final selected = name == null ? null : app.hobNamed(name);

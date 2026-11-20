@@ -193,6 +193,14 @@ class FakeHermesServer {
     {'role': 'system', 'text': 'scaffolding'},
   ];
 
+  /// Canonical: prompts still waiting for an answer, reported in the
+  /// `session.resume` snapshot (`prompts`).
+  List<Map<String, dynamic>> pendingPrompts = [];
+
+  /// After a `session.resume`, send a stray `message.complete` for the
+  /// resumed session, like a server replaying the last turn's events.
+  bool replayCompleteOnResume = false;
+
   /// Images stored by `POST /api/chat/image-upload`: host path -> bytes.
   final Map<String, List<int>> images = {};
 
@@ -241,12 +249,15 @@ class FakeHermesServer {
 
   /// When true, the next prompt triggers an approval request before replying.
   bool askApproval = false;
-  final Completer<Map<String, dynamic>> approvalAnswer = Completer();
+
+  /// Pause between `message.start` and the rest of a turn (manual runs).
+  Duration replyDelay = Duration.zero;
+  Completer<Map<String, dynamic>> approvalAnswer = Completer();
 
   Uri get baseUrl => Uri.parse('http://127.0.0.1:${_server.port}');
 
-  Future<void> start() async {
-    _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+  Future<void> start({int port = 0}) async {
+    _server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
     _server.listen(_handle);
   }
 
@@ -388,10 +399,13 @@ class FakeHermesServer {
   void _serveWs(WebSocket ws) {
     _sockets.add(ws);
     void send(Map<String, dynamic> m) {
-      // A dropped socket (dropConnections) swallows late replies.
+      // A dropped socket ([dropConnections]) may still have handlers in flight.
+      if (ws.closeCode != null) return;
       try {
         ws.add(jsonEncode({'jsonrpc': '2.0', ...m}));
-      } on StateError catch (_) {}
+      } on StateError {
+        // Closed meanwhile.
+      }
     }
 
     void event(String type, String sid, [Map<String, dynamic>? payload]) =>
@@ -677,7 +691,8 @@ class FakeHermesServer {
             'result': {
               'session_id': 'rt$sessionCounter',
               'stored_session_id': params['session_id'],
-              'running': false,
+              // A prompt waiting for an answer means the turn is not over.
+              'running': canonical && pendingPrompts.isNotEmpty,
               'messages': history,
               'display_messages':
                   ?(canonical && params['display_projection'] == true
@@ -685,9 +700,16 @@ class FakeHermesServer {
                   : null),
               'execution_generation': ?(canonical ? 3 : null),
               'revision': ?(canonical ? 1 : null),
+              'prompts': ?(canonical ? pendingPrompts : null),
               'info': {'model': 'hermes-4', 'reasoning_effort': 'high'},
             },
           });
+          if (replayCompleteOnResume) {
+            event('message.complete', 'rt$sessionCounter', {
+              'text': 'Monitoring sverim Analytikovi.',
+              'status': 'complete',
+            });
+          }
         case 'config.get':
           send({
             'id': id,
@@ -939,6 +961,7 @@ class FakeHermesServer {
             'result': {'status': 'streaming'},
           });
           event('message.start', sid);
+          if (replyDelay > Duration.zero) await Future.delayed(replyDelay);
           if (askApproval && canonical) {
             send({
               'method': 'event',
