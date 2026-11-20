@@ -33,49 +33,92 @@ keychain/keystore as before; it is not bound to the biometric.
 ### Notifications
 
 The app fires **local** notifications (`flutter_local_notifications`; no push,
-no APNs/FCM, nothing on the server) when a Hob:
+no APNs/FCM, nothing on the server) when:
 
-- finishes a reply (`message.complete`): the Hob's name and a short preview;
-- waits for you: an approval (`approval.request` event or `approval` server
-  request) or a question (`clarify.request` / `clarify`). The Hob is blocked
-  until someone answers, so these matter most.
+- a Hob finishes a reply in its Bot Chat (`message.complete`): the Hob's name
+  and a short preview;
+- a Hob waits for you: an approval (`approval.request` event or `approval`
+  server request) or a question (`clarify.request` / `clarify`). The Hob is
+  blocked until someone answers, so these matter most;
+- a member posts in a group chat: the group's name, then "Hob: preview";
+- a group chat waits for you: a member's command to approve or a failed turn
+  to retry or drop (`driver_status.pending_actions`).
 
-It notifies whenever that Hob's chat is not on screen: the app is in the
-background (on macOS also when the window is behind other apps), the lock
-screen is up, or you are looking at another Hob or at the list. One
-notification per Hob; a newer one replaces it and opening the chat clears it.
+This covers every visible Hob, not only the chats you opened, and turns that
+someone started elsewhere (a dashboard tab, another device) in a Hob's Bot
+Chat.
+
+It notifies whenever that chat is not on screen: the app is in the background
+(on macOS also when the window is behind other apps), the lock screen is up, or
+you are looking at another chat or at the list. One notification per Hob and
+one per group; a newer one replaces it and opening the chat clears it.
 Replies and prompts that `session.resume` replays after a reconnect don't
 notify again (each prompt id / turn notifies once); a prompt that first shows
 up in a reconnect snapshot, or a turn that ended with a reply while the socket
-was down, does notify.
+was down, does notify. A group notifies each log event at most once: the app
+keeps the newest `seq` it looked at per room, so a replayed `groups.log`, a
+reconnect or another `groups.changed` repeats nothing. A pending action
+notifies once while it stays pending.
 
-Tapping a notification opens that Hob's chat (pushed on phones, beside the
-list on wide screens). With the biometric lock on, the lock screen comes first
-and the chat opens after unlocking.
+Tapping a notification opens that Hob's chat or that group chat (pushed on
+phones, beside the list on wide screens). The payload says which: `hob:<name>`
+or `group:<room id>` (a bare name from an older version is a Hob). With the
+biometric lock on, the lock screen comes first and the chat opens after
+unlocking.
 
-The system permission is asked for when you send your first prompt, not at
-first launch. Settings → Notifications turns them off (stored in
-`shared_preferences`, key `notifications`); turning the switch on asks for the
-permission again and says so when the system has notifications blocked.
-Android 13+ uses `POST_NOTIFICATIONS` and the channel "Hobs".
+The system permission is asked for when you send your first prompt or your
+first group message, not at first launch. Settings → Notifications turns them
+off (stored in `shared_preferences`, key `notifications`); turning the switch
+on asks for the permission again and says so when the system has
+notifications blocked. Android 13+ uses `POST_NOTIFICATIONS` and the channel
+"Hobs".
 
-**What is covered.** Events only reach the app for Hob chats it has opened
-since it started: `AppState` keeps one live `ChatController` per opened Hob
-(attached with `session.resume`), and the socket carries events only for those
-sessions. A Hob whose chat you haven't opened in this run, or work done in
-other sessions (dashboard tabs, cron jobs), does not notify; it still shows as
-unread in the list on the next roster refresh.
+**How events reach the app, and what it costs.** The gateway has no
+profile-wide subscription: the socket carries a session's events only to
+clients that attached it with `session.resume` (`sessions.changed` says only
+that something changed, `approval.pending` needs the session). So after
+sign-in the app *watches* the Bot Chat of every visible Hob: a listen-only
+`ChatController` (`watchOnly`) that attaches the existing Bot Chat with
+`session.resume {omit_messages: true}`, so no history crosses the wire, and
+skips the model and approval-mode reads a full chat does. Watchers attach one
+after another (`_SerialQueue` in `app_state.dart`, also for the re-attach after
+a reconnect), never create a Bot Chat, and are dropped for hidden Hobs and when
+notifications are off. Opening a watched Hob turns its watcher into the full
+chat (history, model, approval mode) and keeps what it already alerted. The
+cost is one `session.resume` per Hob at sign-in and after each reconnect, and
+one idle attached session per Hob on the server (the server still reads the
+transcript's tip from its own database; the gateway re-attaches a live session
+alongside other clients instead of taking it over). Hobs without a Bot Chat
+have nothing to watch until they get one.
+
+Group chats need no attach: the app already re-reads `groups.list` on every
+`groups.changed` and every roster refresh (20 s). A room the app has no open
+chat for is *peeked* only when its `latest_seq` grew past what the app looked
+at or `groups.changed` named it: one `groups.state` (pending actions) and one
+`groups.log {since_seq}` for at most the newest 50 events, one room after
+another. A room you opened in this run reports itself through its own
+`GroupChatController` instead.
+
+**What is not covered.** Hidden Hobs; sessions other than a Hob's Bot Chat
+(dashboard side chats, cron runs, sub-agents); a Hob's prompt or a group's
+pending action that was already waiting when the app attached or first saw the
+room (the first look only records what is there: it is what you open the app
+to, and a cold start would otherwise repeat it every time); a group action
+that appears without the room changing (no `groups.changed`, no new log
+event) until the room is opened; and everything while iOS keeps the app
+suspended (below).
 
 **iOS background limit.** iOS suspends the app, and with it the WebSocket,
 shortly after it leaves the screen. When you background the app while a reply
-is still streaming, it asks iOS for a short background task
-(`beginBackgroundTask`, channel `hobs/background` in `AppDelegate.swift`) so
-the reply can finish and notify; iOS ends that after about 30 seconds. Anything
-later (a long turn, an approval asked minutes after you left) arrives only when
-you open the app again; then the chat reconnects and shows it. There is no
-keep-alive beyond that; reliable notifications in the background would need
-real push from the server. Android and macOS keep the socket while the process
-lives, though Android may still kill it under battery saving.
+is still streaming (in any chat, a watched Hob or an open group), it asks iOS
+for a short background task (`beginBackgroundTask`, channel `hobs/background`
+in `AppDelegate.swift`) so the reply can finish and notify; iOS ends that after
+about 30 seconds. Anything later (a long turn, an approval asked minutes after
+you left) arrives only when you open the app again; then the chats reconnect
+and show it. There is no keep-alive beyond that; reliable notifications in the
+background would need real push from the server. Android and macOS keep the
+socket while the process lives, though Android may still kill it under battery
+saving.
 
 ## How it talks to Hermes
 
@@ -85,7 +128,7 @@ lives, though Android may still kill it under battery saving.
 | Hob list | RPC `profiles.list {include_sessions:true}` (REST `GET /api/profiles` as fallback). Folders, title, color, shape and pin come from `ui_meta['hermes-bots']`; preview and time come from `canonical_session`. |
 | Chat socket | `POST /api/auth/ws-ticket` (single-use, 30 s) → `wss://…/api/ws?ticket=…`. JSON-RPC 2.0, one object per frame. No `Origin` header is sent. |
 | Handshake | the server sends `event gateway.ready`, the client sends `client.capabilities {server_requests:true}`, and the client sends `gateway.ping` every 15 s |
-| Hob Chat | Each Hob has one forever-chat: the session titled "Bot Chat". The app opens it with `session.resume` (history included). On a Hob's first chat it calls `session.create {title:"Bot Chat", hidden, follow_profile_config}` followed by `session.title`. |
+| Hob Chat | Each Hob has one forever-chat: the session titled "Bot Chat". The app opens it with `session.resume` (history included). On a Hob's first chat it calls `session.create {title:"Bot Chat", hidden, follow_profile_config}` followed by `session.title`. Hobs whose chat is not open are watched for notifications with `session.resume {omit_messages:true}` (no history; see Notifications). |
 | Conversation | `prompt.submit {session_id,text}` → events `message.start / message.delta / message.interim / tool.* / message.complete` |
 | Mentions | Typing `@` in a chat offers the other Hobs (tag = slug of the title, else the profile name; the default profile is `@hermes`). On send, tagged Hobs add the dashboard's identification note to the prompt text (`[@mentions resolved from the Bot Mode roster — …]`), so the agent can reach them with its `message_agent` tool. The transcript shows the text without the note. |
 | Control | `session.interrupt`, `config.set {key:"reasoning", scope:"session"}`, `config.get` / `config.set {key:"approvals.mode", profile}` (profile-wide approval mode: manual, smart, off), server requests `approval` (reply with `{choice}`) and `clarify` (reply with `{answers,outcome}`) |

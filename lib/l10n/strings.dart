@@ -320,6 +320,10 @@ abstract class Strings {
   /// Body when the finished reply has no text to preview.
   String get notifyReplyDone;
 
+  /// Body of a group chat's notification for a member turn that failed and
+  /// waits for the user to retry or drop it.
+  String get notifyGroupFailed;
+
   /// Android notification channel shown in the system settings.
   String get notifyChannelName;
   String get notifyChannelDescription;

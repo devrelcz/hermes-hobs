@@ -77,6 +77,10 @@ class AppState extends ChangeNotifier {
   /// the hob list once the app is unlocked and the hob is known.
   String? pendingChat;
 
+  /// A group chat (room id) whose notification the user tapped;
+  /// [takePendingGroup] hands it over like [pendingChat].
+  String? pendingGroup;
+
   /// The biometric this device offers right now; null when there is none.
   BiometricKind? biometricKind;
 
@@ -141,6 +145,22 @@ class AppState extends ChangeNotifier {
   StreamSubscription<GatewayEvent>? _groupEvents;
   Timer? _groupsDebounce;
   String? openGroup;
+
+  /// Notifications: the newest log seq of each room already looked at
+  /// (alerted or not), so a replay never notifies twice. Seeded with what is
+  /// there when a room is first seen in this run.
+  final Map<String, int> _groupCursor = {};
+
+  /// Notifications: the room's pending actions already alerted.
+  final Map<String, Set<String>> _groupActionsAlerted = {};
+
+  /// Rooms `groups.changed` named since the last look.
+  final Set<String> _changedRooms = {};
+  bool _peekingGroups = false;
+
+  /// Watchers (re)attach one after another, so many Hobs never mean a burst
+  /// of `session.resume` calls.
+  _SerialQueue _watchQueue = _SerialQueue();
 
   // Local, per-device bookkeeping (like the dashboard's own storage).
   Map<String, int> _seen = {}; // hob name -> last seen activity (ms)
@@ -232,6 +252,8 @@ class AppState extends ChangeNotifier {
     // A room changed: refresh the roster rows (debounced, rounds are chatty).
     _groupEvents = rpc.events.listen((e) {
       if (e.type != 'groups.changed') return;
+      final ids = e.payload['room_ids'];
+      if (ids is List) _changedRooms.addAll(ids.map((i) => i.toString()));
       _groupsDebounce?.cancel();
       _groupsDebounce = Timer(
         const Duration(milliseconds: 600),
@@ -338,6 +360,10 @@ class AppState extends ChangeNotifier {
       c.dispose();
     }
     _chats.clear();
+    _watchQueue = _SerialQueue();
+    _groupCursor.clear();
+    _groupActionsAlerted.clear();
+    _changedRooms.clear();
     for (final d in _drafts.values) {
       d.dispose();
     }
@@ -423,6 +449,7 @@ class AppState extends ChangeNotifier {
         }
       }
       if (seededSeen) unawaited(_saveSeen());
+      _syncWatchers();
       unawaited(refreshGroups());
     } catch (e) {
       if (e is HermesHttpException && e.isUnauthorized) {
@@ -873,26 +900,69 @@ class AppState extends ChangeNotifier {
   // --- chats ---------------------------------------------------------------
 
   /// Returns the live chat for [hob], creating and opening it on first use.
+  /// A Hob watched for notifications turns into a full chat.
   ChatController chatFor(Hob hob) {
     final existing = _chats[hob.name];
-    if (existing != null) return existing;
-    final c = ChatController(
-      rpc: _rpc!,
-      hob: hob,
-      findCanonical: _findCanonical,
-      roster: () => hobs,
-      onTurnSettled: (b) {
-        if (openHob == b.name) markSeen(b.name);
-        unawaited(refreshHobs(silent: true));
-        _releaseBackgroundTime();
-      },
-      onAlert: _onAlert,
-      onPromptSent: () => unawaited(_askNotificationPermissionOnce()),
-    );
+    if (existing != null) {
+      if (existing.watchOnly) unawaited(existing.promote());
+      return existing;
+    }
+    final c = _newChat(hob);
     _chats[hob.name] = c;
     unawaited(c.start());
     return c;
   }
+
+  ChatController _newChat(Hob hob, {bool watchOnly = false}) => ChatController(
+    rpc: _rpc!,
+    hob: hob,
+    findCanonical: _findCanonical,
+    roster: () => hobs,
+    onTurnSettled: (b) {
+      if (openHob == b.name) markSeen(b.name);
+      unawaited(refreshHobs(silent: true));
+      _releaseBackgroundTime();
+    },
+    onAlert: _onAlert,
+    onPromptSent: () => unawaited(_askNotificationPermissionOnce()),
+    watchOnly: watchOnly,
+    queue: _watchQueue.run,
+  );
+
+  /// Watches the Bot Chat of every visible Hob whose chat is not open, so it
+  /// can notify: a [ChatController.watchOnly] attach without history, one
+  /// after another. Hobs without a Bot Chat have nothing to watch; hidden
+  /// Hobs and notifications turned off watch nothing.
+  void _syncWatchers() {
+    if (_rpc == null || phase != AuthPhase.signedIn || !notificationsEnabled) {
+      _stopWatchers();
+      return;
+    }
+    final visible = {for (final b in hobs) b.name};
+    for (final name in [..._chats.keys]) {
+      final c = _chats[name]!;
+      if (c.watchOnly && !visible.contains(name)) {
+        _chats.remove(name)!.dispose();
+      }
+    }
+    for (final b in hobs) {
+      if (b.canonical == null) continue;
+      final c = _chats[b.name] ??= _newChat(b, watchOnly: true);
+      if (c.watchOnly && !c.ready) unawaited(_watchQueue.run(c.watch));
+    }
+  }
+
+  void _stopWatchers() {
+    for (final name in [..._chats.keys]) {
+      if (_chats[name]!.watchOnly) _chats.remove(name)!.dispose();
+    }
+  }
+
+  @visibleForTesting
+  Set<String> get watchedHobs => {
+    for (final e in _chats.entries)
+      if (e.value.watchOnly) e.key,
+  };
 
   /// The composer attachments (and shared text) waiting for [hob]'s chat.
   ComposerDraft draftFor(Hob hob) {
@@ -906,7 +976,7 @@ class AppState extends ChangeNotifier {
     openHob = name;
     if (name != null) {
       markSeen(name);
-      unawaited(_notifier.clear(name));
+      unawaited(_notifier.clear(NotifyTarget.hob(name).key));
     }
     if (prev != null && prev != name) markSeen(prev);
     Future.microtask(notifyListeners);
@@ -985,6 +1055,14 @@ class AppState extends ChangeNotifier {
         }
       }
       if (seeded) unawaited(_saveGroupSeen());
+      for (final r in rooms) {
+        final cursor = _groupCursor[r.roomId];
+        if (cursor == null || r.latestSeq < cursor) {
+          // First sight (or a log that started over): nothing to tell.
+          _groupCursor[r.roomId] = r.latestSeq;
+        }
+      }
+      unawaited(_peekGroups());
       for (final id in [..._groupChats.keys]) {
         if (!rooms.any((r) => r.roomId == id)) {
           // Disbanded elsewhere: the open chat says so itself.
@@ -1095,6 +1173,11 @@ class AppState extends ChangeNotifier {
         if (openGroup == chat.roomId) markGroupSeen(chat.roomId);
         notifyListeners();
       },
+      onLoaded: (chat) {
+        _onGroupActivity(chat.room, chat.log, chat.driver);
+        if (!chat.busy) _releaseBackgroundTime();
+      },
+      onSent: () => unawaited(_askNotificationPermissionOnce()),
     );
     _groupChats[room.roomId] = c;
     unawaited(c.start());
@@ -1104,7 +1187,10 @@ class AppState extends ChangeNotifier {
   void setOpenGroup(String? roomId) {
     final prev = openGroup;
     openGroup = roomId;
-    if (roomId != null) markGroupSeen(roomId);
+    if (roomId != null) {
+      markGroupSeen(roomId);
+      unawaited(_notifier.clear(NotifyTarget.group(roomId).key));
+    }
     if (prev != null && prev != roomId) markGroupSeen(prev);
     Future.microtask(notifyListeners);
   }
@@ -1142,6 +1228,7 @@ class AppState extends ChangeNotifier {
     if (room == null) throw StateError(Strings.current.groupCreateFailed);
     groups = [room, ...groups.where((r) => r.roomId != room.roomId)];
     _groupSeen[room.roomId] = room.latestSeq;
+    _groupCursor[room.roomId] = room.latestSeq;
     unawaited(_saveGroupSeen());
     notifyListeners();
     return room;
@@ -1152,6 +1239,8 @@ class AppState extends ChangeNotifier {
     groups = groups.where((r) => r.roomId != roomId).toList();
     _groupChats.remove(roomId)?.dispose();
     _groupSeen.remove(roomId);
+    _groupCursor.remove(roomId);
+    _groupActionsAlerted.remove(roomId);
     unawaited(_saveGroupSeen());
     if (openGroup == roomId) openGroup = null;
     notifyListeners();
@@ -1204,21 +1293,30 @@ class AppState extends ChangeNotifier {
     if (_authenticating) return;
     _hiddenAt ??= DateTime.now();
     setAppActive(false);
-    // A reply still streaming gets iOS's short grace period to finish and
-    // notify; there is no keep-alive beyond that.
-    if (_chats.values.any((c) => c.busy)) unawaited(_backgroundTime.begin());
+    // A reply still streaming (in a chat, a watched Hob or a group) gets
+    // iOS's short grace period to finish and notify; there is no keep-alive
+    // beyond that.
+    if (_anyBusy) unawaited(_backgroundTime.begin());
   }
+
+  bool get _anyBusy =>
+      _chats.values.any((c) => c.busy) || _groupChats.values.any((c) => c.busy);
 
   /// Whether the app is on screen and focused (macOS: the window is key).
   void setAppActive(bool value) {
     if (_authenticating && !value) return;
     if (appActive == value) return;
     appActive = value;
-    if (value && openHob != null) unawaited(_notifier.clear(openHob!));
+    if (value && openHob != null) {
+      unawaited(_notifier.clear(NotifyTarget.hob(openHob!).key));
+    }
+    if (value && openGroup != null) {
+      unawaited(_notifier.clear(NotifyTarget.group(openGroup!).key));
+    }
   }
 
   void _releaseBackgroundTime() {
-    if (_chats.values.any((c) => c.busy)) return;
+    if (_anyBusy) return;
     unawaited(_backgroundTime.end());
   }
 
@@ -1232,7 +1330,7 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
     _tapSub ??= _notifier.taps.listen(openChatFromNotification);
     final launchedFor = await _notifier.init();
-    if (launchedFor != null) pendingChat = launchedFor;
+    if (launchedFor != null) _setPending(launchedFor);
     if (_permissionAsked) await _refreshNotificationPermission();
   }
 
@@ -1251,13 +1349,167 @@ class AppState extends ChangeNotifier {
     };
     unawaited(
       _notifier.show(
-        hob: hob.name,
+        key: NotifyTarget.hob(hob.name).key,
         title: hob.displayName,
         body: body,
         blocking: alert.blocking,
       ),
     );
     if (alert.kind == AlertKind.reply) _releaseBackgroundTime();
+  }
+
+  bool _groupVisible(String roomId) =>
+      appActive && !locked && openGroup == roomId;
+
+  /// Looks at rooms the app has no live chat for, when their log grew past
+  /// what was already looked at or `groups.changed` named them:
+  /// `groups.state` (pending actions) and `groups.log` from the cursor.
+  /// One room after another; rooms with a live chat report themselves.
+  Future<void> _peekGroups() async {
+    final rpc = _rpc;
+    if (rpc == null || _peekingGroups) return;
+    if (!notificationsEnabled) {
+      for (final r in groups) {
+        _groupCursor[r.roomId] = r.latestSeq;
+      }
+      _changedRooms.clear();
+      return;
+    }
+    _peekingGroups = true;
+    try {
+      while (true) {
+        final due = groups.where(
+          (r) =>
+              !_groupChats.containsKey(r.roomId) &&
+              (_changedRooms.contains(r.roomId) ||
+                  r.latestSeq > (_groupCursor[r.roomId] ?? r.latestSeq)),
+        );
+        if (due.isEmpty) break;
+        final room = due.first;
+        _changedRooms.remove(room.roomId);
+        try {
+          await _peekGroup(rpc, room);
+        } catch (_) {
+          // Best effort: the next roster refresh looks again.
+          _groupCursor[room.roomId] = room.latestSeq;
+        }
+        if (!identical(rpc, _rpc) || _disposed) return;
+      }
+    } finally {
+      _peekingGroups = false;
+    }
+  }
+
+  Future<void> _peekGroup(HermesRpc rpc, GroupRoom room) async {
+    final params = {'profile': groupProfile, 'room_id': room.roomId};
+    final state = await rpc.request('groups.state', params);
+    if (state is! Map) return;
+    final current = GroupRoom.fromJson(state['room']) ?? room;
+    final driver = GroupDriver.fromJson(state['driver_status']);
+    final cursor = _groupCursor[room.roomId] ?? current.latestSeq;
+    var events = const <GroupEvent>[];
+    if (current.latestSeq > cursor) {
+      // Only the newest few matter for one notification.
+      final since = max(cursor, current.latestSeq - 50);
+      final res = await rpc.request('groups.log', {
+        ...params,
+        'since_seq': since,
+        'limit': 50,
+      });
+      if (res is Map) {
+        events = (res['events'] as List? ?? const [])
+            .map(GroupEvent.fromJson)
+            .nonNulls
+            .toList();
+      }
+    }
+    _onGroupActivity(current, events, driver);
+    // The log is in; the cursor never stays behind the room.
+    if ((_groupCursor[room.roomId] ?? 0) < current.latestSeq) {
+      _groupCursor[room.roomId] = current.latestSeq;
+    }
+  }
+
+  /// Notifies about a room's new member messages ([events] after the
+  /// cursor) and its new pending actions, unless the room is on screen.
+  /// Everything passed in counts as looked at, shown or not.
+  void _onGroupActivity(
+    GroupRoom room,
+    Iterable<GroupEvent> events,
+    GroupDriver? driver,
+  ) {
+    final id = room.roomId;
+    var newest = 0;
+    for (final e in events) {
+      if (e.seq > newest) newest = e.seq;
+    }
+    final cursor = _groupCursor[id];
+    final fresh = cursor == null
+        ? const <GroupEvent>[]
+        : [
+            for (final e in events)
+              if (e.seq > cursor &&
+                  e.isMemberMessage &&
+                  e.text.trim().isNotEmpty)
+                e,
+          ];
+    if (cursor == null || newest > cursor) {
+      _groupCursor[id] = max(newest, cursor == null ? room.latestSeq : 0);
+    }
+    final actions = [
+      for (final a in driver?.actions ?? const <GroupAction>[])
+        if (a.kind == 'approval' || a.kind == 'retry') a,
+    ];
+    String actionKey(GroupAction a) =>
+        '${a.kind}:${a.memberId}:${a.taskId}:${a.generation}:${a.requestId}';
+    // A room looked at before in this run has no actions alerted yet.
+    final known =
+        _groupActionsAlerted[id] ?? (cursor == null ? null : <String>{});
+    final keys = {for (final a in actions) actionKey(a)};
+    final newActions = known == null
+        ? const <GroupAction>[]
+        : [
+            for (final a in actions)
+              if (!known.contains(actionKey(a))) a,
+          ];
+    // Only what is still pending stays known: an answered action is gone.
+    _groupActionsAlerted[id] = keys;
+    if (cursor == null && known == null) return; // first sight: seed only
+    if (fresh.isEmpty && newActions.isEmpty) return;
+    if (!notificationsEnabled || _groupVisible(id)) return;
+    final s = Strings.current;
+    String who(String memberId) {
+      for (final m in room.members) {
+        if (m.memberId == memberId) return memberName(m);
+      }
+      return memberId;
+    }
+
+    final String body;
+    if (newActions.isNotEmpty) {
+      final a = newActions.last;
+      final what = notificationPreview(
+        a.command.isNotEmpty ? a.command : a.description,
+      );
+      body =
+          '${who(a.memberId)}: '
+          '${a.kind == 'approval' ? s.notifyApproval(what) : s.notifyGroupFailed}';
+    } else {
+      final e = fresh.last;
+      body =
+          '${who(e.memberId.isNotEmpty ? e.memberId : e.actorId)}: '
+          '${notificationPreview(e.text)}';
+    }
+    unawaited(
+      _notifier.show(
+        key: NotifyTarget.group(id).key,
+        title: room.name.isNotEmpty
+            ? room.name
+            : room.members.map(memberName).join(', '),
+        body: body,
+        blocking: newActions.isNotEmpty,
+      ),
+    );
   }
 
   /// The first prompt the user sends is when a notification starts to make
@@ -1290,6 +1542,13 @@ class AppState extends ChangeNotifier {
   Future<void> setNotificationsEnabled(bool value) async {
     notificationsEnabled = value;
     notifyListeners();
+    if (value) {
+      // What happened while they were off is not news.
+      for (final r in groups) {
+        _groupCursor[r.roomId] = _latestSeq(r);
+      }
+    }
+    _syncWatchers();
     try {
       final p = await SharedPreferences.getInstance();
       await p.setBool(_notificationsKey, value);
@@ -1302,11 +1561,18 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// The user tapped a notification for [hob]: open its chat as soon as the
-  /// app is unlocked.
-  void openChatFromNotification(String hob) {
-    pendingChat = hob;
+  /// The user tapped a notification ([NotifyTarget.key]): open that Hob's
+  /// or group's chat as soon as the app is unlocked.
+  void openChatFromNotification(String payload) {
+    _setPending(payload);
     notifyListeners();
+  }
+
+  void _setPending(String payload) {
+    final target = NotifyTarget.parse(payload);
+    if (target == null) return;
+    pendingChat = target.isGroup ? null : target.id;
+    pendingGroup = target.isGroup ? target.id : null;
   }
 
   /// The hob to open for a tapped notification, once it can be shown: the
@@ -1322,6 +1588,24 @@ class AppState extends ChangeNotifier {
     }
     pendingChat = null;
     return hob;
+  }
+
+  /// The group to open for a tapped notification, once it can be shown:
+  /// signed in, unlocked and the room is listed. Consumes it.
+  GroupRoom? takePendingGroup() {
+    final id = pendingGroup;
+    if (id == null || phase != AuthPhase.signedIn || locked) return null;
+    final room = groupById(id);
+    if (room == null) {
+      // Rooms not loaded yet: wait; otherwise it is gone (or unsupported).
+      if (groupsSupported == false ||
+          (groupsSupported == true && !_loadingGroups)) {
+        pendingGroup = null;
+      }
+      return null;
+    }
+    pendingGroup = null;
+    return room;
   }
 
   // --- biometrics ----------------------------------------------------------
@@ -1510,5 +1794,25 @@ class AppState extends ChangeNotifier {
     _tapSub?.cancel();
     _teardown(clearCookies: false);
     super.dispose();
+  }
+}
+
+/// Runs jobs one after another, with a short pause between them.
+class _SerialQueue {
+  Future<void> _tail = Future.value();
+
+  static const _gap = Duration(milliseconds: 50);
+
+  Future<void> run(Future<void> Function() job) {
+    final next = _tail.then((_) async {
+      try {
+        await job();
+      } catch (_) {
+        // A failed job must not stop the ones after it.
+      }
+      await Future<void>.delayed(_gap);
+    });
+    _tail = next;
+    return next;
   }
 }

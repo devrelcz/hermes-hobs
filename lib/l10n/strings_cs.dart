@@ -289,7 +289,9 @@ class StringsCs extends Strings {
   @override
   String shareSummary(int count) => switch (count) {
     1 => '1 položka se vloží do konverzace. Odeslání je na tobě.',
-    2 || 3 || 4 => '$count položky se vloží do konverzace. Odeslání je na tobě.',
+    2 ||
+    3 ||
+    4 => '$count položky se vloží do konverzace. Odeslání je na tobě.',
     _ => '$count položek se vloží do konverzace. Odeslání je na tobě.',
   };
   @override
@@ -575,10 +577,13 @@ class StringsCs extends Strings {
   @override
   String get notifyReplyDone => 'Dopsal odpověď.';
   @override
+  String get notifyGroupFailed =>
+      'Odpověď se nepovedla. Zkusit znovu, nebo zahodit?';
+  @override
   String get notifyChannelName => 'Hobíci';
   @override
   String get notifyChannelDescription =>
-      'Dokončené odpovědi a otázky od tvých Hobíků';
+      'Dokončené odpovědi a otázky od tvých Hobíků a ze skupinových chatů';
 
   // --- dates ---------------------------------------------------------------
   @override

@@ -38,14 +38,50 @@ String notificationPreview(String text, {int max = 140}) {
   return t;
 }
 
-/// Local (on-device) notifications. One notification per hob: a newer one
-/// replaces the older, and opening the hob's chat clears it.
+/// What a notification is about, carried as its payload: `hob:<name>` for a
+/// Hob's chat, `group:<room id>` for a group chat. A bare name is a Hob
+/// (notifications shown before group chats notified).
+class NotifyTarget {
+  const NotifyTarget.hob(this.id) : isGroup = false;
+  const NotifyTarget.group(this.id) : isGroup = true;
+
+  /// The Hob's profile name or the room id.
+  final String id;
+  final bool isGroup;
+
+  String get key => isGroup ? 'group:$id' : 'hob:$id';
+
+  static NotifyTarget? parse(String? payload) {
+    if (payload == null || payload.isEmpty) return null;
+    if (payload.startsWith('group:')) {
+      final id = payload.substring(6);
+      return id.isEmpty ? null : NotifyTarget.group(id);
+    }
+    final name = payload.startsWith('hob:') ? payload.substring(4) : payload;
+    return name.isEmpty ? null : NotifyTarget.hob(name);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is NotifyTarget && other.id == id && other.isGroup == isGroup;
+
+  @override
+  int get hashCode => Object.hash(id, isGroup);
+
+  @override
+  String toString() => key;
+}
+
+/// Local (on-device) notifications. One notification per Hob and one per
+/// group chat (keyed by [NotifyTarget.key]): a newer one replaces the older,
+/// and opening that chat clears it.
 abstract class Notifier {
-  /// Hob names of notifications the user tapped while the app was running.
+  /// Payloads ([NotifyTarget.key]) of notifications the user tapped while
+  /// the app was running.
   Stream<String> get taps;
 
-  /// Sets the plugin up. Returns the hob whose notification launched the
-  /// app, if one did.
+  /// Sets the plugin up. Returns the payload of the notification that
+  /// launched the app, if one did.
   Future<String?> init();
 
   /// Asks the system for permission. True when notifications may show.
@@ -55,21 +91,25 @@ abstract class Notifier {
   /// when it can't tell.
   Future<bool?> permitted();
 
+  /// Shows (or replaces) the notification for [key] ([NotifyTarget.key]).
   Future<void> show({
-    required String hob,
+    required String key,
     required String title,
     required String body,
     required bool blocking,
   });
 
-  Future<void> clear(String hob);
+  Future<void> clear(String key);
 }
 
-/// Stable notification id for a hob (String.hashCode is not stable across
-/// runs, and a cold-started app must still clear the old notification).
-int notificationId(String hob) {
+/// Stable notification id for a [NotifyTarget.key] (String.hashCode is not
+/// stable across runs, and a cold-started app must still clear the old
+/// notification). A Hob keeps the id of its bare name, the one notifications
+/// had before group chats notified.
+int notificationId(String key) {
+  final source = key.startsWith('hob:') ? key.substring(4) : key;
   var h = 0x811c9dc5;
-  for (final c in hob.codeUnits) {
+  for (final c in source.codeUnits) {
     h = ((h ^ c) * 0x01000193) & 0x7fffffff;
   }
   return h;
@@ -110,8 +150,8 @@ class LocalNotifier implements Notifier {
           macOS: darwin,
         ),
         onDidReceiveNotificationResponse: (r) {
-          final hob = r.payload;
-          if (hob != null && hob.isNotEmpty) _taps.add(hob);
+          final payload = r.payload;
+          if (payload != null && payload.isNotEmpty) _taps.add(payload);
         },
       );
       // Create the channel up front, so it is listed in the system settings
@@ -131,8 +171,8 @@ class LocalNotifier implements Notifier {
           );
       final launch = await _plugin.getNotificationAppLaunchDetails();
       if (launch?.didNotificationLaunchApp ?? false) {
-        final hob = launch!.notificationResponse?.payload;
-        if (hob != null && hob.isNotEmpty) return hob;
+        final payload = launch!.notificationResponse?.payload;
+        if (payload != null && payload.isNotEmpty) return payload;
       }
     } catch (e) {
       debugPrint('notifications unavailable: $e');
@@ -209,7 +249,7 @@ class LocalNotifier implements Notifier {
 
   @override
   Future<void> show({
-    required String hob,
+    required String key,
     required String title,
     required String body,
     required bool blocking,
@@ -218,10 +258,10 @@ class LocalNotifier implements Notifier {
     final s = Strings.current;
     try {
       await _plugin.show(
-        id: notificationId(hob),
+        id: notificationId(key),
         title: title,
         body: body,
-        payload: hob,
+        payload: key,
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
@@ -232,8 +272,8 @@ class LocalNotifier implements Notifier {
             category: AndroidNotificationCategory.message,
             styleInformation: BigTextStyleInformation(body),
           ),
-          iOS: DarwinNotificationDetails(threadIdentifier: hob),
-          macOS: DarwinNotificationDetails(threadIdentifier: hob),
+          iOS: DarwinNotificationDetails(threadIdentifier: key),
+          macOS: DarwinNotificationDetails(threadIdentifier: key),
         ),
       );
     } catch (e) {
@@ -242,10 +282,10 @@ class LocalNotifier implements Notifier {
   }
 
   @override
-  Future<void> clear(String hob) async {
+  Future<void> clear(String key) async {
     if (_init == null) return;
     try {
-      await _plugin.cancel(id: notificationId(hob));
+      await _plugin.cancel(id: notificationId(key));
     } catch (_) {}
   }
 }
