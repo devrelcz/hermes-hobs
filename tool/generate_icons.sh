@@ -5,17 +5,29 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 AMBER='#FFAC02'      # the cap
-AMBER_DARK='#D88F00' # the cap's brim
+AMBER_DARK='#CC8700' # the cap's band
 CREAM='#FBEBC8'      # the pompom
-SKIN='#F2C98A'       # face and ears
+SKIN='#F8C77E'       # face and ears
+HAIR='#1E5636'       # the fringe under the cap
 INK='#2C2C2A'        # eyes
 MOSS='#2F6B4A'       # the tile and splash background, the app's primary color
 OUT=assets/logo
 
-# The hob: a little elf in a pointed cap with a bent tip, pointed ears and two
+# The hob: a little elf with a fringe of dark hair under a pointed cap whose tip
+# curls over to a pompom, a darker band round the cap, pointed ears and two
 # eyes, on a 100x100 grid. Keep in sync with HobGlyphPainter in
 # lib/ui/splash_screen.dart.
-GLYPH="<path d=\"M22 66 L8 54 L30 60 Z\" fill=\"$SKIN\"/><path d=\"M78 66 L92 54 L70 60 Z\" fill=\"$SKIN\"/><circle cx=\"50\" cy=\"66\" r=\"22\" fill=\"$SKIN\"/><path d=\"M22 58 C26 36 40 20 56 14 C68 10 80 16 84 26 C76 22 68 24 64 32 C70 40 76 50 78 58 Z\" fill=\"$AMBER\"/><circle cx=\"84\" cy=\"27\" r=\"5\" fill=\"$CREAM\"/><rect x=\"20\" y=\"52\" width=\"60\" height=\"11\" rx=\"5.5\" fill=\"$AMBER_DARK\"/><circle cx=\"42\" cy=\"71\" r=\"3.8\" fill=\"$INK\"/><circle cx=\"58\" cy=\"71\" r=\"3.8\" fill=\"$INK\"/>"
+CAP="M21 60.5 Q17.6 60.5 17.7 56 C18 44 26 32 37 23 C45 16 54 12.5 62 12.2 C72 12 79 20 81 29 C76 25 69 25 65 27 C62 28.5 62.5 31.5 64.5 33.5 C71 41 77 49 78.6 56 Q79.4 60.5 76 60.5 C66 47 34 47 21 60.5 Z"
+GLYPH="<defs><clipPath id=\"cap\"><path d=\"$CAP\"/></clipPath></defs>\
+<path d=\"M23 73 C23 52 34 45 50 45 C66 45 77 52 77 73 Z\" fill=\"$HAIR\"/>\
+<path d=\"M8.5 57.5 C14 59 21 61 28 63 L29 77 C20 75 12 67 8.5 57.5 Z\" fill=\"$SKIN\"/>\
+<path d=\"M91.5 57.5 C86 59 79 61 72 63 L71 77 C80 75 88 67 91.5 57.5 Z\" fill=\"$SKIN\"/>\
+<path d=\"M27.5 68 A22.5 22.5 0 0 0 72.5 68 C71 61 63 56.5 53 56.8 C48.5 57 44.8 56.5 43 53.3 C40 58 31 61 27.5 68 Z\" fill=\"$SKIN\"/>\
+<path d=\"$CAP\" fill=\"$AMBER\"/>\
+<path d=\"M0 46 Q50 33 100 46 L100 100 L0 100 Z\" fill=\"$AMBER_DARK\" clip-path=\"url(#cap)\"/>\
+<circle cx=\"83.5\" cy=\"33\" r=\"7\" fill=\"$CREAM\"/>\
+<circle cx=\"40\" cy=\"69\" r=\"3.5\" fill=\"$INK\"/>\
+<circle cx=\"61\" cy=\"69\" r=\"3.5\" fill=\"$INK\"/>"
 
 svg() { echo "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">$1</svg>"; }
 

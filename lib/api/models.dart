@@ -1,4 +1,5 @@
 import '../l10n/strings.dart';
+import 'attachments.dart';
 
 /// Summary of a session row as `profiles.list {include_sessions: true}` reports it.
 class SessionSummary {
@@ -65,6 +66,9 @@ class Hob {
     this.workerActiveAt,
     this.meta = const {},
     this.metaRevision,
+    this.roleTitle = '',
+    this.profileDisplayName = '',
+    this.previousNames = const [],
   });
 
   final String name;
@@ -94,6 +98,15 @@ class Hob {
   /// `ui_meta_revisions['hermes-bots']`: compare-and-swap guard for writes.
   /// Null when the server did not send revisions.
   final int? metaRevision;
+
+  /// The profile's `title` (its role) as `profiles.list` reports it.
+  final String roleTitle;
+
+  /// The core profile display name (`hermes profile rename`).
+  final String profileDisplayName;
+
+  /// Names the profile had before a rename; old @handles still resolve.
+  final List<String> previousNames;
 
   static const metaKey = 'hermes-bots';
   static const canonicalTitle = 'Bot Chat';
@@ -137,6 +150,17 @@ class Hob {
       workerActiveAt: worker is Map ? epochToDate(worker['last_active']) : null,
       meta: meta,
       metaRevision: revision is int ? revision : null,
+      roleTitle: str(j['title']).isNotEmpty
+          ? str(j['title'])
+          : str(j['bot_title']),
+      profileDisplayName: str(j['display_name']),
+      previousNames: [
+        for (final n
+            in (j['previous_names'] is List
+                ? j['previous_names'] as List
+                : const []))
+          if (n is String && n.trim().isNotEmpty) n.trim(),
+      ],
     );
   }
 
@@ -203,11 +227,20 @@ class Hob {
 
 /// One model provider of `model.options` with the models it offers.
 class ModelProvider {
-  ModelProvider({required this.slug, this.name = '', this.models = const []});
+  ModelProvider({
+    required this.slug,
+    this.name = '',
+    this.models = const [],
+    this.authenticated = true,
+  });
 
   final String slug;
   final String name;
   final List<String> models;
+
+  /// False when the server has no credentials for it (`authenticated:false`):
+  /// a session can't run on it, though a profile may still name it.
+  final bool authenticated;
 
   String get label => name.isEmpty || name == slug ? slug : '$name ($slug)';
 
@@ -226,6 +259,63 @@ class ModelProvider {
       slug: slug,
       name: j['name']?.toString().trim() ?? '',
       models: models,
+      authenticated: j['authenticated'] != false,
+    );
+  }
+}
+
+/// A model on a provider, as `model.options` and the model switches name it.
+class ModelChoice {
+  const ModelChoice({required this.provider, required this.model});
+
+  final String provider;
+  final String model;
+
+  /// Short label for chips: the model id without a vendor prefix
+  /// ("anthropic/claude-opus-5.5" -> "claude-opus-5.5").
+  String get shortLabel => model.contains('/') ? model.split('/').last : model;
+
+  bool same(ModelChoice? o) =>
+      o != null &&
+      o.model == model &&
+      (o.provider.isEmpty || provider.isEmpty || o.provider == provider);
+
+  @override
+  bool operator ==(Object other) =>
+      other is ModelChoice &&
+      other.provider == provider &&
+      other.model == model;
+
+  @override
+  int get hashCode => Object.hash(provider, model);
+
+  @override
+  String toString() => provider.isEmpty ? model : '$provider:$model';
+}
+
+/// `model.options` result: the providers with their models, and the model in
+/// effect. With a `session_id` that is the session's model (including a
+/// session-only switch); with only a `profile` it is the profile's default.
+class ModelOptions {
+  const ModelOptions({this.providers = const [], this.current});
+
+  final List<ModelProvider> providers;
+  final ModelChoice? current;
+
+  static ModelOptions fromJson(Object? j) {
+    if (j is! Map) return const ModelOptions();
+    final model = j['model']?.toString().trim() ?? '';
+    return ModelOptions(
+      providers: (j['providers'] as List? ?? const [])
+          .map(ModelProvider.fromJson)
+          .nonNulls
+          .toList(),
+      current: model.isEmpty
+          ? null
+          : ModelChoice(
+              provider: j['provider']?.toString().trim() ?? '',
+              model: model,
+            ),
     );
   }
 }
@@ -279,6 +369,9 @@ class ChatMessage {
   bool streaming;
   DateTime time;
   final List<ToolActivity> tools = [];
+
+  /// Images, files and links sent with a user message.
+  final List<ChatAttachment> attachments = [];
   bool interrupted = false;
   bool expanded = false;
 

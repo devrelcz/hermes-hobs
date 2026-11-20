@@ -135,8 +135,6 @@ class StringsCs extends Strings {
   @override
   String get newFolderTitle => 'Nová složka';
   @override
-  String get create => 'Vytvořit';
-  @override
   String get hiddenHobs => 'Skrytí Hobíci';
   @override
   String hobHidden(String hob) => '$hob je skrytý';
@@ -249,8 +247,71 @@ class StringsCs extends Strings {
   String get stop => 'Zastavit';
   @override
   String get send => 'Odeslat';
+
+  // Attachments and sharing
   @override
-  String get modelTooltip => 'Model Hobíka (mění se v profilu)';
+  String get addAttachment => 'Přidat přílohu';
+  @override
+  String get takePhoto => 'Vyfotit';
+  @override
+  String get choosePhotos => 'Vybrat fotky';
+  @override
+  String get chooseFiles => 'Vybrat soubory';
+  @override
+  String get addLink => 'Přidat odkaz';
+  @override
+  String get pasteImage => 'Vložit obrázek ze schránky';
+  @override
+  String get noImageInClipboard => 'Ve schránce není žádný obrázek.';
+  @override
+  String get linkHint => 'https://…';
+  @override
+  String get linkInvalid =>
+      'Zadej celou adresu začínající http:// nebo https://';
+  @override
+  String get add => 'Přidat';
+  @override
+  String get removeAttachment => 'Odebrat přílohu';
+  @override
+  String uploadFailed(Object error) => 'Nahrání selhalo: $error';
+  @override
+  String get uploadNoPath => 'Server nevrátil cestu k nahranému souboru.';
+  @override
+  String attachmentTooLarge(int mb) => 'Soubor je větší než $mb MB.';
+  @override
+  String pickFailed(Object error) => 'Výběr se nepodařilo otevřít: $error';
+  @override
+  String get waitForUploads => 'Počkej, až se přílohy nahrají';
+  @override
+  String get linkOpenFailed => 'Odkaz se nepodařilo otevřít.';
+  @override
+  String get shareTitle => 'Poslat Hobíkovi';
+  @override
+  String shareSummary(int count) => switch (count) {
+    1 => '1 položka se vloží do konverzace. Odeslání je na tobě.',
+    2 || 3 || 4 => '$count položky se vloží do konverzace. Odeslání je na tobě.',
+    _ => '$count položek se vloží do konverzace. Odeslání je na tobě.',
+  };
+  @override
+  String get shareNoHobs => 'Zatím tu nejsou žádní Hobíci.';
+  @override
+  String get modelTooltip => 'Model téhle konverzace';
+  @override
+  String get sessionModelTitle => 'Model téhle konverzace';
+  @override
+  String get sessionModelHint =>
+      'Platí jen pro tuhle konverzaci. Hobík si nechá svůj výchozí model.';
+  @override
+  String get hobDefaultTag => 'Výchozí model Hobíka';
+  @override
+  String get useHobDefaultModel => 'Použít výchozí model Hobíka';
+  @override
+  String get sessionModelTag => 'jen tahle konverzace';
+  @override
+  String modelSwitchDeferred(String model) =>
+      '$model převezme po dokončení rozepsané odpovědi.';
+  @override
+  String get modelsUnavailable => 'Seznam modelů se nepodařilo načíst.';
   @override
   String get reasoningLevel => 'Úroveň uvažování';
   @override
@@ -321,6 +382,8 @@ class StringsCs extends Strings {
   @override
   String interruptFailed(Object e) => 'Přerušení selhalo: $e';
   @override
+  String modelChangeFailed(Object e) => 'Přepnutí modelu selhalo: $e';
+  @override
   String reasoningChangeFailed(Object e) =>
       'Změna úrovně uvažování selhala: $e';
   @override
@@ -338,6 +401,90 @@ class StringsCs extends Strings {
   String get interruptedNotice => 'Přerušeno';
   @override
   String get replyFailed => 'Odpověď skončila chybou';
+
+  // --- group chats ---------------------------------------------------------
+  @override
+  String get groupChats => 'Skupinové chaty';
+  @override
+  String get newGroupChat => 'Nový skupinový chat';
+  @override
+  String get groupPickTitle => 'Nový skupinový chat';
+  @override
+  String get groupPickHint => 'Vyber 2 až 6 Hobíků, kteří budou spolu mluvit.';
+  @override
+  String get groupNameLabel => 'Název skupiny';
+  @override
+  String get create => 'Vytvořit';
+  @override
+  String get groupCreateFailed => 'Skupinový chat se nepodařilo vytvořit.';
+  @override
+  String groupLoadFailed(String reason) =>
+      'Skupinový chat se nepodařilo načíst: $reason';
+  @override
+  String get groupSendUnconfirmed =>
+      'Server zprávu nepotvrdil. Zkontroluj chat a případně ji pošli znovu.';
+  @override
+  String get groupDisbandUnconfirmed =>
+      'Server ukončení skupiny nepotvrdil. Zkus to znovu.';
+  @override
+  String groupMembers(int n) => switch (n) {
+    1 => '1 Hobík',
+    >= 2 && <= 4 => '$n Hobíci',
+    _ => '$n Hobíků',
+  };
+  @override
+  String get groupMessageHint => 'Napiš skupině, @zmínkou úkol přidělíš';
+  @override
+  String get groupEmpty => 'Napiš první zprávu, odpoví ti všichni Hobíci.';
+  @override
+  String get groupOptions => 'Možnosti skupiny';
+  @override
+  String get renameGroup => 'Přejmenovat';
+  @override
+  String get renameGroupTitle => 'Přejmenovat skupinu';
+  @override
+  String get disbandGroup => 'Ukončit skupinu';
+  @override
+  String get disbandGroupBody =>
+      'Skupinový chat se ukončí na všech zařízeních. Konverzace Hobíků v '
+      'něm skončí a nedá se obnovit.';
+  @override
+  String get disband => 'Ukončit';
+  @override
+  String get groupDisbanded => 'Tento skupinový chat byl ukončen.';
+  @override
+  String get you => 'Ty';
+  @override
+  String mention(String handle) => 'Oslovit @$handle';
+  @override
+  String memberStateLabel(String state) => switch (state) {
+    'queued' => 've frontě',
+    'working' => 'pracuje',
+    'replied' => 'odpověděl',
+    'passed' => 'mlčí',
+    'failed' => 'selhal',
+    'cancelled' => 'zastaven',
+    _ => 'čeká',
+  };
+  @override
+  String get roundCapped => 'Hobíci došli na limit kol.';
+  @override
+  String get continueRound => 'Pokračovat';
+  @override
+  String turnFailed(String member, String? reason) =>
+      reason == null || reason.isEmpty
+      ? '$member neodpověděl.'
+      : '$member neodpověděl: $reason';
+  @override
+  String get turnCancelled => 'Zastaveno.';
+  @override
+  String memberAsks(String member) => '$member žádá o schválení';
+  @override
+  String memberFailed(String member) => 'Tah Hobíka $member selhal';
+  @override
+  String get discardTurn => 'Zahodit';
+  @override
+  String groupWorking(String members) => 'pracuje: $members';
 
   // --- scheduled jobs ------------------------------------------------------
   @override
