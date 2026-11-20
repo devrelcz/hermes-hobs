@@ -7,6 +7,7 @@ import '../api/models.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import 'hob_avatar.dart';
+import 'model_picker.dart';
 
 /// A hob's profile: its face, title, description, model and SOUL.md, editable like in
 /// the dashboard's "Edit profile" dialog. Opened by tapping a hob's avatar.
@@ -146,7 +147,7 @@ class _HobDetailScreenState extends State<HobDetailScreen> {
         );
         if (question != null) {
           if (!mounted) return;
-          if (await _confirmModel(question)) {
+          if (await confirmExpensiveModel(context, question)) {
             await app.saveHobModel(
               hob,
               provider: provider,
@@ -195,28 +196,6 @@ class _HobDetailScreenState extends State<HobDetailScreen> {
         _saving = false;
       });
     }
-  }
-
-  Future<bool> _confirmModel(String question) async {
-    final s = Strings.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(s.confirmModelTitle),
-        content: Text(question.isEmpty ? s.confirmModelFallback : question),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(s.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(s.switchModel),
-          ),
-        ],
-      ),
-    );
-    return ok == true;
   }
 
   Future<void> _askDiscard() async {

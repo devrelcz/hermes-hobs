@@ -6,6 +6,7 @@ import '../api/attachments.dart';
 import '../api/hermes_rpc.dart';
 import '../api/models.dart';
 import '../l10n/strings.dart';
+import 'mentions.dart';
 
 enum ChatPhase { starting, idle, running, failed }
 
@@ -22,6 +23,7 @@ class ChatController extends ChangeNotifier {
     required Hob hob,
     this.findCanonical,
     this.onTurnSettled,
+    this.roster,
   }) {
     _hob = hob;
     _eventSub = rpc.events.listen(_onEvent);
@@ -39,6 +41,21 @@ class ChatController extends ChangeNotifier {
   /// Called after a turn ends (roster preview / unread bookkeeping).
   final void Function(Hob hob)? onTurnSettled;
 
+  /// The Hobs this one can @-mention (the visible roster).
+  final List<Hob> Function()? roster;
+
+  /// Hobs offered for an `@query` typed in this chat.
+  List<Hob> mentionCandidates(String query) =>
+      Mentions.candidates(query, roster?.call() ?? const [], _hob.name);
+
+  /// True when [tag] (`@name`) names another Hob of the roster.
+  bool mentionsHob(String tag) =>
+      Mentions.resolve(tag, roster?.call() ?? const [], _hob.name).isNotEmpty;
+
+  /// The tag picking [other] inserts, without the `@`.
+  String mentionTag(Hob other) =>
+      Mentions.tag(other, roster?.call() ?? const []);
+
   late final StreamSubscription<GatewayEvent> _eventSub;
   late final StreamSubscription<ServerRequest> _requestSub;
   late final StreamSubscription<void> _reconnectSub;
@@ -48,8 +65,26 @@ class ChatController extends ChangeNotifier {
   ChatPhase phase = ChatPhase.starting;
   String? error;
   String? statusText;
+
+  /// The model this session runs on, and its provider. A session-only
+  /// switch shows here, not in the hob's profile.
   String? model;
+  String? modelProvider;
   String? reasoningEffort;
+
+  /// The hob's own model (its profile default, resolved), from
+  /// `model.options {profile}`. Null until known.
+  ModelChoice? defaultModel;
+
+  /// Providers the session can switch to, from `model.options`.
+  List<ModelProvider> modelProviders = const [];
+
+  /// A switch the server will apply after the running turn (`deferred`).
+  ModelChoice? _deferredModel;
+
+  /// Canonical: the confirmation token the server issued for an expensive
+  /// model, keyed by the choice it was issued for.
+  final Map<ModelChoice, String> _modelConfirmTokens = {};
 
   /// Profile-wide `approvals.mode` (manual / smart / off). Null until known.
   String? approvalMode;
@@ -276,12 +311,13 @@ class ChatController extends ChangeNotifier {
       final text = (r['text'] ?? r['content'])?.toString() ?? '';
       switch (role) {
         case 'user':
+          // Images are appended after the text, the mention note sits at
+          // its end: take the references out first.
           final parsed = parseAttachmentRefs(text);
-          if (parsed.text.trim().isEmpty && parsed.attachments.isEmpty) {
-            continue;
-          }
+          final typed = Mentions.stripNote(parsed.text);
+          if (typed.trim().isEmpty && parsed.attachments.isEmpty) continue;
           out.add(
-            ChatMessage(role: ChatRole.user, text: parsed.text, time: time)
+            ChatMessage(role: ChatRole.user, text: typed, time: time)
               ..attachments.addAll(parsed.attachments),
           );
         case 'assistant':
@@ -328,17 +364,24 @@ class ChatController extends ChangeNotifier {
       ChatMessage(role: ChatRole.user, text: trimmed)
         ..attachments.addAll(attachments),
     );
+    // Tagged Hobs get an identification note, like on the dashboard; the
+    // transcript keeps the text as typed.
+    final prompt = Mentions.annotate(
+      trimmed,
+      roster?.call() ?? const [],
+      _hob.name,
+    );
     phase = ChatPhase.running;
     error = null;
     statusText = null;
     _notify();
     try {
-      await _submit(trimmed, attachments);
+      await _submit(prompt, attachments);
     } on RpcException catch (e) {
       if (e.isSessionGone && _storedId != null) {
         await _reattach();
         try {
-          await _submit(trimmed, attachments);
+          await _submit(prompt, attachments);
           return;
         } catch (e2) {
           _failTurn('$e2');
@@ -483,6 +526,154 @@ class ChatController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  // --- session model -------------------------------------------------------
+
+  ModelChoice? get sessionModel => model == null
+      ? null
+      : ModelChoice(provider: modelProvider ?? '', model: model!);
+
+  /// True when this chat runs on another model than the hob's default.
+  bool get modelOverridden {
+    final current = sessionModel;
+    final fallback = defaultModel;
+    return current != null && fallback != null && !current.same(fallback);
+  }
+
+  /// Re-reads the session's model, the hob's default and the providers
+  /// (`model.options` with and without the session). Failure keeps what is
+  /// known.
+  Future<void> loadModels() async {
+    final sid = _sessionId;
+    try {
+      final results = await Future.wait([
+        if (sid != null)
+          rpc.requestWith('model.options', {
+            'profile': _hob.name,
+            'session_id': sid,
+          }, timeout: const Duration(seconds: 30)),
+        rpc.requestWith('model.options', {
+          'profile': _hob.name,
+        }, timeout: const Duration(seconds: 30)),
+      ]);
+      if (sid != _sessionId) return; // reattached meanwhile
+      final fallback = ModelOptions.fromJson(results.last);
+      final session = sid == null ? null : ModelOptions.fromJson(results.first);
+      defaultModel = fallback.current ?? defaultModel;
+      final providers = session?.providers.isNotEmpty == true
+          ? session!.providers
+          : fallback.providers;
+      if (providers.isNotEmpty) modelProviders = providers;
+      final current = session?.current;
+      if (current != null && _deferredModel == null) {
+        model = current.model;
+        modelProvider = current.provider;
+      }
+      _notify();
+    } catch (_) {}
+  }
+
+  /// Switches the model of this session only; the hob's profile keeps its
+  /// default. Returns the server's question when the model needs an explicit
+  /// confirmation (an expensive one): call again with [confirmed].
+  Future<ModelSwitch> setSessionModel(
+    ModelChoice choice, {
+    bool confirmed = false,
+  }) async {
+    final sid = _sessionId;
+    if (sid == null) return const ModelSwitch.failed();
+    final previous = sessionModel;
+    try {
+      final res = await _switchModel(sid, choice, confirmed);
+      if (res is Map &&
+          (res['confirm_required'] == true ||
+              res['status'] == 'confirmation_required')) {
+        final token = res['confirm'];
+        if (token is String) _modelConfirmTokens[choice] = token;
+        return ModelSwitch.confirm(res['confirm_message']?.toString() ?? '');
+      }
+      _modelConfirmTokens.remove(choice);
+      model = choice.model;
+      modelProvider = choice.provider;
+      final deferred = res is Map && res['status'] == 'deferred';
+      _deferredModel = deferred ? choice : null;
+      error = null;
+      _notify();
+      if (!deferred) unawaited(loadModels());
+      return deferred ? const ModelSwitch.deferred() : const ModelSwitch.done();
+    } catch (e) {
+      model = previous?.model;
+      modelProvider = previous?.provider;
+      error = Strings.current.modelChangeFailed(e);
+      _notify();
+      return const ModelSwitch.failed();
+    }
+  }
+
+  /// Puts this session back on the hob's default model. There is no
+  /// "forget the session model" call, so this switches to the default.
+  Future<ModelSwitch> useDefaultModel({bool confirmed = false}) async {
+    final fallback = defaultModel;
+    if (fallback == null) return const ModelSwitch.failed();
+    return setSessionModel(fallback, confirmed: confirmed);
+  }
+
+  Future<Object?> _switchModel(
+    String sid,
+    ModelChoice choice,
+    bool confirmed, {
+    bool retried = false,
+  }) async {
+    if (!rpc.canonical) {
+      // Legacy dispatcher: the dashboard's `/model … --session` as config.
+      return rpc.request('config.set', {
+        'session_id': sid,
+        'key': 'model',
+        'value': '${choice.model} --provider ${choice.provider} --session',
+        if (confirmed) 'confirm_expensive_model': true,
+      });
+    }
+    // Canonical: a revision-fenced `session.mutate` of the session's model;
+    // an expensive model is confirmed by echoing the server's token.
+    final token = confirmed ? _modelConfirmTokens[choice] : null;
+    try {
+      final res = await rpc.request(
+        'session.mutate',
+        _scoped({
+          'session_id': sid,
+          'request_id': uuidV4(),
+          'expected_revision': _revision ?? 0,
+          'operation': 'model',
+          'payload': {
+            'model': choice.model,
+            'provider': choice.provider,
+            'confirm': ?token,
+          },
+          'expected_generation': ?_generation,
+        }),
+      );
+      if (res is Map && res['revision'] is num) {
+        _revision = (res['revision'] as num).toInt();
+      }
+      return res;
+    } on RpcException catch (e) {
+      // Someone else edited the session meanwhile: adopt and retry once.
+      final data = e.data;
+      final reason = data is Map ? data['reason'] : null;
+      if (retried ||
+          data is! Map ||
+          (reason != 'revision_conflict' && reason != 'stale_generation')) {
+        rethrow;
+      }
+      if (data['revision'] is num) {
+        _revision = (data['revision'] as num).toInt();
+      }
+      if (data['execution_generation'] is num) {
+        _generation = (data['execution_generation'] as num).toInt();
+      }
+      return _switchModel(sid, choice, confirmed, retried: true);
+    }
+  }
+
   void toggleActivity(ChatMessage m) {
     m.expanded = !m.expanded;
     _notify();
@@ -567,6 +758,9 @@ class ChatController extends ChangeNotifier {
     final r = res['revision'];
     if (r is num) _revision = r.toInt();
     if (approvalMode == null) unawaited(_loadApprovalMode());
+    // The snapshot's info may describe the profile, not a session-only
+    // switch (a lazy runtime): re-read the session's model on every attach.
+    unawaited(loadModels());
   }
 
   /// Canonical `approval.request` / `clarify.request` (live event or a
@@ -838,6 +1032,10 @@ class ChatController extends ChangeNotifier {
     }
     _finishTurn();
     onTurnSettled?.call(_hob);
+    if (_deferredModel != null) {
+      _deferredModel = null;
+      unawaited(loadModels());
+    }
   }
 
   void _finishTurn() {
@@ -867,7 +1065,12 @@ class ChatController extends ChangeNotifier {
   void _applyInfo(Object? info) {
     if (info is! Map) return;
     final m = info['model'];
-    if (m is String && m.isNotEmpty) model = m;
+    // A pending (deferred) switch wins over the model of the running turn.
+    if (m is String && m.isNotEmpty && _deferredModel == null) {
+      model = m;
+      final p = info['provider'];
+      modelProvider = p is String ? p : null;
+    }
     final r = info['reasoning_effort'];
     if (r is String && r.isNotEmpty) reasoningEffort = r;
     final a = info['approval_mode'];
@@ -889,6 +1092,24 @@ class ChatController extends ChangeNotifier {
     // reaps the idle runtime after its grace period).
     super.dispose();
   }
+}
+
+/// Outcome of a session model switch.
+class ModelSwitch {
+  const ModelSwitch.done() : ok = true, deferred = false, question = null;
+  const ModelSwitch.deferred() : ok = true, deferred = true, question = null;
+  const ModelSwitch.failed() : ok = false, deferred = false, question = null;
+
+  /// The server wants the switch confirmed ([question] may be empty).
+  const ModelSwitch.confirm(String this.question)
+    : ok = false,
+      deferred = false;
+
+  final bool ok;
+
+  /// Applies after the running turn.
+  final bool deferred;
+  final String? question;
 }
 
 extension _Let<T> on T {

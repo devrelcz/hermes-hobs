@@ -6,6 +6,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../api/group_models.dart';
 import '../api/hermes_http.dart';
 import '../api/hermes_rpc.dart';
 import '../api/models.dart';
@@ -14,6 +15,7 @@ import 'biometrics.dart';
 import 'chat_controller.dart';
 import 'composer_draft.dart';
 import 'credentials_store.dart';
+import 'group_chat_controller.dart';
 
 enum AuthPhase { loading, signedOut, signedIn }
 
@@ -29,6 +31,9 @@ class HobSection {
   final List<Hob> hobs;
 
   static const unassignedKey = 'section:unassigned';
+
+  /// The group chats' own folder.
+  static const groupsKey = 'section:groups';
 }
 
 /// App-wide state: login, the hob roster (Hermes profiles with their Bot Chat
@@ -92,6 +97,20 @@ class AppState extends ChangeNotifier {
   String? hobsError;
   final Map<String, ChatController> _chats = {};
   final Map<String, ComposerDraft> _drafts = {};
+
+  /// Group chats of the default profile's gateway (`groups.list`).
+  List<GroupRoom> groups = [];
+
+  /// The gateway offers group chats (`groups.capabilities`); null until known.
+  bool? groupsSupported;
+
+  /// Profiles the gateway can seat in a group; null when it does not say.
+  Set<String>? seatableProfiles;
+  final Map<String, GroupChatController> _groupChats = {};
+  Map<String, int> _groupSeen = {}; // room id -> last seen log seq
+  StreamSubscription<GatewayEvent>? _groupEvents;
+  Timer? _groupsDebounce;
+  String? openGroup;
 
   // Local, per-device bookkeeping (like the dashboard's own storage).
   Map<String, int> _seen = {}; // hob name -> last seen activity (ms)
@@ -178,6 +197,15 @@ class AppState extends ChangeNotifier {
     _statusSub = rpc.statusStream.listen((s) {
       if (s == ConnectionStatus.connected) unawaited(refreshHobs(silent: true));
       notifyListeners();
+    });
+    // A room changed: refresh the roster rows (debounced, rounds are chatty).
+    _groupEvents = rpc.events.listen((e) {
+      if (e.type != 'groups.changed') return;
+      _groupsDebounce?.cancel();
+      _groupsDebounce = Timer(
+        const Duration(milliseconds: 600),
+        () => unawaited(refreshGroups()),
+      );
     });
     _http = http;
     _rpc = rpc;
@@ -282,6 +310,13 @@ class AppState extends ChangeNotifier {
       d.dispose();
     }
     _drafts.clear();
+    for (final c in _groupChats.values) {
+      c.dispose();
+    }
+    _groupChats.clear();
+    _groupsDebounce?.cancel();
+    await _groupEvents?.cancel();
+    _groupEvents = null;
     await _statusSub?.cancel();
     _statusSub = null;
     await _rpc?.dispose();
@@ -294,6 +329,9 @@ class AppState extends ChangeNotifier {
     _http = null;
     hobs = [];
     _hiddenHobs = [];
+    groups = [];
+    groupsSupported = null;
+    seatableProfiles = null;
   }
 
   // --- roster --------------------------------------------------------------
@@ -353,6 +391,7 @@ class AppState extends ChangeNotifier {
         }
       }
       if (seededSeen) unawaited(_saveSeen());
+      unawaited(refreshGroups());
     } catch (e) {
       if (e is HermesHttpException && e.isUnauthorized) {
         loadingHobs = false;
@@ -576,11 +615,7 @@ class AppState extends ChangeNotifier {
       'include_unconfigured': true,
       'explicit_only': false,
     }, timeout: const Duration(seconds: 30));
-    final rows = res is Map ? res['providers'] : null;
-    return (rows as List? ?? const [])
-        .map(ModelProvider.fromJson)
-        .nonNulls
-        .toList();
+    return ModelOptions.fromJson(res).providers;
   }
 
   /// Saves the hob's title and face. A null [shape] or [color] goes back to
@@ -689,6 +724,7 @@ class AppState extends ChangeNotifier {
       rpc: _rpc!,
       hob: hob,
       findCanonical: _findCanonical,
+      roster: () => hobs,
       onTurnSettled: (b) {
         if (openHob == b.name) markSeen(b.name);
         unawaited(refreshHobs(silent: true));
@@ -703,8 +739,7 @@ class AppState extends ChangeNotifier {
   ComposerDraft draftFor(Hob hob) {
     final http = _http;
     final uploader = http == null ? null : AttachmentUploader(http, hob.name);
-    return (_drafts[hob.name] ??= ComposerDraft(uploader))
-      ..uploader = uploader;
+    return (_drafts[hob.name] ??= ComposerDraft(uploader))..uploader = uploader;
   }
 
   void setOpenHob(String? name) {
@@ -718,6 +753,246 @@ class AppState extends ChangeNotifier {
   void markSeen(String name) {
     _seen[name] = DateTime.now().millisecondsSinceEpoch;
     unawaited(_saveSeen());
+  }
+
+  // --- group chats ---------------------------------------------------------
+
+  /// The profile whose gateway holds the group chats: the default one, like
+  /// the dashboard opened on its launch profile.
+  String get groupProfile {
+    for (final b in [...hobs, ..._hiddenHobs]) {
+      if (b.isDefault) return b.name;
+    }
+    return 'default';
+  }
+
+  bool _loadingGroups = false;
+
+  /// Re-reads the rooms (`groups.list`, paged). A gateway without group chats
+  /// leaves the list empty and hides "new group chat".
+  Future<void> refreshGroups() async {
+    final rpc = _rpc;
+    if (rpc == null || _loadingGroups) return;
+    _loadingGroups = true;
+    try {
+      await rpc.connect();
+      final profile = groupProfile;
+      if (groupsSupported == null) {
+        try {
+          final cap = await rpc.request('groups.capabilities', {
+            'profile': profile,
+          });
+          final methods = cap is Map ? cap['methods'] : null;
+          groupsSupported =
+              cap is Map &&
+              cap['driver'] == true &&
+              (methods is! List || methods.contains('groups.create'));
+          final seatable = cap is Map ? cap['seatable_profiles'] : null;
+          seatableProfiles = seatable is List
+              ? seatable.map((e) => e.toString()).toSet()
+              : null;
+        } on RpcException {
+          groupsSupported = false;
+        }
+      }
+      if (groupsSupported != true) return;
+      final rooms = <GroupRoom>[];
+      var offset = 0;
+      for (var page = 0; page < 50; page++) {
+        final res = await rpc.request('groups.list', {
+          'profile': profile,
+          'limit': 100,
+          'offset': offset,
+        });
+        if (res is! Map) break;
+        rooms.addAll(
+          (res['rooms'] as List? ?? const []).map(GroupRoom.fromJson).nonNulls,
+        );
+        final next = res['next_offset'];
+        if (next is! int || next <= offset) break;
+        offset = next;
+      }
+      if (_disposed || !identical(rpc, _rpc)) return;
+      groups = rooms;
+      // First sight of a room: what is already there counts as read.
+      var seeded = false;
+      for (final r in rooms) {
+        if (!_groupSeen.containsKey(r.roomId)) {
+          _groupSeen[r.roomId] = r.latestSeq;
+          seeded = true;
+        }
+      }
+      if (seeded) unawaited(_saveGroupSeen());
+      for (final id in [..._groupChats.keys]) {
+        if (!rooms.any((r) => r.roomId == id)) {
+          // Disbanded elsewhere: the open chat says so itself.
+          unawaited(_groupChats[id]!.refresh());
+        }
+      }
+    } catch (_) {
+      // Group chats are extra: the Hob roster carries the error, if any.
+    } finally {
+      _loadingGroups = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  GroupRoom? groupById(String roomId) {
+    for (final r in groups) {
+      if (r.roomId == roomId) return r;
+    }
+    return _groupChats[roomId]?.room;
+  }
+
+  /// The Hob behind a seat; a stand-in when the roster does not know it.
+  Hob memberHob(GroupMember m) =>
+      hobNamed(m.profile) ??
+      Hob(
+        name: m.profile,
+        displayName: m.displayName.isNotEmpty ? m.displayName : m.handle,
+      );
+
+  /// What the member is called in this app: the Hob's title.
+  String memberName(GroupMember m) => memberHob(m).displayName;
+
+  int _latestSeq(GroupRoom r) {
+    final live = _groupChats[r.roomId]?.lastSeq ?? 0;
+    return live > r.latestSeq ? live : r.latestSeq;
+  }
+
+  bool isGroupUnread(GroupRoom r) {
+    if (r.roomId == openGroup) return false;
+    return _latestSeq(r) > (_groupSeen[r.roomId] ?? 0);
+  }
+
+  bool isGroupWorking(GroupRoom r) => _groupChats[r.roomId]?.busy ?? false;
+
+  /// Newest message of a room the app has open; null before it is loaded.
+  String? groupPreview(GroupRoom r) {
+    final p = _groupChats[r.roomId]?.preview ?? '';
+    return p.isEmpty ? null : p;
+  }
+
+  DateTime? groupLastActive(GroupRoom r) =>
+      _groupChats[r.roomId]?.lastActive ?? r.updatedAt ?? r.createdAt;
+
+  bool _groupMatches(GroupRoom r) {
+    final last = groupLastActive(r);
+    final age = last == null ? null : DateTime.now().difference(last);
+    switch (filter) {
+      case HobFilter.all:
+        break;
+      case HobFilter.unread:
+        if (!isGroupUnread(r)) return false;
+      case HobFilter.pinned:
+        return false;
+      case HobFilter.active:
+        if (!(isGroupWorking(r) ||
+            (age != null && age < const Duration(minutes: 15)))) {
+          return false;
+        }
+      case HobFilter.recent:
+        if (age == null || age > const Duration(days: 1)) return false;
+      case HobFilter.older:
+        if (age != null && age <= const Duration(days: 1)) return false;
+    }
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return r.name.toLowerCase().contains(q) ||
+        r.members.any(
+          (m) =>
+              m.handle.toLowerCase().contains(q) ||
+              memberName(m).toLowerCase().contains(q),
+        );
+  }
+
+  /// Rooms the search and filter let through, newest activity first.
+  List<GroupRoom> get visibleGroups {
+    final list = groups.where(_groupMatches).toList()
+      ..sort((a, b) {
+        final ta = groupLastActive(a)?.millisecondsSinceEpoch ?? 0;
+        final tb = groupLastActive(b)?.millisecondsSinceEpoch ?? 0;
+        return tb.compareTo(ta);
+      });
+    return list;
+  }
+
+  /// Returns the live chat for [room], loading it on first use.
+  GroupChatController groupChatFor(GroupRoom room) {
+    final existing = _groupChats[room.roomId];
+    if (existing != null) return existing;
+    final c = GroupChatController(
+      rpc: _rpc!,
+      profile: groupProfile,
+      room: room,
+      onChanged: (chat) {
+        final i = groups.indexWhere((r) => r.roomId == chat.roomId);
+        if (i >= 0) {
+          groups[i] = chat.room.copyWith(latestSeq: chat.lastSeq);
+        }
+        if (openGroup == chat.roomId) markGroupSeen(chat.roomId);
+        notifyListeners();
+      },
+    );
+    _groupChats[room.roomId] = c;
+    unawaited(c.start());
+    return c;
+  }
+
+  void setOpenGroup(String? roomId) {
+    final prev = openGroup;
+    openGroup = roomId;
+    if (roomId != null) markGroupSeen(roomId);
+    if (prev != null && prev != roomId) markGroupSeen(prev);
+    Future.microtask(notifyListeners);
+  }
+
+  void markGroupSeen(String roomId) {
+    final r = groupById(roomId);
+    if (r == null) return;
+    _groupSeen[roomId] = _latestSeq(r);
+    unawaited(_saveGroupSeen());
+  }
+
+  /// Name for a new room: the members' titles, made unique among the rooms.
+  String groupNameFor(List<Hob> members) {
+    final base = members.map((b) => b.displayName).join(', ');
+    final taken = groups.map((r) => r.name).toSet();
+    if (!taken.contains(base)) return base;
+    for (var i = 2; ; i++) {
+      final name = '$base ($i)';
+      if (!taken.contains(name)) return name;
+    }
+  }
+
+  /// Seats [members] (two to six Hobs) in a new room.
+  Future<GroupRoom> createGroup(List<Hob> members, {String? name}) async {
+    final rpc = _connected;
+    final res = await rpc.requestWith('groups.create', {
+      'profile': groupProfile,
+      'room_id': uuidV4(),
+      'name': (name?.trim().isNotEmpty ?? false)
+          ? name!.trim()
+          : groupNameFor(members),
+      'members': [for (final b in members) GroupMember.localSeat(b.name)],
+    }, timeout: const Duration(seconds: 30));
+    final room = res is Map ? GroupRoom.fromJson(res['room']) : null;
+    if (room == null) throw StateError(Strings.current.groupCreateFailed);
+    groups = [room, ...groups.where((r) => r.roomId != room.roomId)];
+    _groupSeen[room.roomId] = room.latestSeq;
+    unawaited(_saveGroupSeen());
+    notifyListeners();
+    return room;
+  }
+
+  /// Drops a disbanded room from the list.
+  void forgetGroup(String roomId) {
+    groups = groups.where((r) => r.roomId != roomId).toList();
+    _groupChats.remove(roomId)?.dispose();
+    _groupSeen.remove(roomId);
+    unawaited(_saveGroupSeen());
+    if (openGroup == roomId) openGroup = null;
+    notifyListeners();
   }
 
   Future<List<CronJob>> cronJobs(Hob hob) async {
@@ -754,6 +1029,9 @@ class AppState extends ChangeNotifier {
     unawaited(_refreshBiometricKind());
     _rpc?.reconnectNow();
     if (phase == AuthPhase.signedIn) unawaited(refreshHobs(silent: true));
+    for (final c in _groupChats.values) {
+      unawaited(c.refresh());
+    }
   }
 
   /// The app left the screen (backgrounded, minimized).
@@ -815,11 +1093,7 @@ class AppState extends ChangeNotifier {
     if (password == null) return;
     await _verify();
     try {
-      await login(
-        serverUrl: serverUrl,
-        username: username,
-        password: password,
-      );
+      await login(serverUrl: serverUrl, username: username, password: password);
     } catch (e) {
       if (e is HermesHttpException && e.isUnauthorized) {
         // The server no longer takes it; do not offer it again.
@@ -879,7 +1153,12 @@ class AppState extends ChangeNotifier {
       collapsed = (p.getStringList('$_localKey::collapsed') ?? const [])
           .toSet();
       sectionOrder = p.getStringList('$_localKey::sectionOrder') ?? [];
+      final groupSeen = p.getString('$_localKey::groupSeen');
+      _groupSeen = groupSeen == null
+          ? {}
+          : Map<String, int>.from(jsonDecode(groupSeen) as Map);
     } catch (_) {
+      _groupSeen = {};
       _seen = {};
       collapsed = {};
       sectionOrder = [];
@@ -890,6 +1169,13 @@ class AppState extends ChangeNotifier {
     try {
       final p = await SharedPreferences.getInstance();
       await p.setString('$_localKey::seen', jsonEncode(_seen));
+    } catch (_) {}
+  }
+
+  Future<void> _saveGroupSeen() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setString('$_localKey::groupSeen', jsonEncode(_groupSeen));
     } catch (_) {}
   }
 
@@ -925,8 +1211,11 @@ class AppState extends ChangeNotifier {
     return e.toString();
   }
 
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     _teardown(clearCookies: false);
     super.dispose();
   }
