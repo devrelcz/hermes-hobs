@@ -559,10 +559,12 @@ class StringsEn extends Strings {
   @override
   String get notifyReplyDone => 'Finished the reply.';
   @override
+  String get notifyGroupFailed => 'The reply failed. Retry or drop it?';
+  @override
   String get notifyChannelName => 'Hobs';
   @override
   String get notifyChannelDescription =>
-      'Finished replies and questions from your Hobs';
+      'Finished replies and questions from your Hobs and group chats';
 
   // --- dates ---------------------------------------------------------------
   @override

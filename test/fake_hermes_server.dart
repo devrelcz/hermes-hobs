@@ -121,6 +121,108 @@ class FakeHermesServer {
   /// `model.options {session_id}` reports them; the profile keeps its own.
   final Map<String, Map<String, String>> sessionModels = {};
   final Map<String, String> _storedOf = {}; // runtime id -> stored id
+
+  /// Runtime id -> how to send a frame to the socket that attached it.
+  final Map<String, void Function(Map<String, dynamic>)> _sessionSockets = {};
+  final List<void Function(Map<String, dynamic>)> _socketSenders = [];
+
+  /// Params of every `session.resume`.
+  final List<Map<String, dynamic>> resumeParams = [];
+
+  /// Runs a turn of the stored session [storedId] that another client
+  /// (the dashboard, a cron job) started: the events go to every socket that
+  /// attached it. With [approval] it first asks for one and waits for
+  /// [approvalAnswer].
+  Future<void> externalTurn(
+    String storedId, {
+    bool approval = false,
+    String text = 'Hotovo z dashboardu.',
+  }) async {
+    final targets = [
+      for (final e in _storedOf.entries)
+        if (e.value == storedId && _sessionSockets[e.key] != null) e.key,
+    ];
+    void each(String type, [Map<String, dynamic>? payload, int? gen]) {
+      for (final sid in targets) {
+        _sessionSockets[sid]!({
+          'method': 'event',
+          'params': {
+            'type': type,
+            'session_id': sid,
+            'execution_generation': ?gen,
+            'payload': ?payload,
+          },
+        });
+      }
+    }
+
+    each('message.start');
+    if (approval && canonical) {
+      each('approval.request', {
+        'prompt_id': 'p-ext',
+        'kind': 'approval',
+        'command': 'rm -rf build',
+        'description': 'clean',
+        'choices': ['once', 'deny'],
+      }, 4);
+      await approvalAnswer.future;
+      each('approval.settled', {'prompt_id': 'p-ext'}, 4);
+    } else if (approval) {
+      for (final sid in targets) {
+        _sessionSockets[sid]!({
+          'id': 'srq-approval',
+          'method': 'approval',
+          'params': {
+            'session_id': sid,
+            'command': 'rm -rf build',
+            'description': 'clean',
+            'choices': ['once', 'deny'],
+          },
+        });
+      }
+      await approvalAnswer.future;
+    }
+    each('message.delta', {'text': text});
+    each('message.complete', {'text': text, 'status': 'complete'});
+  }
+
+  /// A member of room [roomId] posts [text] on its own (another client's
+  /// round): the log grows and every socket hears `groups.changed`.
+  void postMemberMessage(String roomId, String memberId, String text) {
+    final member = (rooms[roomId]!['members'] as List).cast<Map>().firstWhere(
+      (m) => m['member_id'] == memberId,
+    );
+    _appendRoom(
+      roomId,
+      'message.member',
+      {'id': memberId, 'kind': 'member', 'profile': member['profile']},
+      {'member_id': memberId, 'text': text},
+    );
+    announceRoom(roomId);
+  }
+
+  /// Sends `groups.changed` for [roomId] to every socket.
+  void announceRoom(String roomId) {
+    for (final send in List.of(_socketSenders)) {
+      send({
+        'method': 'event',
+        'params': {
+          'type': 'groups.changed',
+          'session_id': '',
+          'payload': {
+            'room_ids': [roomId],
+            'broadcast_id': 'b:${++_broadcast}',
+          },
+        },
+      });
+    }
+  }
+
+  /// `driver_status.pending_actions` of every room.
+  List<Map<String, dynamic>> groupPendingActions = [];
+
+  /// Every `groups.state` / `groups.log` call: room ids.
+  final List<String> groupStateCalls = [];
   static const _modelConfirmToken = 'confirm-expensive-1';
   final List<WebSocket> _sockets = [];
 
@@ -408,6 +510,9 @@ class FakeHermesServer {
       }
     }
 
+    _socketSenders.add(send);
+    ws.done.whenComplete(() => _socketSenders.remove(send));
+
     void event(String type, String sid, [Map<String, dynamic>? payload]) =>
         send({
           'method': 'event',
@@ -658,6 +763,7 @@ class FakeHermesServer {
           _subscriptions['rt$sessionCounter'] =
               (params['profile'] ?? 'default') as String;
           _storedOf['rt$sessionCounter'] = 'st$sessionCounter';
+          _sessionSockets['rt$sessionCounter'] = send;
           send({
             'id': id,
             'result': {
@@ -682,10 +788,13 @@ class FakeHermesServer {
           });
         case 'session.resume':
           resumed.add(params['session_id'] as String);
+          resumeParams.add(params);
           sessionCounter++;
           _subscriptions['rt$sessionCounter'] =
               (params['profile'] ?? 'default') as String;
           _storedOf['rt$sessionCounter'] = params['session_id'] as String;
+          _sessionSockets['rt$sessionCounter'] = send;
+          final omit = params['omit_messages'] == true;
           send({
             'id': id,
             'result': {
@@ -693,10 +802,11 @@ class FakeHermesServer {
               'stored_session_id': params['session_id'],
               // A prompt waiting for an answer means the turn is not over.
               'running': canonical && pendingPrompts.isNotEmpty,
-              'messages': history,
+              'messages': omit ? <Object>[] : history,
+              'messages_omitted': ?(omit ? true : null),
               'display_messages':
                   ?(canonical && params['display_projection'] == true
-                  ? history
+                  ? (omit ? <Object>[] : history)
                   : null),
               'execution_generation': ?(canonical ? 3 : null),
               'revision': ?(canonical ? 1 : null),
@@ -834,6 +944,7 @@ class FakeHermesServer {
           });
         case 'groups.state' when groupsEnabled:
           final rid = params['room_id'] as String;
+          groupStateCalls.add(rid);
           send({
             'id': id,
             'result': {
@@ -844,7 +955,7 @@ class FakeHermesServer {
                 'running': true,
                 'working': groupActivity.isNotEmpty,
                 'member_activity': groupActivity,
-                'pending_actions': [],
+                'pending_actions': groupPendingActions,
                 'max_rounds': 3,
               },
             },

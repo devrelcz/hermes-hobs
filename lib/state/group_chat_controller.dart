@@ -24,6 +24,8 @@ class GroupChatController extends ChangeNotifier {
     required this.profile,
     required this._room,
     this.onChanged,
+    this.onLoaded,
+    this.onSent,
   }) {
     _eventSub = rpc.events.listen(_onEvent);
     _reconnectSub = rpc.onReconnected.listen((_) => refresh());
@@ -37,6 +39,13 @@ class GroupChatController extends ChangeNotifier {
 
   /// Called after the log grew (roster preview / unread bookkeeping).
   final void Function(GroupChatController chat)? onChanged;
+
+  /// Called after every successful load (log and driver status are
+  /// current): what notifications are made from.
+  final void Function(GroupChatController chat)? onLoaded;
+
+  /// The user posted a message (a good moment to ask for notifications).
+  final VoidCallback? onSent;
 
   late final StreamSubscription<GatewayEvent> _eventSub;
   late final StreamSubscription<void> _reconnectSub;
@@ -99,6 +108,7 @@ class GroupChatController extends ChangeNotifier {
 
   Future<void> _load() async {
     var grew = false;
+    var loaded = false;
     try {
       await rpc.connect();
       final res = await rpc.request('groups.state', _params());
@@ -130,6 +140,7 @@ class GroupChatController extends ChangeNotifier {
         _pendingThread = null;
       }
       error = null;
+      loaded = true;
     } catch (e) {
       if (_disposed) return;
       error = Strings.current.groupLoadFailed(_describe(e));
@@ -139,6 +150,7 @@ class GroupChatController extends ChangeNotifier {
         _schedulePoll();
         _notify();
         if (grew) onChanged?.call(this);
+        if (loaded) onLoaded?.call(this);
       }
     }
   }
@@ -270,6 +282,7 @@ class GroupChatController extends ChangeNotifier {
     pendingText = body;
     _pendingThread = eventId;
     error = null;
+    onSent?.call();
     await _act(
       () async {
         final res = await rpc.request(

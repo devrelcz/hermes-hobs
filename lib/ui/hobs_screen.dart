@@ -97,18 +97,26 @@ class _HobsScreenState extends State<HobsScreen> {
 
   bool _openingPending = false;
 
-  /// A tapped notification: once the lock is gone and the hob is known, show
-  /// its chat on top of the list (closing whatever was open above it).
+  /// A tapped notification: once the lock is gone and the hob (or group) is
+  /// known, show its chat on top of the list (closing whatever was open above
+  /// it).
   void _openPending(bool wide) {
     if (_openingPending) return;
     _openingPending = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openingPending = false;
       if (!mounted) return;
-      final hob = context.read<AppState>().takePendingChat();
-      if (hob == null) return;
+      final app = context.read<AppState>();
+      final hob = app.takePendingChat();
+      if (hob != null) {
+        Navigator.of(context).popUntil((r) => r.isFirst);
+        _open(hob, wide);
+        return;
+      }
+      final room = app.takePendingGroup();
+      if (room == null) return;
       Navigator.of(context).popUntil((r) => r.isFirst);
-      _open(hob, wide);
+      _openGroup(room, wide);
     });
   }
 
@@ -126,7 +134,8 @@ class _HobsScreenState extends State<HobsScreen> {
     await Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => GroupChatScreen(room: room)));
     if (!mounted) return;
-    app.setOpenGroup(null);
+    // A notification may have replaced this group with another chat already.
+    if (app.openGroup == room.roomId) app.setOpenGroup(null);
   }
 
   Future<void> _newGroup(bool wide) async {
@@ -142,7 +151,10 @@ class _HobsScreenState extends State<HobsScreen> {
     return LayoutBuilder(
       builder: (context, c) {
         final wide = _wide = c.maxWidth >= _splitBreakpoint;
-        if (app.pendingChat != null && !app.locked) _openPending(wide);
+        if ((app.pendingChat != null || app.pendingGroup != null) &&
+            !app.locked) {
+          _openPending(wide);
+        }
         // Hidden hobs stay open too: they can be opened from their group.
         final name = _selected;
         final selected = name == null ? null : app.hobNamed(name);

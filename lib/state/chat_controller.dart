@@ -18,6 +18,11 @@ enum ChatPhase { starting, idle, running, failed }
 /// claim the title with `session.title`. Then `prompt.submit` -> stream of
 /// `message.*` / `tool.*` events -> `message.complete`. The runtime session id
 /// changes after a reconnect; the durable id does not.
+///
+/// A [watchOnly] controller only listens, so a Hob whose chat is not open
+/// can still notify: it attaches the existing Bot Chat without its history
+/// (`omit_messages`), never creates one, and skips the model and approval
+/// mode reads. [promote] turns it into a full chat when the user opens it.
 class ChatController extends ChangeNotifier {
   ChatController({
     required this.rpc,
@@ -27,12 +32,61 @@ class ChatController extends ChangeNotifier {
     this.onAlert,
     this.onPromptSent,
     this.roster,
+    this._watchOnly = false,
+    this.queue,
   }) {
     _hob = hob;
     _eventSub = rpc.events.listen(_onEvent);
     _requestSub = rpc.serverRequests.listen(_onServerRequest);
-    _reconnectSub = rpc.onReconnected.listen((_) => _reattach());
+    _reconnectSub = rpc.onReconnected.listen((_) {
+      // Watchers re-attach one after another, not all at once.
+      final q = queue;
+      if (_watchOnly && q != null) {
+        unawaited(q(_reattach));
+      } else {
+        unawaited(_reattach());
+      }
+    });
     _statusSub = rpc.statusStream.listen((_) => _notify());
+  }
+
+  bool _watchOnly;
+
+  /// Runs a watcher's (re)attach in turn with the other watchers.
+  final Future<void> Function(Future<void> Function() job)? queue;
+
+  /// True while this chat only watches for notifications (see the class).
+  bool get watchOnly => _watchOnly;
+
+  String? _watchTried;
+  DateTime? _watchTriedAt;
+
+  /// Attaches a watcher, unless it is attached already. A failed attach is
+  /// retried when the Bot Chat changed or a while has passed.
+  Future<void> watch() {
+    if (!_watchOnly || _disposed || _sessionId != null) return Future.value();
+    final id = _storedId ?? _hob.canonical?.resumeId;
+    if (id == null) return Future.value();
+    final at = _watchTriedAt;
+    if (id == _watchTried &&
+        at != null &&
+        DateTime.now().difference(at) < const Duration(minutes: 2)) {
+      return Future.value();
+    }
+    _watchTried = id;
+    _watchTriedAt = DateTime.now();
+    return start();
+  }
+
+  /// The user opened this chat: load it fully (history, model, approval
+  /// mode). What the watcher already alerted stays known.
+  Future<void> promote() async {
+    if (!_watchOnly) return;
+    _watchOnly = false;
+    final pending = _starting;
+    if (pending != null) await pending;
+    if (_disposed) return;
+    await reload();
   }
 
   final HermesRpc rpc;
@@ -172,6 +226,7 @@ class ChatController extends ChangeNotifier {
   }
 
   Future<void> _open() async {
+    if (_disposed) return;
     phase = ChatPhase.starting;
     error = null;
     _notify();
@@ -180,7 +235,7 @@ class ChatController extends ChangeNotifier {
       final stored = _storedId ?? _hob.canonical?.resumeId;
       if (stored != null) {
         try {
-          await _resume(stored);
+          await _resume(stored, history: !_watchOnly);
           return;
         } on RpcException catch (e) {
           // Only a vanished row (archived, deleted) mints a new Bot Chat;
@@ -188,6 +243,8 @@ class ChatController extends ChangeNotifier {
           if (!e.isNotFound) rethrow;
         }
       }
+      // A watcher never creates the Bot Chat: there is nothing to watch.
+      if (_watchOnly) throw StateError('no Bot Chat');
       await _createCanonical();
     } catch (e) {
       phase = ChatPhase.failed;
@@ -196,7 +253,9 @@ class ChatController extends ChangeNotifier {
     }
   }
 
-  Future<void> _resume(String storedId) async {
+  /// Attaches the session. Without [history] the server leaves the
+  /// transcript out (`omit_messages`): a watcher needs only the live events.
+  Future<void> _resume(String storedId, {bool history = true}) async {
     final params = rpc.canonical
         // The canonical resume contract has no close_on_disconnect /
         // inline_images; display_projection returns display rows (text,
@@ -205,12 +264,14 @@ class ChatController extends ChangeNotifier {
             'session_id': storedId,
             'profile': _hob.name,
             'display_projection': true,
+            if (!history) 'omit_messages': true,
           }
         : {
             'session_id': storedId,
             'profile': _hob.name,
             'close_on_disconnect': false,
             'inline_images': false,
+            if (!history) 'omit_messages': true,
           };
     final res = await rpc.requestWith(
       'session.resume',
@@ -332,7 +393,9 @@ class ChatController extends ChangeNotifier {
     if (stored == null || _disposed) return;
     final wasRunning = phase == ChatPhase.running;
     try {
-      await _resume(stored);
+      // A watcher fetches the transcript only when a turn may have ended
+      // meanwhile: the reply is in it.
+      await _resume(stored, history: !_watchOnly || wasRunning);
       if (wasRunning &&
           phase != ChatPhase.running &&
           approval == null &&
@@ -812,6 +875,7 @@ class ChatController extends ChangeNotifier {
     if (g is num) _generation = g.toInt();
     final r = res['revision'];
     if (r is num) _revision = r.toInt();
+    if (_watchOnly) return;
     if (approvalMode == null) unawaited(_loadApprovalMode());
     // The snapshot's info may describe the profile, not a session-only
     // switch (a lazy runtime): re-read the session's model on every attach.
@@ -1181,6 +1245,10 @@ class ChatController extends ChangeNotifier {
     _forgetRequestAlerts();
     statusText = null;
     phase = ChatPhase.idle;
+    // A watcher keeps only the tail: nobody reads its transcript.
+    if (_watchOnly && messages.length > 4) {
+      messages.removeRange(0, messages.length - 4);
+    }
   }
 
   void _failTurn(String msg) {

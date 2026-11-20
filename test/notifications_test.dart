@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hobs/api/group_models.dart';
 import 'package:hobs/api/hermes_rpc.dart';
 import 'package:hobs/l10n/strings.dart';
 import 'package:hobs/l10n/strings_cs.dart';
@@ -16,15 +17,16 @@ import 'credentials_test.dart' show settle, waitFor;
 import 'fake_hermes_server.dart';
 
 class Shown {
-  Shown(this.hob, this.title, this.body, this.blocking);
+  Shown(this.key, this.title, this.body, this.blocking);
 
-  final String hob;
+  /// [NotifyTarget.key]: `hob:<name>` or `group:<room id>`.
+  final String key;
   final String title;
   final String body;
   final bool blocking;
 
   @override
-  String toString() => '$hob: $title / $body';
+  String toString() => '$key: $title / $body';
 }
 
 /// Records what the app would show instead of calling the plugin.
@@ -36,7 +38,7 @@ class FakeNotifier implements Notifier {
   bool grant = true;
   int permissionAsks = 0;
 
-  void tap(String hob) => _taps.add(hob);
+  void tap(String payload) => _taps.add(payload);
 
   @override
   Stream<String> get taps => _taps.stream;
@@ -55,14 +57,14 @@ class FakeNotifier implements Notifier {
 
   @override
   Future<void> show({
-    required String hob,
+    required String key,
     required String title,
     required String body,
     required bool blocking,
-  }) async => shown.add(Shown(hob, title, body, blocking));
+  }) async => shown.add(Shown(key, title, body, blocking));
 
   @override
-  Future<void> clear(String hob) async => cleared.add(hob);
+  Future<void> clear(String key) async => cleared.add(key);
 }
 
 class FakeBackgroundTime extends BackgroundTime {
@@ -145,7 +147,7 @@ void main() {
     await waitFor(() => notifier.shown.isNotEmpty);
 
     final n = notifier.shown.single;
-    expect(n.hob, 'cto');
+    expect(n.key, 'hob:cto');
     expect(n.title, 'CTO');
     expect(n.body, 'Ahoj, svete!');
     expect(n.blocking, isFalse);
@@ -247,7 +249,7 @@ void main() {
       // Back to the cto chat: its notification goes away.
       notifier.cleared.clear();
       app.setOpenHob('cto');
-      expect(notifier.cleared, ['cto']);
+      expect(notifier.cleared, ['hob:cto']);
       app.dispose();
     },
   );
@@ -336,13 +338,283 @@ void main() {
     app.dispose();
   });
 
+  for (final canonical in [true, false]) {
+    test('a Hob whose chat was never opened notifies an approval and a '
+        'finished reply while backgrounded '
+        '(${canonical ? 'canonical' : 'legacy'})', () async {
+      server
+        ..canonical = canonical
+        ..history = [
+          ...server.history,
+          for (var i = 0; i < 50; i++) {'role': 'user', 'text': 'stara $i'},
+        ];
+      final app = await signedIn();
+      // Watched without its history: the payload stays small.
+      await waitFor(() => app.watchedHobs.contains('cto'));
+      await waitFor(() => server.resumed.contains('botchat-tip'));
+      final watch = server.resumeParams.singleWhere(
+        (p) => p['session_id'] == 'botchat-tip',
+      );
+      expect(watch['omit_messages'], isTrue);
+      expect(watch['profile'], 'cto');
+      expect(app.watchedHobs, {'cto'}, reason: 'only Hobs with a Bot Chat');
+      expect(
+        server.calls.where((c) => c['method'] == 'model.options'),
+        isEmpty,
+        reason: 'a watcher skips the model reads',
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(notifier.shown, isEmpty, reason: 'attaching alerts nothing');
+
+      app.onAppHidden();
+      unawaited(server.externalTurn('botchat-tip', approval: true));
+      await waitFor(() => notifier.shown.isNotEmpty);
+      final ask = notifier.shown.single;
+      expect(ask.key, 'hob:cto');
+      expect(ask.title, 'CTO');
+      expect(ask.body, Strings.current.notifyApproval('rm -rf build'));
+      expect(ask.blocking, isTrue);
+      expect(background.begins, 0, reason: 'it ran before going away');
+
+      server.approvalAnswer.complete({'choice': 'once'});
+      await waitFor(() => notifier.shown.length == 2);
+      final done = notifier.shown.last;
+      expect(done.key, 'hob:cto');
+      expect(done.body, 'Hotovo z dashboardu.');
+      expect(done.blocking, isFalse);
+      expect(notifier.permissionAsks, 0, reason: 'asked on a prompt only');
+
+      // The socket drops and the watcher re-attaches: nothing repeats.
+      server.replayCompleteOnResume = true;
+      final resumes = server.resumed.length;
+      await server.dropConnections();
+      await waitFor(() => server.resumed.length > resumes);
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      expect(notifier.shown, hasLength(2));
+      app.dispose();
+    });
+  }
+
+  test(
+    'opening a watched Hob loads its history and does not alert again',
+    () async {
+      final app = await signedIn();
+      await waitFor(() => server.resumed.contains('botchat-tip'));
+      app.onAppHidden();
+      await server.externalTurn('botchat-tip');
+      await waitFor(() => notifier.shown.length == 1);
+
+      // The user taps it.
+      app.onAppResumed();
+      notifier.tap('hob:cto');
+      await waitFor(() => app.pendingChat == 'cto');
+      final hob = app.takePendingChat()!;
+      app.setOpenHob(hob.name);
+      expect(notifier.cleared, contains('hob:cto'));
+      final chat = app.chatFor(hob);
+      await waitFor(() => chat.ready && chat.messages.isNotEmpty);
+      expect(chat.watchOnly, isFalse);
+      expect(app.watchedHobs, isEmpty);
+      expect(server.resumeParams.last['omit_messages'], isNull);
+      expect(chat.messages.last.text, 'Monitoring sverim Analytikovi.');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(notifier.shown, hasLength(1));
+      app.dispose();
+    },
+  );
+
+  test('turning notifications off stops watching, on starts again', () async {
+    final app = await signedIn();
+    await waitFor(() => app.watchedHobs.contains('cto'));
+    await app.setNotificationsEnabled(false);
+    expect(app.watchedHobs, isEmpty);
+    await server.externalTurn('botchat-tip');
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(notifier.shown, isEmpty);
+
+    await app.setNotificationsEnabled(true);
+    expect(app.watchedHobs, {'cto'});
+    app.dispose();
+  });
+
+  group('group chats', () {
+    void addRoom(String id, {String name = 'Porada'}) {
+      server.rooms[id] = {
+        'room_id': id,
+        'name': name,
+        'members': [
+          GroupMember.localSeat('cto'),
+          GroupMember.localSeat('posta'),
+        ],
+        'authority_epoch': 1,
+        'created_at': 1795205794,
+        'updated_at': 1795205794,
+      };
+      server.roomLogs[id] = [];
+    }
+
+    setUp(() {
+      server.roster.add({
+        'name': 'posta',
+        'ui_meta': {
+          'hermes-bots': {'title': 'Pošta'},
+        },
+      });
+    });
+
+    test('a member message notifies while the group is not on screen, not '
+        'when it is, and never twice', () async {
+      addRoom('r1');
+      final app = await signedIn();
+      await waitFor(() => app.groups.isNotEmpty);
+
+      // Another client's round: the app has never opened this group.
+      server.postMemberMessage('r1', 'cto', '**Mám** hotovo.');
+      await waitFor(() => notifier.shown.isNotEmpty);
+      final n = notifier.shown.single;
+      expect(n.key, 'group:r1');
+      expect(n.title, 'Porada');
+      expect(n.body, 'CTO: Mám hotovo.');
+      expect(n.blocking, isFalse);
+
+      // Replays: a reconnect, another groups.changed, a roster refresh.
+      await server.dropConnections();
+      await waitFor(() => app.connection == ConnectionStatus.connected);
+      server.announceRoom('r1');
+      await app.refreshGroups();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(notifier.shown, hasLength(1), reason: 'nothing new');
+
+      // Opened: its notification goes away and its messages stay quiet.
+      final room = app.groupById('r1')!;
+      final chat = app.groupChatFor(room);
+      app.setOpenGroup('r1');
+      expect(notifier.cleared, contains('group:r1'));
+      await waitFor(() => !chat.loading);
+      server.postMemberMessage('r1', 'posta', 'Vidím to.');
+      await waitFor(() => chat.lastSeq == 2);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(notifier.shown, hasLength(1), reason: 'the user is looking');
+
+      // The first message the user sends asks for the permission.
+      await chat.send('díky');
+      expect(notifier.permissionAsks, 1);
+      await waitFor(() => chat.lastSeq == 8);
+      expect(notifier.shown, hasLength(1));
+
+      // In the background the open group notifies again.
+      app.onAppHidden();
+      server.postMemberMessage('r1', 'posta', 'Ještě jedna věc.');
+      await waitFor(() => notifier.shown.length == 2);
+      expect(notifier.shown.last.body, 'Pošta: Ještě jedna věc.');
+
+      // Its log replays after a reconnect: nothing repeats.
+      await server.dropConnections();
+      await waitFor(() => app.connection == ConnectionStatus.connected);
+      await chat.refresh();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(notifier.shown, hasLength(2));
+      app.dispose();
+    });
+
+    test('a pending approval in a group notifies once', () async {
+      addRoom('r1');
+      final app = await signedIn();
+      await waitFor(() => app.groups.isNotEmpty);
+      app.onAppHidden();
+
+      server.groupPendingActions = [
+        {
+          'kind': 'approval',
+          'member_id': 'cto',
+          'task_id': 't1',
+          'execution_generation': 1,
+          'request_id': 'q1',
+          'approval': {
+            'command': 'ls /',
+            'choices': ['once', 'deny'],
+          },
+        },
+      ];
+      server.announceRoom('r1');
+      await waitFor(() => notifier.shown.isNotEmpty);
+      final n = notifier.shown.single;
+      expect(n.key, 'group:r1');
+      expect(n.body, 'CTO: ${Strings.current.notifyApproval('ls /')}');
+      expect(n.blocking, isTrue);
+
+      server.announceRoom('r1');
+      await waitFor(() => server.groupStateCalls.length >= 2);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(notifier.shown, hasLength(1));
+      app.dispose();
+    });
+
+    test('turned off in settings: groups stay quiet', () async {
+      addRoom('r1');
+      final app = await signedIn(prefs: {'notifications': false});
+      await waitFor(() => app.groups.isNotEmpty);
+      server.postMemberMessage('r1', 'cto', 'Ahoj.');
+      await waitFor(() => app.groupById('r1')?.latestSeq == 1);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(notifier.shown, isEmpty);
+      expect(server.groupStateCalls, isEmpty, reason: 'no peeking');
+
+      // What came while they were off is not news when they come back on.
+      await app.setNotificationsEnabled(true);
+      await app.refreshGroups();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(notifier.shown, isEmpty);
+      app.dispose();
+    });
+
+    test(
+      'a tapped group notification opens the group only after unlocking',
+      () async {
+        addRoom('r1');
+        notifier.launchedFor = 'group:r1';
+        final app = await signedIn(lock: true);
+        expect(app.pendingGroup, 'r1');
+        expect(app.pendingChat, isNull);
+        expect(app.takePendingGroup(), isNull, reason: 'the lock comes first');
+
+        await app.unlock();
+        await waitFor(() => app.groups.isNotEmpty);
+        expect(app.takePendingGroup()?.roomId, 'r1');
+        expect(app.pendingGroup, isNull);
+
+        // A tap while running; a Hob tap replaces a waiting group.
+        notifier.tap('group:r1');
+        await waitFor(() => app.pendingGroup == 'r1');
+        notifier.tap('hob:cto');
+        await waitFor(() => app.pendingChat == 'cto');
+        expect(app.pendingGroup, isNull);
+        expect(app.takePendingChat()?.name, 'cto');
+
+        // A group that is gone is dropped.
+        notifier.tap('group:gone');
+        await waitFor(() => app.pendingGroup == 'gone');
+        expect(app.takePendingGroup(), isNull);
+        expect(app.pendingGroup, isNull);
+        app.dispose();
+      },
+    );
+  });
+
   test('notification preview flattens markdown and shortens', () {
     expect(notificationPreview('**Hotovo**\n\n- a\n- b'), 'Hotovo - a - b');
     expect(notificationPreview('[odkaz](https://x.cz) ok'), 'odkaz ok');
     final long = notificationPreview('x' * 300);
     expect(long.length, 140);
     expect(long.endsWith('…'), isTrue);
-    expect(notificationId('cto'), notificationId('cto'));
-    expect(notificationId('cto'), isNot(notificationId('default')));
+    expect(notificationId('hob:cto'), notificationId('hob:cto'));
+    expect(notificationId('hob:cto'), isNot(notificationId('hob:default')));
+    // A Hob keeps the id its notifications had before the `hob:` prefix.
+    expect(notificationId('hob:cto'), notificationId('cto'));
+    expect(notificationId('group:cto'), isNot(notificationId('hob:cto')));
+    expect(NotifyTarget.parse('cto'), const NotifyTarget.hob('cto'));
+    expect(NotifyTarget.parse('hob:cto'), const NotifyTarget.hob('cto'));
+    expect(NotifyTarget.parse('group:r1'), const NotifyTarget.group('r1'));
+    expect(NotifyTarget.parse('group:'), isNull);
   });
 }

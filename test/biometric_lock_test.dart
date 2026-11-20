@@ -114,27 +114,30 @@ void main() {
     app.dispose();
   });
 
-  test('coming back after a while locks again, a quick switch does not', () async {
-    seed(lock: true);
-    final app = AppState(biometrics: FakeBiometrics());
-    await app.init();
-    await app.unlock();
-    await settle(app);
+  test(
+    'coming back after a while locks again, a quick switch does not',
+    () async {
+      seed(lock: true);
+      final app = AppState(biometrics: FakeBiometrics());
+      await app.init();
+      await app.unlock();
+      await settle(app);
 
-    app.onAppHidden();
-    app.onAppResumed();
-    expect(app.locked, isFalse);
+      app.onAppHidden();
+      app.onAppResumed();
+      expect(app.locked, isFalse);
 
-    app.relockAfter = Duration.zero;
-    app.onAppHidden();
-    app.onAppResumed();
-    expect(app.locked, isTrue);
-    // Resuming refreshes the roster; let it land before disposing.
-    await waitFor(() => !app.loadingHobs);
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    await settle(app);
-    app.dispose();
-  });
+      app.relockAfter = Duration.zero;
+      app.onAppHidden();
+      app.onAppResumed();
+      expect(app.locked, isTrue);
+      // Resuming refreshes the roster; let it land before disposing.
+      await waitFor(() => !app.loadingHobs);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await settle(app);
+      app.dispose();
+    },
+  );
 
   test('signed out with the lock on, the biometric signs back in', () async {
     seed(lock: true, autoLogin: false);
