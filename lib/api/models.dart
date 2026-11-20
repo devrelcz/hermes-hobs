@@ -65,6 +65,9 @@ class Hob {
     this.workerActiveAt,
     this.meta = const {},
     this.metaRevision,
+    this.roleTitle = '',
+    this.profileDisplayName = '',
+    this.previousNames = const [],
   });
 
   final String name;
@@ -94,6 +97,15 @@ class Hob {
   /// `ui_meta_revisions['hermes-bots']`: compare-and-swap guard for writes.
   /// Null when the server did not send revisions.
   final int? metaRevision;
+
+  /// The profile's `title` (its role) as `profiles.list` reports it.
+  final String roleTitle;
+
+  /// The core profile display name (`hermes profile rename`).
+  final String profileDisplayName;
+
+  /// Names the profile had before a rename; old @handles still resolve.
+  final List<String> previousNames;
 
   static const metaKey = 'hermes-bots';
   static const canonicalTitle = 'Bot Chat';
@@ -137,6 +149,17 @@ class Hob {
       workerActiveAt: worker is Map ? epochToDate(worker['last_active']) : null,
       meta: meta,
       metaRevision: revision is int ? revision : null,
+      roleTitle: str(j['title']).isNotEmpty
+          ? str(j['title'])
+          : str(j['bot_title']),
+      profileDisplayName: str(j['display_name']),
+      previousNames: [
+        for (final n
+            in (j['previous_names'] is List
+                ? j['previous_names'] as List
+                : const []))
+          if (n is String && n.trim().isNotEmpty) n.trim(),
+      ],
     );
   }
 
