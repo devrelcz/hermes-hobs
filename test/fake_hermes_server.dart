@@ -104,6 +104,29 @@ class FakeHermesServer {
   /// Switching to this model needs `confirm_expensive_model`.
   String expensiveModel = 'hermes-4-pro';
 
+  /// Session-only model switches: stored session id -> {provider, model}.
+  /// `model.options {session_id}` reports them; the profile keeps its own.
+  final Map<String, Map<String, String>> sessionModels = {};
+  final Map<String, String> _storedOf = {}; // runtime id -> stored id
+  static const _modelConfirmToken = 'confirm-expensive-1';
+  final List<WebSocket> _sockets = [];
+
+  /// Closes every open socket, like a network drop (the client reconnects).
+  Future<void> dropConnections() async {
+    for (final ws in List.of(_sockets)) {
+      await ws.close();
+    }
+    _sockets.clear();
+  }
+
+  Map<String, String> _profileDefault() {
+    final model = profileModel['default']?.toString() ?? '';
+    // An inheriting profile runs on the launch profile's model.
+    return model.isEmpty
+        ? {'provider': 'nous', 'model': 'hermes-4'}
+        : {'provider': '${profileModel['provider']}', 'model': model};
+  }
+
   /// Profile-wide `approvals.mode` served by `config.get`.
   String approvalMode = 'manual';
 
@@ -238,8 +261,13 @@ class FakeHermesServer {
   }
 
   void _serveWs(WebSocket ws) {
-    void send(Map<String, dynamic> m) =>
+    _sockets.add(ws);
+    void send(Map<String, dynamic> m) {
+      // A dropped socket (dropConnections) swallows late replies.
+      try {
         ws.add(jsonEncode({'jsonrpc': '2.0', ...m}));
+      } on StateError catch (_) {}
+    }
     void event(String type, String sid, [Map<String, dynamic>? payload]) =>
         send({
           'method': 'event',
@@ -322,6 +350,28 @@ class FakeHermesServer {
           send({
             'id': id,
             'result': {'status': 'interrupted'},
+          });
+        case 'session.mutate' when params['operation'] == 'model':
+          final payload = (params['payload'] as Map).cast<String, dynamic>();
+          final ask =
+              payload['model'] == expensiveModel &&
+              payload['confirm'] != _modelConfirmToken;
+          if (!ask) {
+            sessionModels[_storedOf[params['session_id']]!] = {
+              'provider': payload['provider'] as String,
+              'model': payload['model'] as String,
+            };
+          }
+          send({
+            'id': id,
+            'result': {
+              'session_id': params['session_id'],
+              'operation': 'model',
+              'revision': 2,
+              'status': ask ? 'confirmation_required' : 'applied',
+              if (ask) 'confirm': _modelConfirmToken,
+              if (ask) 'confirm_message': 'Pricey.',
+            },
           });
         case 'session.mutate':
           send({
@@ -417,9 +467,14 @@ class FakeHermesServer {
             },
           });
         case 'model.options':
+          final stored = _storedOf[params['session_id']];
+          final current =
+              (stored == null ? null : sessionModels[stored]) ??
+              _profileDefault();
           send({
             'id': id,
             'result': {
+              ...current,
               'providers': [
                 {
                   'slug': 'nous',
@@ -460,6 +515,7 @@ class FakeHermesServer {
           createParams.add(params);
           _subscriptions['rt$sessionCounter'] =
               (params['profile'] ?? 'default') as String;
+          _storedOf['rt$sessionCounter'] = 'st$sessionCounter';
           send({
             'id': id,
             'result': {
@@ -487,6 +543,7 @@ class FakeHermesServer {
           sessionCounter++;
           _subscriptions['rt$sessionCounter'] =
               (params['profile'] ?? 'default') as String;
+          _storedOf['rt$sessionCounter'] = params['session_id'] as String;
           send({
             'id': id,
             'result': {
@@ -514,6 +571,31 @@ class FakeHermesServer {
           configSets.add(params);
           if (params['key'] == 'approvals.mode') {
             approvalMode = params['value'] as String;
+          }
+          if (params['key'] == 'model') {
+            // The dashboard's `<model> --provider <slug> --session`.
+            final words = (params['value'] as String).split(' ');
+            final scoped = words.contains('--session');
+            final provider = words[words.indexOf('--provider') + 1];
+            if (words.first == expensiveModel &&
+                params['confirm_expensive_model'] != true) {
+              send({
+                'id': id,
+                'result': {
+                  'confirm_required': true,
+                  'confirm_message': 'Pricey.',
+                },
+              });
+              return;
+            }
+            if (scoped) {
+              sessionModels[_storedOf[params['session_id']]!] = {
+                'provider': provider,
+                'model': words.first,
+              };
+            } else {
+              profileModel = {'provider': provider, 'default': words.first};
+            }
           }
           send({
             'id': id,

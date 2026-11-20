@@ -177,11 +177,20 @@ class Hob {
 
 /// One model provider of `model.options` with the models it offers.
 class ModelProvider {
-  ModelProvider({required this.slug, this.name = '', this.models = const []});
+  ModelProvider({
+    required this.slug,
+    this.name = '',
+    this.models = const [],
+    this.authenticated = true,
+  });
 
   final String slug;
   final String name;
   final List<String> models;
+
+  /// False when the server has no credentials for it (`authenticated:false`):
+  /// a session can't run on it, though a profile may still name it.
+  final bool authenticated;
 
   String get label => name.isEmpty || name == slug ? slug : '$name ($slug)';
 
@@ -200,6 +209,63 @@ class ModelProvider {
       slug: slug,
       name: j['name']?.toString().trim() ?? '',
       models: models,
+      authenticated: j['authenticated'] != false,
+    );
+  }
+}
+
+/// A model on a provider, as `model.options` and the model switches name it.
+class ModelChoice {
+  const ModelChoice({required this.provider, required this.model});
+
+  final String provider;
+  final String model;
+
+  /// Short label for chips: the model id without a vendor prefix
+  /// ("anthropic/claude-opus-5.5" -> "claude-opus-5.5").
+  String get shortLabel => model.contains('/') ? model.split('/').last : model;
+
+  bool same(ModelChoice? o) =>
+      o != null &&
+      o.model == model &&
+      (o.provider.isEmpty || provider.isEmpty || o.provider == provider);
+
+  @override
+  bool operator ==(Object other) =>
+      other is ModelChoice &&
+      other.provider == provider &&
+      other.model == model;
+
+  @override
+  int get hashCode => Object.hash(provider, model);
+
+  @override
+  String toString() => provider.isEmpty ? model : '$provider:$model';
+}
+
+/// `model.options` result: the providers with their models, and the model in
+/// effect. With a `session_id` that is the session's model (including a
+/// session-only switch); with only a `profile` it is the profile's default.
+class ModelOptions {
+  const ModelOptions({this.providers = const [], this.current});
+
+  final List<ModelProvider> providers;
+  final ModelChoice? current;
+
+  static ModelOptions fromJson(Object? j) {
+    if (j is! Map) return const ModelOptions();
+    final model = j['model']?.toString().trim() ?? '';
+    return ModelOptions(
+      providers: (j['providers'] as List? ?? const [])
+          .map(ModelProvider.fromJson)
+          .nonNulls
+          .toList(),
+      current: model.isEmpty
+          ? null
+          : ModelChoice(
+              provider: j['provider']?.toString().trim() ?? '',
+              model: model,
+            ),
     );
   }
 }

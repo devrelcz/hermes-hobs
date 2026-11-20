@@ -9,6 +9,7 @@ import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/chat_controller.dart';
 import 'hob_avatar.dart';
+import 'model_picker.dart';
 import 'hob_detail_screen.dart';
 import 'cron_sheet.dart';
 import 'format.dart';
@@ -767,24 +768,7 @@ class _Composer extends StatelessWidget {
               children: [
                 if (chat.model != null)
                   Flexible(
-                    child: Tooltip(
-                      message: s.modelTooltip,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: cs.outlineVariant),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          chat.model!,
-                          style: chipStyle,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
+                    child: _ModelChip(chat: chat, style: chipStyle),
                   ),
                 const SizedBox(width: 6),
                 PopupMenuButton<String>(
@@ -1074,6 +1058,61 @@ class _ClarifyCardState extends State<_ClarifyCard> {
                   FilledButton(onPressed: _submit, child: Text(s.answer)),
                 ],
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The session's model in the composer. Tapping it picks a model for this
+/// chat only; a chat off the hob's default model is outlined and tagged.
+class _ModelChip extends StatelessWidget {
+  const _ModelChip({required this.chat, required this.style});
+
+  final ChatController chat;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Strings.of(context);
+    final cs = Theme.of(context).colorScheme;
+    final overridden = chat.modelOverridden;
+    final label = chat.sessionModel?.shortLabel ?? chat.model!;
+    return Tooltip(
+      message: overridden
+          ? '${s.modelTooltip} · ${s.sessionModelTag}'
+          : s.modelTooltip,
+      child: InkWell(
+        key: const ValueKey('session-model'),
+        borderRadius: BorderRadius.circular(12),
+        onTap: chat.ready ? () => pickSessionModel(context, chat) : null,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: overridden ? cs.primary : cs.outlineVariant,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (overridden) ...[
+                Icon(Icons.push_pin_outlined, size: 12, color: cs.primary),
+                const SizedBox(width: 4),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  style: overridden
+                      ? style?.copyWith(color: cs.primary)
+                      : style,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(Icons.arrow_drop_down, size: 16, color: cs.onSurfaceVariant),
             ],
           ),
         ),

@@ -220,7 +220,23 @@ class StringsCs extends Strings {
   @override
   String get send => 'Odeslat';
   @override
-  String get modelTooltip => 'Model Hobíka (mění se v profilu)';
+  String get modelTooltip => 'Model téhle konverzace';
+  @override
+  String get sessionModelTitle => 'Model téhle konverzace';
+  @override
+  String get sessionModelHint =>
+      'Platí jen pro tuhle konverzaci. Hobík si nechá svůj výchozí model.';
+  @override
+  String get hobDefaultTag => 'Výchozí model Hobíka';
+  @override
+  String get useHobDefaultModel => 'Použít výchozí model Hobíka';
+  @override
+  String get sessionModelTag => 'jen tahle konverzace';
+  @override
+  String modelSwitchDeferred(String model) =>
+      '$model převezme po dokončení rozepsané odpovědi.';
+  @override
+  String get modelsUnavailable => 'Seznam modelů se nepodařilo načíst.';
   @override
   String get reasoningLevel => 'Úroveň uvažování';
   @override
@@ -290,6 +306,8 @@ class StringsCs extends Strings {
   String get chatNotReady => 'Konverzace není připravená.';
   @override
   String interruptFailed(Object e) => 'Přerušení selhalo: $e';
+  @override
+  String modelChangeFailed(Object e) => 'Přepnutí modelu selhalo: $e';
   @override
   String reasoningChangeFailed(Object e) =>
       'Změna úrovně uvažování selhala: $e';
