@@ -327,6 +327,90 @@ class StringsCs extends Strings {
   @override
   String get replyFailed => 'Odpověď skončila chybou';
 
+  // --- group chats ---------------------------------------------------------
+  @override
+  String get groupChats => 'Skupinové chaty';
+  @override
+  String get newGroupChat => 'Nový skupinový chat';
+  @override
+  String get groupPickTitle => 'Nový skupinový chat';
+  @override
+  String get groupPickHint => 'Vyber 2 až 6 Hobíků, kteří budou spolu mluvit.';
+  @override
+  String get groupNameLabel => 'Název skupiny';
+  @override
+  String get create => 'Vytvořit';
+  @override
+  String get groupCreateFailed => 'Skupinový chat se nepodařilo vytvořit.';
+  @override
+  String groupLoadFailed(String reason) =>
+      'Skupinový chat se nepodařilo načíst: $reason';
+  @override
+  String get groupSendUnconfirmed =>
+      'Server zprávu nepotvrdil. Zkontroluj chat a případně ji pošli znovu.';
+  @override
+  String get groupDisbandUnconfirmed =>
+      'Server ukončení skupiny nepotvrdil. Zkus to znovu.';
+  @override
+  String groupMembers(int n) => switch (n) {
+    1 => '1 Hobík',
+    >= 2 && <= 4 => '$n Hobíci',
+    _ => '$n Hobíků',
+  };
+  @override
+  String get groupMessageHint => 'Napiš skupině, @zmínkou úkol přidělíš';
+  @override
+  String get groupEmpty => 'Napiš první zprávu, odpoví ti všichni Hobíci.';
+  @override
+  String get groupOptions => 'Možnosti skupiny';
+  @override
+  String get renameGroup => 'Přejmenovat';
+  @override
+  String get renameGroupTitle => 'Přejmenovat skupinu';
+  @override
+  String get disbandGroup => 'Ukončit skupinu';
+  @override
+  String get disbandGroupBody =>
+      'Skupinový chat se ukončí na všech zařízeních. Konverzace Hobíků v '
+      'něm skončí a nedá se obnovit.';
+  @override
+  String get disband => 'Ukončit';
+  @override
+  String get groupDisbanded => 'Tento skupinový chat byl ukončen.';
+  @override
+  String get you => 'Ty';
+  @override
+  String mention(String handle) => 'Oslovit @$handle';
+  @override
+  String memberStateLabel(String state) => switch (state) {
+    'queued' => 've frontě',
+    'working' => 'pracuje',
+    'replied' => 'odpověděl',
+    'passed' => 'mlčí',
+    'failed' => 'selhal',
+    'cancelled' => 'zastaven',
+    _ => 'čeká',
+  };
+  @override
+  String get roundCapped => 'Hobíci došli na limit kol.';
+  @override
+  String get continueRound => 'Pokračovat';
+  @override
+  String turnFailed(String member, String? reason) =>
+      reason == null || reason.isEmpty
+      ? '$member neodpověděl.'
+      : '$member neodpověděl: $reason';
+  @override
+  String get turnCancelled => 'Zastaveno.';
+  @override
+  String memberAsks(String member) => '$member žádá o schválení';
+  @override
+  String memberFailed(String member) => 'Tah Hobíka $member selhal';
+  @override
+  String get discardTurn => 'Zahodit';
+  @override
+  String groupWorking(String members) => 'pracuje: $members';
+
   // --- scheduled jobs ------------------------------------------------------
   @override
   String get refresh => 'Obnovit';
