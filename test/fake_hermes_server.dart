@@ -100,6 +100,9 @@ class FakeHermesServer {
   final List<Map<String, dynamic>> configSets = [];
   final List<Map<String, dynamic>> configures = [];
 
+  /// Profiles whose `ui_meta` writes are always refused, as a stale revision.
+  final Set<String> refuseMeta = {};
+
   final List<List<String>> cliCalls = [];
 
   /// What `profiles.describe` reports as the profile's model.
@@ -559,9 +562,11 @@ class FakeHermesServer {
           }
           final expected = params['ui_meta_expected_revisions'] as Map?;
           final incoming = params['ui_meta'] as Map;
-          final stale = incoming.keys.any(
-            (k) => expected != null && expected[k] != (revisions[k] ?? 0),
-          );
+          final stale =
+              refuseMeta.contains(params['name']) ||
+              incoming.keys.any(
+                (k) => expected != null && expected[k] != (revisions[k] ?? 0),
+              );
           if (!stale) {
             final meta = Map<String, dynamic>.from(
               (row['ui_meta'] ?? const {}) as Map,

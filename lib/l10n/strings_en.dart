@@ -116,6 +116,34 @@ class StringsEn extends Strings {
   @override
   String get moveFolder => 'Move folder';
 
+  // --- hob menu ------------------------------------------------------------
+  @override
+  String hobMenuLabel(String hob) => 'Options: $hob';
+  @override
+  String get pinHob => 'Pin';
+  @override
+  String get unpinHob => 'Unpin';
+  @override
+  String get hideHob => 'Hide';
+  @override
+  String get unhideHob => 'Show in the list';
+  @override
+  String get moveToFolder => 'Move to folder';
+  @override
+  String get removeFromFolder => 'Remove from folder';
+  @override
+  String get newFolder => 'New folder…';
+  @override
+  String get newFolderTitle => 'New folder';
+  @override
+  String get hiddenHobs => 'Hidden Hobs';
+  @override
+  String hobHidden(String hob) => '$hob is hidden';
+  @override
+  String get undo => 'Undo';
+  @override
+  String get hobChangeFailed => 'Could not save the change. Try again.';
+
   // --- hob profile ---------------------------------------------------------
   @override
   String get hobProfile => 'Hob profile';
