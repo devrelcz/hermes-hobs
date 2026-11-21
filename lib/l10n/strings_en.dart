@@ -210,6 +210,31 @@ class StringsEn extends Strings {
   @override
   String get keepEditing => 'Keep editing';
 
+  // --- new hob -------------------------------------------------------------
+  @override
+  String get newHob => 'New Hob';
+  @override
+  String get newHobHint =>
+      'It takes over the default profile\'s settings, skills and sign-ins. Its model and SOUL.md can be changed later in its profile.';
+  @override
+  String get newHobNameLabel => 'Name';
+  @override
+  String get newHobNameHint => 'For example Bookkeeper Pete';
+  @override
+  String get hobHandleLabel => 'Handle';
+  @override
+  String get hobHandleHelp =>
+      'Used for @mentions and as the profile name on the server. It cannot be changed later.';
+  @override
+  String get hobHandleInvalid =>
+      'Only lowercase letters, numbers, - and _, starting with a letter or number.';
+  @override
+  String get hobHandleTaken => 'Another Hob already has this handle.';
+  @override
+  String hobCreated(String hob) => '$hob is ready';
+  @override
+  String hobCreateFailed(String reason) => 'Could not create the Hob: $reason';
+
   // --- chat ----------------------------------------------------------------
   @override
   String get scheduledJobs => 'Scheduled jobs';
