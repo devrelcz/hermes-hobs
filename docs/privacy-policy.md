@@ -15,9 +15,16 @@ What you send in a chat (messages, photos, files, links) goes to the Hermes
 server you are signed in to, and that server's operator decides how it is
 stored and used. If you run the server yourself, that is you.
 
-The demo (*Try the demo* on the sign-in screen) runs a stand-in server inside
-the app, on the device itself. What you type in the demo stays on the device
-and is gone when the app restarts.
+## The demo
+
+*Try the demo* on the sign-in screen runs a stand-in Hermes server inside the
+app, reachable only from the device itself, with sample Hobs and chats. It
+needs no account and sends nothing over the network. What you type or attach
+in the demo stays in the app's memory and is gone when the app restarts.
+
+Trying the demo adds an account called Demo to your account list, signed in
+with fixed sample credentials, not yours. It holds no personal data; remove it
+in Settings > Accounts like any other account.
 
 ## What is stored on your device
 
