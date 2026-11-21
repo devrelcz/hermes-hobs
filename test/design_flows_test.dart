@@ -1,14 +1,20 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hobs/api/models.dart';
 import 'package:hobs/state/app_state.dart';
 import 'package:hobs/ui/hobs_screen.dart';
 import 'package:hobs/ui/new_hob_screen.dart';
 import 'package:hobs/ui/sheets.dart';
+import 'package:hobs/ui/theme.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'fake_hermes_server.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -116,5 +122,55 @@ void main() {
     await tester.tap(find.text('Add'));
     await tester.pumpAndSettle();
     expect(result, 'https://example.com');
+  });
+
+  Color dotColor(WidgetTester tester) {
+    final dot = tester.widget<AnimatedContainer>(
+      find.byKey(const ValueKey('connection-dot')),
+    );
+    return (dot.decoration! as BoxDecoration).color!;
+  }
+
+  testWidgets('the avatar dot is red while cut off', (tester) async {
+    SharedPreferences.setMockInitialValues({'welcomeSeen': true});
+    await pumpList(tester, signedIn());
+    final cs = Theme.of(tester.element(find.byType(HobsScreen))).colorScheme;
+    expect(dotColor(tester), cs.error);
+    expect(find.byTooltip('Účet: Odpojeno'), findsOneWidget);
+  });
+
+  testWidgets('the avatar dot is green once connected', (tester) async {
+    HttpOverrides.global = null;
+    SharedPreferences.setMockInitialValues({'welcomeSeen': true});
+    FlutterSecureStorage.setMockInitialValues({});
+    final server = FakeHermesServer();
+    final app = AppState();
+    await tester.runAsync(() async {
+      await server.start();
+      await app.login(
+        serverUrl: server.baseUrl.toString(),
+        username: 'u',
+        password: 'p',
+      );
+      for (var i = 0; i < 40 && app.connection.name != 'connected'; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    });
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: app,
+        child: MaterialApp(
+          theme: HobsTheme.lightTheme(),
+          home: const HobsScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(dotColor(tester), HobsColors.light.working);
+    expect(find.byTooltip('Účet: Připojeno'), findsOneWidget);
+    await tester.runAsync(() async {
+      app.dispose();
+      await server.stop();
+    });
   });
 }
