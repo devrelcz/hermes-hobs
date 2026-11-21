@@ -52,6 +52,10 @@ class StringsCs extends Strings {
   @override
   String get errorTimeout => 'Vypršel časový limit.';
   @override
+  String get errorNotConnected => 'Aplikace není připojená k serveru.';
+  @override
+  String get errorConnectionClosed => 'Spojení se serverem se přerušilo.';
+  @override
   String get errorBadServerUrl => 'Neplatná adresa serveru.';
   @override
   String get errorNoSessionCookie => 'Server nevrátil session cookie';

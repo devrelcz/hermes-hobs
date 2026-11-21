@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hobs/api/hermes_rpc.dart';
 import 'package:hobs/l10n/strings.dart';
 import 'package:hobs/l10n/strings_cs.dart';
+import 'package:hobs/l10n/strings_en.dart';
 import 'package:hobs/state/app_state.dart';
 import 'package:hobs/ui/format.dart';
 import 'package:hobs/ui/login_screen.dart';
@@ -35,6 +37,37 @@ Widget _app(AppState state, Widget home) => ChangeNotifierProvider.value(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   tearDown(() => Strings.current = const StringsCs());
+
+  test('connection failures are worded in the app language', () {
+    final offline = RpcException.local(
+      RpcLocalFailure.notConnected,
+      -1,
+      'Not connected',
+    );
+    final dropped = RpcException.local(
+      RpcLocalFailure.connectionClosed,
+      -1,
+      'Connection closed',
+    );
+    final slow = RpcException.local(RpcLocalFailure.timedOut, -2, 'x');
+    Strings.current = const StringsCs();
+    expect(
+      AppState.describeError(offline),
+      'Aplikace není připojená k serveru.',
+    );
+    expect(
+      AppState.describeError(dropped),
+      'Spojení se serverem se přerušilo.',
+    );
+    expect(AppState.describeError(slow), 'Vypršel časový limit.');
+    Strings.current = const StringsEn();
+    expect(
+      AppState.describeError(offline),
+      'The app is not connected to the server.',
+    );
+    // A server's own answer is shown as it came.
+    expect(AppState.describeError(RpcException(4004, 'quota')), 'quota');
+  });
 
   test('device languages resolve to a language pack', () {
     expect(Strings.resolve(const [Locale('cs', 'CZ')]).languageCode, 'cs');

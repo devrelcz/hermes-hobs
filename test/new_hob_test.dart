@@ -182,7 +182,12 @@ void main() {
       await tester.pumpAndSettle();
       // Offline: no gateway to create it on.
       expect(find.byType(NewHobScreen), findsOneWidget);
-      expect(find.textContaining('Hobíka se nepodařilo vytvořit'), findsOne);
+      expect(
+        find.text(
+          'Hobíka se nepodařilo vytvořit: Aplikace není připojená k serveru.',
+        ),
+        findsOne,
+      );
     });
 
     testWidgets('backing out of a filled page asks first', (tester) async {

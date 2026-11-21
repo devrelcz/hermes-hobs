@@ -6,12 +6,22 @@ import 'dart:math';
 import 'hermes_http.dart';
 
 /// JSON-RPC error returned by the Hermes gateway.
+/// Why a request failed on this side of the wire, with no answer from the
+/// server to show. The app words these itself, in the user's language.
+enum RpcLocalFailure { notConnected, connectionClosed, timedOut }
+
 class RpcException implements Exception {
-  RpcException(this.code, this.message, [this.data]);
+  RpcException(this.code, this.message, [this.data]) : local = null;
+
+  /// A failure of the connection itself; [message] is only for logs.
+  RpcException.local(this.local, this.code, this.message) : data = null;
 
   final int code;
   final String message;
   final Object? data;
+
+  /// Set when the request never got a server answer.
+  final RpcLocalFailure? local;
 
   /// Malformed request (unknown / missing params). The canonical dialect
   /// reports it as 4001 `invalid_params`, so it must not read as "gone".
@@ -242,7 +252,9 @@ class HermesRpc {
   }) {
     final ws = _ws;
     if (ws == null || ws.readyState != WebSocket.open) {
-      return Future.error(RpcException(-1, 'Not connected'));
+      return Future.error(
+        RpcException.local(RpcLocalFailure.notConnected, -1, 'Not connected'),
+      );
     }
     final id = 'c${_nextId++}';
     final c = Completer<dynamic>();
@@ -252,7 +264,11 @@ class HermesRpc {
       timeout,
       onTimeout: () {
         _pending.remove(id);
-        throw RpcException(-2, '$method timed out');
+        throw RpcException.local(
+          RpcLocalFailure.timedOut,
+          -2,
+          '$method timed out',
+        );
       },
     );
   }
@@ -338,12 +354,26 @@ class HermesRpc {
     _pingTimer?.cancel();
     for (final c in _pending.values) {
       if (!c.isCompleted) {
-        c.completeError(RpcException(-1, 'Connection closed'));
+        c.completeError(
+          RpcException.local(
+            RpcLocalFailure.connectionClosed,
+            -1,
+            'Connection closed',
+          ),
+        );
       }
     }
     _pending.clear();
     if (_ready != null && !_ready!.isCompleted) {
-      _ready!.completeError(RpcException(code ?? -1, reason ?? 'closed'));
+      _ready!.completeError(
+        reason == null || reason.isEmpty
+            ? RpcException.local(
+                RpcLocalFailure.connectionClosed,
+                code ?? -1,
+                'closed',
+              )
+            : RpcException(code ?? -1, reason),
+      );
     }
     _setStatus(ConnectionStatus.disconnected);
     // A refused ticket (4401) is retried with a fresh one; a dead cookie

@@ -53,6 +53,10 @@ class StringsEn extends Strings {
   @override
   String get errorTimeout => 'The request timed out.';
   @override
+  String get errorNotConnected => 'The app is not connected to the server.';
+  @override
+  String get errorConnectionClosed => 'The connection to the server dropped.';
+  @override
   String get errorBadServerUrl => 'That server address isn\'t valid.';
   @override
   String get errorNoSessionCookie =>
