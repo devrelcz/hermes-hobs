@@ -9,6 +9,7 @@ import '../api/models.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/group_chat_controller.dart';
+import 'sheets.dart';
 import 'format.dart';
 import 'hob_avatar.dart';
 import 'offline_bar.dart';
@@ -102,28 +103,16 @@ class _GroupChatViewState extends State<_GroupChatView> {
     final app = context.read<AppState>();
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(s.disbandGroup),
-        content: Text(s.disbandGroupBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(s.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(s.disband),
-          ),
-        ],
-      ),
+    final ok = await showConfirmSheet(
+      context,
+      icon: Icons.delete_outline,
+      title: s.disbandGroup,
+      message: s.disbandGroupBody,
+      confirmLabel: s.disband,
+      cancelLabel: s.cancel,
+      destructive: true,
     );
-    if (ok != true) return;
+    if (!ok) return;
     try {
       await c.disband();
     } catch (e) {
@@ -218,15 +207,11 @@ class _GroupChatViewState extends State<_GroupChatView> {
           if (c.connection != ConnectionStatus.connected &&
               !c.loading &&
               !isOffline(context))
-            MaterialBanner(
-              content: Text(s.connectionLost),
-              leading: const Icon(Icons.wifi_off),
-              actions: [
-                TextButton(
-                  onPressed: () => app.onAppResumed(),
-                  child: Text(s.reconnectNow),
-                ),
-              ],
+            InlineBanner(
+              icon: Icons.wifi_off,
+              message: s.connectionLost,
+              actionLabel: s.reconnectNow,
+              onAction: app.onAppResumed,
             ),
           _MemberStrip(chat: c, onMention: _mention),
           const Divider(height: 1),

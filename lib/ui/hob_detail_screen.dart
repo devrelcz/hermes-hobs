@@ -8,6 +8,7 @@ import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import 'hob_avatar.dart';
 import 'model_picker.dart';
+import 'sheets.dart';
 
 /// A hob's profile: its face, title, description, model and SOUL.md, editable like in
 /// the dashboard's "Edit profile" dialog. Opened by tapping a hob's avatar.
@@ -16,9 +17,15 @@ class HobDetailScreen extends StatefulWidget {
 
   final Hob hob;
 
+  /// A side sheet on wide screens, a tall bottom sheet on phones. It only
+  /// closes through its own close button, which asks about unsaved edits.
   static Future<void> open(BuildContext context, Hob hob) =>
-      Navigator.of(context)
-          .push(MaterialPageRoute(builder: (_) => HobDetailScreen(hob: hob)));
+      showScreenSheet<void>(
+        context,
+        kind: SheetKind.side,
+        guarded: true,
+        builder: (_) => HobDetailScreen(hob: hob),
+      );
 
   @override
   State<HobDetailScreen> createState() => _HobDetailScreenState();
@@ -183,9 +190,7 @@ class _HobDetailScreenState extends State<HobDetailScreen> {
     await app.refreshHobs(silent: true);
     final fresh = app.hobNamed(_hob.name) ?? _hob;
     if (done) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(s.hobSaved(fresh.displayName))),
-      );
+      if (mounted) showToast(context, s.hobSaved(fresh.displayName));
       if (mounted) navigator.pop();
       return;
     }
@@ -201,23 +206,14 @@ class _HobDetailScreenState extends State<HobDetailScreen> {
   Future<void> _askDiscard() async {
     final s = Strings.of(context);
     final navigator = Navigator.of(context);
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(s.discardChangesTitle),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(s.discardChanges),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(s.keepEditing),
-          ),
-        ],
-      ),
+    final discard = await showConfirmSheet(
+      context,
+      title: s.discardChangesTitle,
+      confirmLabel: s.discardChanges,
+      cancelLabel: s.keepEditing,
+      destructive: true,
     );
-    if (discard == true && mounted) navigator.pop();
+    if (discard && mounted) navigator.pop();
   }
 
   @override
@@ -238,6 +234,7 @@ class _HobDetailScreenState extends State<HobDetailScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
+          leading: inSheet(context) ? const CloseButton() : null,
           title: Text(s.hobProfile),
           actions: [
             Padding(
@@ -472,58 +469,63 @@ class _HobDetailScreenState extends State<HobDetailScreen> {
         ),
       ];
     }
-    final known = _providers.where((p) => p.slug == provider);
-    final models = [
-      ...?known.firstOrNull?.models,
-      if (model.isNotEmpty &&
-          !(known.firstOrNull?.models.contains(model) ?? false))
-        model,
-    ];
-    DropdownMenuItem<String> item(String value, String label) =>
-        DropdownMenuItem(
-          value: value,
-          child: Text(label, overflow: TextOverflow.ellipsis),
-        );
+    final known = _providers.where((p) => p.slug == provider).firstOrNull;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return [
-      DropdownButtonFormField<String>(
-        initialValue: provider,
-        isExpanded: true,
-        decoration: InputDecoration(labelText: s.providerLabel),
-        items: [
-          item('', s.inheritModel),
-          for (final p in _providers) item(p.slug, p.label),
-          if (provider.isNotEmpty && known.isEmpty) item(provider, provider),
-        ],
-        onChanged: (slug) {
-          if (slug == null || slug == provider) return;
-          final offered = _providers
-              .where((p) => p.slug == slug)
-              .expand((p) => p.models)
-              .toList();
-          _provider.text = slug;
-          _model.text = slug.isEmpty
-              ? ''
-              : (offered.contains(model) ? model : offered.firstOrNull ?? '');
+      // One field for provider and model: it opens a searchable list of
+      // every model of the signed-in providers.
+      InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () async {
+          final picked = await pickProfileModel(
+            context,
+            providers: [
+              for (final p in _providers)
+                if (p.authenticated || p.slug == provider) p,
+            ],
+            current: provider.isEmpty
+                ? null
+                : ModelChoice(provider: provider, model: model),
+          );
+          if (picked == null) return;
+          _provider.text = picked.provider;
+          _model.text = picked.model;
         },
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: s.modelLabel,
+            suffixIcon: const Icon(Icons.unfold_more),
+          ),
+          child: provider.isEmpty
+              ? Text(s.inheritModel)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      model.isEmpty ? s.modelLabel : model,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      known?.label ?? provider,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
       ),
-      const SizedBox(height: 12),
-      if (provider.isEmpty)
-        const SizedBox.shrink()
-      else if ((known.firstOrNull?.models ?? const []).isEmpty)
+      // A provider that lists no models takes a model id by hand.
+      if (provider.isNotEmpty && (known?.models ?? const []).isEmpty) ...[
+        const SizedBox(height: 12),
         TextField(
           controller: _model,
           autocorrect: false,
           decoration: InputDecoration(labelText: s.modelLabel),
-        )
-      else
-        DropdownButtonFormField<String>(
-          key: ValueKey('model:$provider'),
-          initialValue: model.isEmpty ? null : model,
-          isExpanded: true,
-          decoration: InputDecoration(labelText: s.modelLabel),
-          items: [for (final m in models) item(m, m)],
-          onChanged: (m) => _model.text = m ?? '',
         ),
+      ],
     ];
   }
 }

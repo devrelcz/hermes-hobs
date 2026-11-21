@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +18,7 @@ import 'new_group_sheet.dart';
 import 'new_hob_screen.dart';
 import 'settings_screen.dart';
 import 'share_target_sheet.dart';
+import 'sheets.dart';
 import 'theme.dart';
 
 /// Hob roster grouped into the user's folders. On wide screens the chat
@@ -146,13 +146,10 @@ class _HobsScreenState extends State<HobsScreen> {
   }
 
   Future<void> _newHob(bool wide) async {
-    final messenger = ScaffoldMessenger.of(context);
     final s = Strings.of(context);
     final hob = await NewHobScreen.open(context);
     if (hob == null || !mounted) return;
-    messenger.showSnackBar(
-      SnackBar(content: Text(s.hobCreated(hob.displayName))),
-    );
+    if (mounted) showToast(context, s.hobCreated(hob.displayName));
     await _open(hob, wide);
   }
 
@@ -180,6 +177,9 @@ class _HobsScreenState extends State<HobsScreen> {
           onOpenGroup: (r) => _openGroup(r, wide),
           onNewGroup: () => _newGroup(wide),
           onNewHob: () => _newHob(wide),
+          onDeleted: (hob) {
+            if (_selected == hob.name) setState(() => _selected = null);
+          },
         );
         if (!wide) return list;
         // Both panes are Scaffolds. Under one outer Scaffold neither is a
@@ -248,11 +248,15 @@ class _HobList extends StatefulWidget {
     required this.onOpenGroup,
     required this.onNewGroup,
     required this.onNewHob,
+    this.onDeleted,
     this.selected,
     this.selectedGroup,
   });
 
   final void Function(Hob hob) onOpen;
+
+  /// After [hob] was deleted on the server.
+  final void Function(Hob hob)? onDeleted;
   final void Function(GroupRoom room) onOpenGroup;
   final VoidCallback onNewGroup;
   final VoidCallback onNewHob;
@@ -564,16 +568,8 @@ class _HobListState extends State<_HobList> {
     );
   }
 
-  static bool get _desktop => switch (defaultTargetPlatform) {
-    TargetPlatform.macOS ||
-    TargetPlatform.windows ||
-    TargetPlatform.linux => true,
-    _ => false,
-  };
-
-  /// Pin, hide and move: what a long-press (or right-click) on a hob offers.
-  /// A popup menu at the pointer on desktops and wide screens, a bottom sheet
-  /// on phones.
+  /// Pin, hide, move and delete: what a long-press (or right-click) on a hob
+  /// offers, in a popover at the finger or pointer on every screen size.
   Future<void> _hobMenu(
     AppState app,
     Hob hob,
@@ -581,7 +577,7 @@ class _HobListState extends State<_HobList> {
     required bool mouse,
   }) async {
     final s = Strings.of(context);
-    final popup = mouse || _desktop || MediaQuery.sizeOf(context).width >= 600;
+    final error = Theme.of(context).colorScheme.error;
     final actions = [
       (
         _HobAction.pin,
@@ -595,44 +591,27 @@ class _HobListState extends State<_HobList> {
       ),
       (_HobAction.move, Icons.drive_file_move_outlined, s.moveToFolder),
     ];
-    final action = popup
-        ? await showMenu<_HobAction>(
-            context: context,
-            position: _menuPosition(at),
-            items: [
-              for (final (value, icon, label) in actions)
-                PopupMenuItem(
-                  value: value,
-                  child: _MenuRow(icon: icon, label: label),
-                ),
-            ],
-          )
-        : await showModalBottomSheet<_HobAction>(
-            context: context,
-            showDragHandle: true,
-            builder: (context) => SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: HobAvatar(hob: hob, size: 32),
-                    title: Text(
-                      hob.displayName,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  for (final (value, icon, label) in actions)
-                    ListTile(
-                      leading: Icon(icon),
-                      title: Text(label),
-                      onTap: () => Navigator.pop(context, value),
-                    ),
-                ],
-              ),
-            ),
-          );
+    final action = await showMenu<_HobAction>(
+      context: context,
+      position: _menuPosition(at),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      items: [
+        for (final (value, icon, label) in actions)
+          PopupMenuItem(
+            value: value,
+            child: _MenuRow(icon: icon, label: label),
+          ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: _HobAction.delete,
+          child: _MenuRow(
+            icon: Icons.delete_outline,
+            label: s.deleteHob,
+            color: error,
+          ),
+        ),
+      ],
+    );
     if (action == null || !mounted) return;
     switch (action) {
       case _HobAction.pin:
@@ -640,8 +619,39 @@ class _HobListState extends State<_HobList> {
       case _HobAction.hide:
         await _setHidden(app, hob, !hob.hidden);
       case _HobAction.move:
-        await _moveToFolder(app, hob, at, popup: popup);
+        await _moveToFolder(app, hob, at);
+      case _HobAction.delete:
+        await _delete(app, hob);
     }
+  }
+
+  /// Asks in a bottom sheet, then deletes the hob on the server. Its chat,
+  /// if open beside the list, closes with it.
+  Future<void> _delete(AppState app, Hob hob) async {
+    final s = Strings.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showConfirmSheet(
+      context,
+      icon: Icons.delete_outline,
+      title: s.deleteHobTitle(hob.displayName),
+      message: s.deleteHobMessage,
+      confirmLabel: s.deleteHob,
+      cancelLabel: s.cancel,
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    try {
+      await app.deleteHob(hob);
+    } catch (e) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(s.hobDeleteFailed(AppState.describeError(e)))),
+        );
+      return;
+    }
+    widget.onDeleted?.call(hob);
+    if (mounted) showToast(context, s.hobDeleted(hob.displayName));
   }
 
   RelativeRect _menuPosition(Offset at) {
@@ -687,12 +697,7 @@ class _HobListState extends State<_HobList> {
   }
 
   /// Picks a folder for [hob]: an existing one, none, or a new one by name.
-  Future<void> _moveToFolder(
-    AppState app,
-    Hob hob,
-    Offset at, {
-    required bool popup,
-  }) async {
+  Future<void> _moveToFolder(AppState app, Hob hob, Offset at) async {
     final s = Strings.of(context);
     final folders = app.folders;
     final choices = <(_FolderChoice, IconData, String)>[
@@ -715,57 +720,19 @@ class _HobListState extends State<_HobList> {
       ),
     ];
     bool current(_FolderChoice c) => c.id != null && c.id == hob.sectionId;
-    final choice = popup
-        ? await showMenu<_FolderChoice>(
-            context: context,
-            position: _menuPosition(at),
-            items: [
-              for (final (value, icon, label) in choices)
-                PopupMenuItem(
-                  value: value,
-                  enabled: !current(value),
-                  child: _MenuRow(icon: icon, label: label),
-                ),
-            ],
-          )
-        : await showModalBottomSheet<_FolderChoice>(
-            context: context,
-            showDragHandle: true,
-            isScrollControlled: true,
-            builder: (context) => SafeArea(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.7,
-                ),
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    ListTile(
-                      title: Text(
-                        s.moveToFolder,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      subtitle: Text(
-                        hob.displayName,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    for (final (value, icon, label) in choices)
-                      ListTile(
-                        leading: Icon(icon),
-                        title: Text(label, overflow: TextOverflow.ellipsis),
-                        trailing: current(value)
-                            ? const Icon(Icons.check, size: 20)
-                            : null,
-                        enabled: !current(value),
-                        onTap: () => Navigator.pop(context, value),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          );
+    final choice = await showMenu<_FolderChoice>(
+      context: context,
+      position: _menuPosition(at),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      items: [
+        for (final (value, icon, label) in choices)
+          PopupMenuItem(
+            value: value,
+            enabled: !current(value),
+            child: _MenuRow(icon: icon, label: label),
+          ),
+      ],
+    );
     if (choice == null || !mounted) return;
     if (!choice.create) {
       await _change(() => app.moveHobToFolder(hob, choice.id, choice.name));
@@ -824,7 +791,7 @@ class _HobListState extends State<_HobList> {
   }
 }
 
-enum _HobAction { pin, hide, move }
+enum _HobAction { pin, hide, move, delete }
 
 /// A target of "Move to folder": folder [id] (null takes the hob out of its
 /// folder), or a new folder the user names next.
@@ -1513,10 +1480,7 @@ class _AccountButton extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (v) {
         if (v == 'logout') app.logout();
-        if (v == 'settings') {
-          Navigator.of(context)
-              .push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
-        }
+        if (v == 'settings') SettingsScreen.open(context);
       },
       itemBuilder: (_) => [
         PopupMenuItem(
@@ -1569,19 +1533,28 @@ class _AccountButton extends StatelessWidget {
 }
 
 class _MenuRow extends StatelessWidget {
-  const _MenuRow({required this.icon, required this.label});
+  const _MenuRow({required this.icon, required this.label, this.color});
 
   final IconData icon;
   final String label;
+
+  /// For a destructive item (Delete).
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 20),
+        Icon(icon, size: 20, color: color),
         const SizedBox(width: 12),
         // Folder names can be long: never wider than the menu.
-        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+        Flexible(
+          child: Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: color == null ? null : TextStyle(color: color),
+          ),
+        ),
       ],
     );
   }

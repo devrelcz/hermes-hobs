@@ -81,7 +81,7 @@ void main() {
       expect(find.textContaining('SOUL.md se nepodařilo'), findsOneWidget);
     });
 
-    testWidgets('save wakes up on an edit, leaving asks first', (tester) async {
+    testWidgets('save wakes up on an edit, closing asks first', (tester) async {
       await openProfile(tester);
       FilledButton save() =>
           tester.widget(find.widgetWithText(FilledButton, 'Uložit'));
@@ -100,7 +100,7 @@ void main() {
       expect((blob.face!.blobSeed, blob.face!.blobKind), ('dev-cto', 'sun'));
       expect(find.text('Barva'), findsNothing);
 
-      await tester.pageBack();
+      await tester.tap(find.byType(CloseButton));
       await tester.pumpAndSettle();
       expect(find.text('Zahodit neuložené změny?'), findsOneWidget);
       await tester.tap(find.text('Zahodit'));

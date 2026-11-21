@@ -5,6 +5,7 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/group_models.dart';
@@ -1024,6 +1025,35 @@ class AppState extends ChangeNotifier {
       final err = (res['stderr'] ?? res['error'] ?? '').toString().trim();
       throw StateError(err.isEmpty ? Strings.current.hobSaveRefused : err);
     }
+  }
+
+  /// Deletes [hob] for good, like the dashboard's Delete: the server stops
+  /// its gateway and removes the profile with its config, memory, skills and
+  /// conversations. Throws when the server refuses; the roster is then
+  /// unchanged.
+  Future<void> deleteHob(Hob hob) async {
+    final http = _http;
+    if (http == null) {
+      throw RpcException.local(
+        RpcLocalFailure.notConnected,
+        -1,
+        'Not connected',
+      );
+    }
+    await http.deleteJson('/api/profiles/${Uri.encodeComponent(hob.name)}');
+    hobs = [
+      for (final b in hobs)
+        if (b.name != hob.name) b,
+    ];
+    // A chat still on screen lets go of its controller in the next frame.
+    final chat = _chats.remove(hob.name);
+    if (chat != null) {
+      SchedulerBinding.instance
+        ..addPostFrameCallback((_) => chat.dispose())
+        ..scheduleFrame();
+    }
+    notifyListeners();
+    unawaited(refreshHobs(silent: true));
   }
 
   // --- chats ---------------------------------------------------------------

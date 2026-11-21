@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wolt_modal_sheet/wolt_modal_sheet.dart';
 
 /// "Moss and lantern": soft moss-tinted neutrals, a moss-green accent for
 /// actions and your own messages, and warm lantern yellow kept for the happy
@@ -6,7 +7,7 @@ import 'package:flutter/material.dart';
 /// colors carry the color on the list.
 ///
 /// Shape rule: buttons and chips are pills, text fields 14, cards and list
-/// rows 16, sheets and dialogs 24.
+/// rows 16, sheets and dialogs 24 (full-screen sheets on phones are square).
 abstract final class HobsTheme {
   static const _moss = Color(0xFF2F6B4A);
 
@@ -100,7 +101,23 @@ abstract final class HobsTheme {
     return ThemeData(
       colorScheme: cs,
       scaffoldBackgroundColor: cs.surface,
-      extensions: [extra],
+      extensions: [
+        extra,
+        // Sheets, side sheets and their dialogs (see sheets.dart) share
+        // the bottom sheet's surface and the 24 corner of the shape rule.
+        WoltModalSheetThemeData(
+          backgroundColor: cs.surfaceContainerLow,
+          surfaceTintColor: Colors.transparent,
+          modalBarrierColor: cs.scrim.withValues(alpha: 0.32),
+          dragHandleColor: cs.outline,
+          topBarShadowColor: Colors.transparent,
+          topBarElevation: 0,
+          shadowColor: cs.shadow.withValues(alpha: 0.18),
+          modalElevation: 8,
+          hasTopBarLayer: false,
+          useSafeArea: true,
+        ),
+      ],
       appBarTheme: AppBarTheme(
         backgroundColor: cs.surface,
         foregroundColor: cs.onSurface,

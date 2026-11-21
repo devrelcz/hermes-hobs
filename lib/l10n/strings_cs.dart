@@ -88,6 +88,10 @@ class StringsCs extends Strings {
   @override
   String get clearSearch => 'Vymazat hledání';
   @override
+  String get searchModels => 'Hledat model';
+  @override
+  String get noModelMatches => 'Žádný model neodpovídá hledání.';
+  @override
   String get retry => 'Zkusit znovu';
   @override
   String get noHobs => 'Na serveru nejsou žádní Hobíci.';
@@ -152,6 +156,18 @@ class StringsCs extends Strings {
   String get undo => 'Zpět';
   @override
   String get hobChangeFailed => 'Změnu se nepodařilo uložit. Zkuste to znovu.';
+  @override
+  String get deleteHob => 'Smazat';
+  @override
+  String deleteHobTitle(String hob) => 'Smazat Hobíka $hob?';
+  @override
+  String get deleteHobMessage =>
+      'Ze serveru zmizí jeho profil i s nastavením, pamětí, dovednostmi a konverzacemi. Nejde to vrátit.';
+  @override
+  String hobDeleted(String hob) => 'Hobík $hob je smazaný';
+  @override
+  String hobDeleteFailed(String reason) =>
+      'Hobíka se nepodařilo smazat: $reason';
 
   // --- hob profile ---------------------------------------------------------
   @override

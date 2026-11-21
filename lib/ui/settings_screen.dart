@@ -5,11 +5,20 @@ import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/biometrics.dart';
 import 'lock_screen.dart';
+import 'sheets.dart';
 
 /// App settings: the biometric lock (when the device has one),
 /// notifications and the language (follow the device, or pin one of the language packs).
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  /// A side sheet on wide screens, a tall bottom sheet on phones. Every
+  /// switch saves at once, so it closes like any sheet.
+  static Future<void> open(BuildContext context) => showScreenSheet<void>(
+    context,
+    kind: SheetKind.side,
+    builder: (_) => const SettingsScreen(),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +28,10 @@ class SettingsScreen extends StatelessWidget {
       Strings.resolve(View.of(context).platformDispatcher.locales),
     );
     return Scaffold(
-      appBar: AppBar(title: Text(s.settings)),
+      appBar: AppBar(
+        leading: inSheet(context) ? const CloseButton() : null,
+        title: Text(s.settings),
+      ),
       body: ListView(
         children: [
           // Shown while it is on even without a biometric, so it can be

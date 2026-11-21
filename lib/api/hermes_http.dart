@@ -103,6 +103,8 @@ class HermesHttp {
     Map<String, String>? query,
   }) => _send('POST', path, body: body, query: query);
 
+  Future<dynamic> deleteJson(String path) => _send('DELETE', path);
+
   Future<dynamic> _send(
     String method,
     String path, {

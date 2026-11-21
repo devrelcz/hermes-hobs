@@ -90,6 +90,10 @@ class StringsEn extends Strings {
   @override
   String get clearSearch => 'Clear search';
   @override
+  String get searchModels => 'Search models';
+  @override
+  String get noModelMatches => 'No model matches the search.';
+  @override
   String get retry => 'Try again';
   @override
   String get noHobs => 'This server has no Hobs yet.';
@@ -153,6 +157,17 @@ class StringsEn extends Strings {
   String get undo => 'Undo';
   @override
   String get hobChangeFailed => 'Could not save the change. Try again.';
+  @override
+  String get deleteHob => 'Delete';
+  @override
+  String deleteHobTitle(String hob) => 'Delete $hob?';
+  @override
+  String get deleteHobMessage =>
+      'Its profile leaves the server with its settings, memory, skills and conversations. This cannot be undone.';
+  @override
+  String hobDeleted(String hob) => '$hob was deleted';
+  @override
+  String hobDeleteFailed(String reason) => 'Could not delete the Hob: $reason';
 
   // --- hob profile ---------------------------------------------------------
   @override
