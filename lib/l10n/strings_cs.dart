@@ -12,6 +12,19 @@ class StringsCs extends Strings {
   @override
   String get loginSubtitle => 'Přihlášení k Hermes Agent dashboardu';
   @override
+  String get welcomeTitle => 'Vítej u Hobíků';
+  @override
+  String get welcomeWhat =>
+      'Každý Hobík je jeden agent na tvém serveru s vlastním úkolem a pamětí.';
+  @override
+  String get welcomeTalk =>
+      'Piš mu jako v chatu. Odpoví a umí sáhnout po nástrojích.';
+  @override
+  String get welcomeSafe =>
+      'Než spustí něco riskantního, dá ti to ke schválení.';
+  @override
+  String get welcomeStart => 'Začít';
+  @override
   String get serverLabel => 'Server';
   @override
   String get serverInvalid => 'Zadej URL, např. https://hermes.example.com';
@@ -315,6 +328,25 @@ class StringsCs extends Strings {
   @override
   String activeAgo(String age) => 'aktivní $age';
   @override
+  String activeSince(DateTime t, {DateTime? now}) {
+    final d = (now ?? DateTime.now()).difference(t);
+    if (d.inMinutes < 1) return 'aktivní právě teď';
+    if (d.inHours < 1) return 'aktivní před ${d.inMinutes} min';
+    if (d.inDays < 1) return 'aktivní před ${d.inHours} h';
+    if (d.inDays == 1) return 'aktivní včera';
+    if (d.inDays < 7) return 'aktivní před ${d.inDays} dny';
+    return 'naposledy aktivní ${shortDate(t)}';
+  }
+
+  @override
+  String get chatMenu => 'Další možnosti';
+  @override
+  String get linkLabel => 'Odkaz';
+  @override
+  String get fileLabel => 'Soubor';
+  @override
+  String get resizeList => 'Šířka seznamu, táhni do stran';
+  @override
   String writeTo(String hob) => 'Napiš zprávu pro $hob';
   @override
   String get interruptedTag => 'přerušeno';
@@ -439,6 +471,10 @@ class StringsCs extends Strings {
   @override
   String get hobAsks => 'Hobík se ptá';
   @override
+  String get approvalWaiting => 'Čeká na tvé schválení';
+  @override
+  String get clarifyWaiting => 'Odpověz a bude pokračovat';
+  @override
   String get orOwnAnswer => 'nebo vlastní odpověď';
   @override
   String get answerHint => 'Odpověď';
@@ -500,11 +536,14 @@ class StringsCs extends Strings {
   @override
   String get newGroupChat => 'Nový skupinový chat';
   @override
-  String get groupPickTitle => 'Nový skupinový chat';
+  String get groupPickTitle => 'Nová skupina';
   @override
   String get groupPickHint => 'Vyber 2 až 6 Hobíků, kteří budou spolu mluvit.';
   @override
   String get groupNameLabel => 'Název skupiny';
+  @override
+  String groupPickCount(int picked, int max) =>
+      'Vybráno $picked z nejvýš $max, aspoň 2.';
   @override
   String get create => 'Vytvořit';
   @override

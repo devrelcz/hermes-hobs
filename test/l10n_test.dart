@@ -38,6 +38,25 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
   tearDown(() => Strings.current = const StringsCs());
 
+  test('a chat header says when the Hob was last active, in words', () {
+    final now = DateTime(2026, 11, 21, 12);
+    const cs = StringsCs();
+    String ago(Duration d) => cs.activeSince(now.subtract(d), now: now);
+    expect(ago(const Duration(seconds: 20)), 'aktivní právě teď');
+    expect(ago(const Duration(minutes: 5)), 'aktivní před 5 min');
+    expect(ago(const Duration(hours: 3)), 'aktivní před 3 h');
+    expect(ago(const Duration(hours: 30)), 'aktivní včera');
+    expect(ago(const Duration(days: 4)), 'aktivní před 4 dny');
+    expect(ago(const Duration(days: 12)), 'naposledy aktivní 9. 11.');
+    expect(
+      const StringsEn().activeSince(
+        now.subtract(const Duration(days: 4)),
+        now: now,
+      ),
+      'active 4 days ago',
+    );
+  });
+
   test('connection failures are worded in the app language', () {
     final offline = RpcException.local(
       RpcLocalFailure.notConnected,

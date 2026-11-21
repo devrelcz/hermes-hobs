@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -10,6 +11,7 @@ import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/group_chat_controller.dart';
 import 'placeholders.dart';
+import 'prompt_card.dart';
 import 'sheets.dart';
 import 'format.dart';
 import 'hob_avatar.dart';
@@ -71,6 +73,7 @@ class _GroupChatViewState extends State<_GroupChatView> {
     final text = _input.text;
     if (text.trim().isEmpty || c.acting || c.disbanded) return;
     _input.clear();
+    HapticFeedback.lightImpact();
     c.send(text);
     _focus.requestFocus();
     if (_scroll.hasClients) _scroll.jumpTo(0);
@@ -88,12 +91,14 @@ class _GroupChatViewState extends State<_GroupChatView> {
   }
 
   Future<void> _rename(GroupChatController c) async {
-    final name = await showDialog<String>(
-      context: context,
-      builder: (_) => _NameDialog(
-        title: Strings.of(context).renameGroupTitle,
-        initial: c.room.name,
-      ),
+    final s = Strings.of(context);
+    final name = await showTextSheet(
+      context,
+      title: s.renameGroupTitle,
+      label: s.groupNameLabel,
+      initial: c.room.name,
+      action: s.save,
+      cancel: s.cancel,
     );
     if (name == null) return;
     await c.rename(name);
@@ -141,6 +146,7 @@ class _GroupChatViewState extends State<_GroupChatView> {
     ];
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: textBarHeight(context, text: 38, rest: 18),
         automaticallyImplyLeading: !widget.embedded,
         titleSpacing: widget.embedded ? 16 : 0,
         title: Row(
@@ -467,37 +473,62 @@ class _UserBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final t = time;
+    // Yours on the right like in a Hob's chat; the members answer on the
+    // left under their faces.
     return Padding(
       padding: const EdgeInsets.only(top: 14, bottom: 6),
       child: Opacity(
         opacity: pending ? 0.6 : 1,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _Byline(name: Strings.of(context).you, time: time),
-            const SizedBox(height: 4),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: cs.primaryContainer,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Text(
-                text,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: cs.onPrimaryContainer,
+        child: LayoutBuilder(
+          builder: (context, box) => Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: (box.maxWidth * 0.82).clamp(0, 620),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(18),
+                      bottomLeft: Radius.circular(18),
+                      bottomRight: Radius.circular(6),
+                    ),
+                  ),
+                  child: Text(
+                    text,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: cs.onPrimaryContainer,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
+              if (t != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, right: 4),
+                  child: Text(
+                    clockTime(t),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: cs.outline,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _MemberMessage extends StatelessWidget {
+class _MemberMessage extends StatefulWidget {
   const _MemberMessage({
     required this.hob,
     required this.name,
@@ -511,64 +542,90 @@ class _MemberMessage extends StatelessWidget {
   final DateTime? time;
 
   @override
+  State<_MemberMessage> createState() => _MemberMessageState();
+}
+
+class _MemberMessageState extends State<_MemberMessage> {
+  /// The copy button shows under a mouse; on touch, selecting text copies.
+  bool _hover = false;
+
+  static bool get _pointer => switch (defaultTargetPlatform) {
+    TargetPlatform.macOS ||
+    TargetPlatform.windows ||
+    TargetPlatform.linux => true,
+    _ => false,
+  };
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (hob case final h?)
-            HobAvatar(hob: h, size: 28)
-          else
-            const SizedBox(width: 28),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: _Byline(name: name, time: time),
-                    ),
-                    IconButton(
-                      tooltip: Strings.of(context).copy,
-                      visualDensity: VisualDensity.compact,
-                      iconSize: 14,
-                      color: cs.outline,
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: text));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(Strings.of(context).copied),
-                            duration: const Duration(seconds: 1),
+    final hob = widget.hob;
+    final name = widget.name;
+    final text = widget.text;
+    final time = widget.time;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (hob case final h?)
+              HobAvatar(hob: h, size: 28)
+            else
+              const SizedBox(width: 28),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: _Byline(name: name, time: time),
+                      ),
+                      if (_pointer)
+                        Visibility.maintain(
+                          visible: _hover,
+                          child: IconButton(
+                            tooltip: Strings.of(context).copy,
+                            visualDensity: VisualDensity.compact,
+                            iconSize: 14,
+                            color: cs.outline,
+                            onPressed: () {
+                              Clipboard.setData(ClipboardData(text: text));
+                              showToast(
+                                context,
+                                Strings.of(context).copied,
+                                icon: Icons.content_copy,
+                              );
+                            },
+                            icon: const Icon(Icons.copy_outlined),
                           ),
-                        );
-                      },
-                      icon: const Icon(Icons.copy_outlined),
-                    ),
-                  ],
-                ),
-                MarkdownBody(
-                  data: text,
-                  styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-                    p: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-                    code: theme.textTheme.bodySmall?.copyWith(
-                      fontFamily: HobsTheme.monoFamily,
-                      backgroundColor: cs.surfaceContainerHighest,
-                    ),
-                    codeblockDecoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(8),
+                        ),
+                    ],
+                  ),
+                  MarkdownBody(
+                    data: text,
+                    styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                      p: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                      code: theme.textTheme.bodySmall?.copyWith(
+                        fontFamily: HobsTheme.monoFamily,
+                        backgroundColor: cs.surfaceContainerHighest,
+                      ),
+                      codeblockDecoration: BoxDecoration(
+                        color: cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -725,76 +782,50 @@ class _ActionCard extends StatelessWidget {
     final name = member == null ? action.memberId : app.memberName(member);
     final approval = action.kind == 'approval';
     final busy = chat.acting;
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      color: theme.colorScheme.tertiaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              approval ? s.memberAsks(name) : s.memberFailed(name),
-              style: theme.textTheme.titleSmall,
-            ),
-            if (action.description.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(action.description),
-            ],
-            if (action.command.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(6),
+    final cs = theme.colorScheme;
+    return PromptCard(
+      tone: approval ? PromptTone.approval : PromptTone.problem,
+      icon: approval ? Icons.shield_outlined : Icons.error_outline,
+      title: approval ? s.memberAsks(name) : s.memberFailed(name),
+      subtitle: approval ? s.approvalWaiting : null,
+      body: action.description.isEmpty
+          ? null
+          : Text(action.description, style: theme.textTheme.bodyMedium),
+      command: action.command,
+      actions: approval
+          ? [
+              OutlinedButton(
+                style: promptButtonStyle().merge(
+                  OutlinedButton.styleFrom(foregroundColor: cs.error),
                 ),
-                child: Text(
-                  action.command,
-                  style: const TextStyle(
-                    fontFamily: HobsTheme.monoFamily,
-                    fontSize: 12,
-                  ),
+                onPressed: busy
+                    ? null
+                    : () => chat.answer(action, choice: 'deny'),
+                child: Text(s.deny),
+              ),
+              if (action.choices.contains('once'))
+                FilledButton(
+                  style: promptButtonStyle(),
+                  onPressed: busy
+                      ? null
+                      : () => chat.answer(action, choice: 'once'),
+                  child: Text(s.allowOnce),
                 ),
+            ]
+          : [
+              OutlinedButton(
+                style: promptButtonStyle(),
+                onPressed: busy
+                    ? null
+                    : () => chat.answer(action, discard: true),
+                child: Text(s.discardTurn),
+              ),
+              FilledButton(
+                style: promptButtonStyle(),
+                onPressed: busy ? null : () => chat.answer(action),
+                child: Text(s.retry),
               ),
             ],
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: approval
-                  ? [
-                      if (action.choices.contains('once'))
-                        FilledButton(
-                          onPressed: busy
-                              ? null
-                              : () => chat.answer(action, choice: 'once'),
-                          child: Text(s.allowOnce),
-                        ),
-                      OutlinedButton(
-                        onPressed: busy
-                            ? null
-                            : () => chat.answer(action, choice: 'deny'),
-                        child: Text(s.deny),
-                      ),
-                    ]
-                  : [
-                      FilledButton(
-                        onPressed: busy ? null : () => chat.answer(action),
-                        child: Text(s.retry),
-                      ),
-                      OutlinedButton(
-                        onPressed: busy
-                            ? null
-                            : () => chat.answer(action, discard: true),
-                        child: Text(s.discardTurn),
-                      ),
-                    ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -894,57 +925,6 @@ class _MenuRow extends StatelessWidget {
         Icon(icon, size: 20, color: color),
         const SizedBox(width: 12),
         Text(label, style: TextStyle(color: color)),
-      ],
-    );
-  }
-}
-
-/// Asks for a name; returns it, or null when cancelled.
-class _NameDialog extends StatefulWidget {
-  const _NameDialog({required this.title, required this.initial});
-
-  final String title;
-  final String initial;
-
-  @override
-  State<_NameDialog> createState() => _NameDialogState();
-}
-
-class _NameDialogState extends State<_NameDialog> {
-  late final _name = TextEditingController(text: widget.initial)
-    ..selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: widget.initial.length,
-    );
-
-  @override
-  void dispose() {
-    _name.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = Strings.of(context);
-    return AlertDialog(
-      title: Text(widget.title),
-      content: TextField(
-        controller: _name,
-        autofocus: true,
-        maxLength: 80,
-        textCapitalization: TextCapitalization.sentences,
-        decoration: InputDecoration(labelText: s.groupNameLabel),
-        onSubmitted: (v) => Navigator.pop(context, v),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(s.cancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _name.text),
-          child: Text(s.save),
-        ),
       ],
     );
   }

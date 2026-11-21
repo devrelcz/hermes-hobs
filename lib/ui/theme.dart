@@ -47,7 +47,8 @@ abstract final class HobsTheme {
         surfaceContainer: const Color(0xFFEBF0E8),
         surfaceContainerHigh: const Color(0xFFE5ECE2),
         surfaceContainerHighest: const Color(0xFFDFE7DC),
-        outline: const Color(0xFF7C8A7E),
+        // Dark enough for small text (times, hints): 4.5:1 on the surfaces.
+        outline: const Color(0xFF5F6E63),
         outlineVariant: const Color(0xFFD3DDD0),
         inverseSurface: const Color(0xFF2B352E),
         onInverseSurface: const Color(0xFFEDF2EA),
@@ -251,3 +252,12 @@ class HobsColors extends ThemeExtension<HobsColors> {
     );
   }
 }
+
+/// A height for a bar holding text: [rest] (padding, icons) plus [text]
+/// grown with the system text size, so large text never clips. At 100 %
+/// it is simply `text + rest`.
+double textBarHeight(
+  BuildContext context, {
+  required double text,
+  required double rest,
+}) => MediaQuery.textScalerOf(context).scale(text) + rest;

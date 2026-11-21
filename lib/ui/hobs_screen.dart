@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/group_models.dart';
 import '../api/hermes_rpc.dart';
@@ -22,6 +24,7 @@ import 'settings_screen.dart';
 import 'share_target_sheet.dart';
 import 'sheets.dart';
 import 'theme.dart';
+import 'welcome_sheet.dart';
 
 /// Hob roster grouped into the user's folders. On wide screens the chat
 /// opens beside the list (like the dashboard); on phones it is pushed.
@@ -44,9 +47,78 @@ class _HobsScreenState extends State<HobsScreen> {
 
   static const _splitBreakpoint = 840.0;
 
+  /// Width of the list beside a chat on wide windows: dragged by the line
+  /// between them, kept on this device.
+  double _paneWidth = 340;
+  static const _paneMin = 280.0;
+  static const _paneMax = 520.0;
+  static const _paneKey = 'listPaneWidth';
+
+  /// The search field, for the keyboard shortcut that jumps into it.
+  final _searchFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((p) {
+      final w = p.getDouble(_paneKey);
+      if (w != null && mounted) {
+        setState(() => _paneWidth = w.clamp(_paneMin, _paneMax));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _savePaneWidth() async =>
+      (await SharedPreferences.getInstance()).setDouble(_paneKey, _paneWidth);
+
+  /// ⌘ on Apple keyboards, Ctrl elsewhere.
+  static SingleActivator _shortcut(LogicalKeyboardKey key) {
+    final apple = switch (defaultTargetPlatform) {
+      TargetPlatform.macOS || TargetPlatform.iOS => true,
+      _ => false,
+    };
+    return SingleActivator(key, meta: apple, control: !apple);
+  }
+
   /// A share from another app: once the Hob list is visible (signed in,
   /// unlocked), ask which Hob gets it and open that chat with it in the
   /// composer.
+  bool _welcomeChecked = false;
+
+  /// A share is waiting for its Hob (or was just offered).
+  bool get _sharePending {
+    try {
+      return context.read<ShareInbox>().pending != null;
+    } on ProviderNotFoundException {
+      return false;
+    }
+  }
+
+  /// The first time a signed-in list has loaded on this device.
+  void _maybeWelcome(AppState app) {
+    // Not over something the user came for: a share to place, a chat a
+    // notification opens.
+    if (_welcomeChecked ||
+        app.phase != AuthPhase.signedIn ||
+        app.locked ||
+        app.loadingHobs ||
+        app.pendingChat != null ||
+        app.pendingGroup != null ||
+        _sharePending) {
+      return;
+    }
+    _welcomeChecked = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) maybeShowWelcome(context, app.hobs);
+    });
+  }
+
   void _maybeOfferShare(AppState app) {
     ShareInbox? inbox;
     try {
@@ -159,6 +231,7 @@ class _HobsScreenState extends State<HobsScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     _maybeOfferShare(app);
+    _maybeWelcome(app);
     return LayoutBuilder(
       builder: (context, c) {
         final wide = _wide = c.maxWidth >= _splitBreakpoint;
@@ -173,7 +246,9 @@ class _HobsScreenState extends State<HobsScreen> {
             ? null
             : app.groupById(_selectedGroup!);
         final list = _HobList(
+          searchFocus: _searchFocus,
           selected: wide ? _selected : null,
+          heroes: !wide,
           selectedGroup: wide ? _selectedGroup : null,
           onOpen: (b) => _open(b, wide),
           onOpenGroup: (r) => _openGroup(r, wide),
@@ -183,35 +258,107 @@ class _HobsScreenState extends State<HobsScreen> {
             if (_selected == hob.name) setState(() => _selected = null);
           },
         );
-        if (!wide) return list;
+        // Keyboard: new Hob, find, settings. Over both panes, so they work
+        // with the cursor in a chat too.
+        Widget keys(Widget child) => CallbackShortcuts(
+          bindings: {
+            _shortcut(LogicalKeyboardKey.keyN): () => _newHob(wide),
+            _shortcut(LogicalKeyboardKey.keyK): _searchFocus.requestFocus,
+            _shortcut(LogicalKeyboardKey.comma): () =>
+                SettingsScreen.open(context),
+          },
+          child: Focus(autofocus: true, child: child),
+        );
+        if (!wide) return keys(list);
+        final pane = _paneWidth.clamp(
+          _paneMin,
+          (c.maxWidth - 360).clamp(_paneMin, _paneMax),
+        );
         // Both panes are Scaffolds. Under one outer Scaffold neither is a
         // root one, so a snackbar shows once across the window instead of
         // once in each pane.
-        return Scaffold(
-          body: Row(
-            children: [
-              SizedBox(width: 340, child: list),
-              const VerticalDivider(width: 1),
-              Expanded(
-                child: group != null
-                    ? GroupChatScreen(
-                        key: ValueKey('group:${group.roomId}'),
-                        room: group,
-                        embedded: true,
-                        onClosed: () => setState(() => _selectedGroup = null),
-                      )
-                    : selected == null
-                    ? const _EmptyDetail()
-                    : ChatScreen(
-                        key: ValueKey(selected.name),
-                        hob: selected,
-                        embedded: true,
-                      ),
-              ),
-            ],
+        return keys(
+          Scaffold(
+            body: Row(
+              children: [
+                SizedBox(width: pane, child: list),
+                _PaneDivider(
+                  onDrag: (dx) => setState(
+                    () => _paneWidth = (pane + dx).clamp(_paneMin, _paneMax),
+                  ),
+                  onDone: _savePaneWidth,
+                ),
+                Expanded(
+                  child: group != null
+                      ? GroupChatScreen(
+                          key: ValueKey('group:${group.roomId}'),
+                          room: group,
+                          embedded: true,
+                          onClosed: () => setState(() => _selectedGroup = null),
+                        )
+                      : selected == null
+                      ? const _EmptyDetail()
+                      : ChatScreen(
+                          key: ValueKey(selected.name),
+                          hob: selected,
+                          embedded: true,
+                        ),
+                ),
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+/// The line between the list and the chat. Dragging it (mouse or finger)
+/// resizes the list; it shows a resize cursor and thickens under the
+/// pointer.
+class _PaneDivider extends StatefulWidget {
+  const _PaneDivider({required this.onDrag, required this.onDone});
+
+  final ValueChanged<double> onDrag;
+  final VoidCallback onDone;
+
+  @override
+  State<_PaneDivider> createState() => _PaneDividerState();
+}
+
+class _PaneDividerState extends State<_PaneDivider> {
+  bool _active = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Semantics(
+      label: Strings.of(context).resizeList,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.resizeColumn,
+        onEnter: (_) => setState(() => _active = true),
+        onExit: (_) => setState(() => _active = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragStart: (_) => setState(() => _active = true),
+          onHorizontalDragUpdate: (d) => widget.onDrag(d.delta.dx),
+          onHorizontalDragEnd: (_) {
+            setState(() => _active = false);
+            widget.onDone();
+          },
+          // A wide grab area around a one-point line.
+          child: SizedBox(
+            width: 9,
+            child: Center(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                width: _active ? 3 : 1,
+                color: _active ? cs.primary : cs.outlineVariant,
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -247,7 +394,16 @@ class _HobList extends StatefulWidget {
     this.onDeleted,
     this.selected,
     this.selectedGroup,
+    this.heroes = false,
+    this.searchFocus,
   });
+
+  /// The search field's focus, owned by the screen for ⌘K.
+  final FocusNode? searchFocus;
+
+  /// Faces fly into the chat's header: only when the chat opens over the
+  /// list, never beside it.
+  final bool heroes;
 
   final void Function(Hob hob) onOpen;
 
@@ -304,7 +460,8 @@ class _HobListState extends State<_HobList> {
       appBar: AppBar(
         centerTitle: false,
         titleSpacing: 20,
-        toolbarHeight: 64,
+        // Title and status line; grows with large system text.
+        toolbarHeight: textBarHeight(context, text: 44, rest: 20),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -331,13 +488,16 @@ class _HobListState extends State<_HobList> {
           const SizedBox(width: 12),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(_filterBarHeight + 57),
+          preferredSize: Size.fromHeight(
+            _searchHeight(context) + _filterBarHeight(context) + 1,
+          ),
           child: Column(
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                 child: TextField(
                   controller: _search,
+                  focusNode: widget.searchFocus,
                   onChanged: app.setQuery,
                   textInputAction: TextInputAction.search,
                   decoration: InputDecoration(
@@ -392,14 +552,22 @@ class _HobListState extends State<_HobList> {
           return false;
         },
         child: RefreshIndicator(
-          onRefresh: app.refreshHobs,
+          onRefresh: () {
+            HapticFeedback.selectionClick();
+            return app.refreshHobs();
+          },
           child: _buildBody(app, theme, s, sections),
         ),
       ),
     );
   }
 
-  static const _filterBarHeight = 44.0;
+  /// The search field with its margins, and the chip row: both hold a
+  /// line of text that grows with the system text size.
+  static double _searchHeight(BuildContext context) =>
+      textBarHeight(context, text: 20, rest: 36);
+  static double _filterBarHeight(BuildContext context) =>
+      textBarHeight(context, text: 20, rest: 24);
 
   static final _flatField = OutlineInputBorder(
     borderRadius: BorderRadius.circular(14),
@@ -490,6 +658,7 @@ class _HobListState extends State<_HobList> {
         if (s.key == HobSection.unassignedKey) s,
     ];
     return ReorderableListView.builder(
+      onReorderStart: (_) => HapticFeedback.selectionClick(),
       header: groupSection,
       buildDefaultDragHandles: false,
       itemCount: folders.length,
@@ -554,6 +723,7 @@ class _HobListState extends State<_HobList> {
 
   Widget _hobRow(AppState app, Hob b) => _HobRow(
     hob: b,
+    hero: widget.heroes,
     selected: b.name == widget.selected,
     unread: app.isUnread(b),
     working: app.isWorking(b),
@@ -657,6 +827,7 @@ class _HobListState extends State<_HobList> {
     if (!ok || !mounted) return;
     try {
       await app.deleteHob(hob);
+      HapticFeedback.lightImpact();
     } catch (e) {
       messenger
         ..hideCurrentSnackBar()
@@ -753,10 +924,13 @@ class _HobListState extends State<_HobList> {
       await _change(() => app.moveHobToFolder(hob, choice.id, choice.name));
       return;
     }
-    final name = await showDialog<String>(
-      context: context,
-      builder: (_) =>
-          _RenameDialog(initial: '', title: s.newFolderTitle, action: s.create),
+    final name = await showTextSheet(
+      context,
+      title: s.newFolderTitle,
+      label: s.folderNameLabel,
+      action: s.create,
+      cancel: s.cancel,
+      maxLength: 60,
     );
     if (name == null || name.trim().isEmpty || !mounted) return;
     await _change(() => app.moveHobToNewFolder(hob, name));
@@ -787,13 +961,14 @@ class _HobListState extends State<_HobList> {
   Future<void> _renameSection(AppState app, HobSection section) async {
     final s = Strings.of(context);
     final messenger = ScaffoldMessenger.of(context);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (_) => _RenameDialog(
-        initial: section.title,
-        title: s.renameFolderTitle,
-        action: s.save,
-      ),
+    final name = await showTextSheet(
+      context,
+      title: s.renameFolderTitle,
+      label: s.folderNameLabel,
+      initial: section.title,
+      action: s.save,
+      cancel: s.cancel,
+      maxLength: 60,
     );
     if (name == null || name.trim().isEmpty || name.trim() == section.title) {
       return;
@@ -817,63 +992,6 @@ class _FolderChoice {
   final String? id;
   final String? name;
   final bool create;
-}
-
-/// Asks for a folder name: renaming a folder or naming a new one.
-class _RenameDialog extends StatefulWidget {
-  const _RenameDialog({
-    required this.initial,
-    required this.title,
-    required this.action,
-  });
-
-  final String initial;
-  final String title;
-  final String action;
-
-  @override
-  State<_RenameDialog> createState() => _RenameDialogState();
-}
-
-class _RenameDialogState extends State<_RenameDialog> {
-  late final _name = TextEditingController(text: widget.initial)
-    ..selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: widget.initial.length,
-    );
-
-  @override
-  void dispose() {
-    _name.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = Strings.of(context);
-    return AlertDialog(
-      title: Text(widget.title),
-      content: TextField(
-        controller: _name,
-        autofocus: true,
-        maxLength: 60,
-        textCapitalization: TextCapitalization.sentences,
-        textInputAction: TextInputAction.done,
-        decoration: InputDecoration(labelText: s.folderNameLabel),
-        onSubmitted: (v) => Navigator.pop(context, v),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(s.cancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _name.text),
-          child: Text(widget.action),
-        ),
-      ],
-    );
-  }
 }
 
 /// A folder's title row. Holding it picks the folder up to reorder it; the
@@ -1023,6 +1141,7 @@ class _UnreadMark extends StatelessWidget {
 class _HobRow extends StatefulWidget {
   const _HobRow({
     required this.hob,
+    this.hero = false,
     required this.selected,
     required this.unread,
     required this.working,
@@ -1031,6 +1150,7 @@ class _HobRow extends StatefulWidget {
   });
 
   final Hob hob;
+  final bool hero;
   final bool selected;
   final bool unread;
   final bool working;
@@ -1082,7 +1202,11 @@ class _HobRowState extends State<_HobRow> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
             child: Row(
               children: [
-                HobAvatar(hob: hob, size: 38, working: working),
+                HobHero(
+                  name: hob.name,
+                  enabled: widget.hero,
+                  child: HobAvatar(hob: hob, size: 38, working: working),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -1398,7 +1522,7 @@ class _FilterBar extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     return SizedBox(
-      height: _HobListState._filterBarHeight,
+      height: _HobListState._filterBarHeight(context),
       child: ShaderMask(
         blendMode: BlendMode.dstIn,
         shaderCallback: (rect) => LinearGradient(

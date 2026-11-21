@@ -11,6 +11,7 @@ import '../state/app_state.dart';
 import '../state/chat_controller.dart';
 import '../state/composer_draft.dart';
 import 'placeholders.dart';
+import 'prompt_card.dart';
 import 'sheets.dart';
 import 'attachments_ui.dart';
 import '../state/mentions.dart';
@@ -61,6 +62,13 @@ class _ChatViewState extends State<ChatView> {
   bool _awayFromBottom = false;
   int _countWhenLeft = 0;
   bool _promptExpanded = false;
+
+  /// The newest question and the message list, to tell whether that
+  /// question is still on screen. Only once it scrolls away does the
+  /// pinned copy above the list show.
+  final _lastUserKey = GlobalKey();
+  final _listKey = GlobalKey();
+  bool _promptOffscreen = false;
 
   /// The `@word` being typed and the Hobs it can become.
   ({int start, String query})? _mention;
@@ -133,7 +141,25 @@ class _ChatViewState extends State<ChatView> {
     });
   }
 
+  /// Whether the newest question has left the list's visible area (a row
+  /// the list has not even built is far off screen).
+  void _checkPrompt() {
+    if (!mounted) return;
+    final row = _lastUserKey.currentContext?.findRenderObject() as RenderBox?;
+    final list = _listKey.currentContext?.findRenderObject() as RenderBox?;
+    var off = true;
+    if (row != null && row.attached && list != null && list.attached) {
+      final top = row.localToGlobal(Offset.zero).dy;
+      final bottom = top + row.size.height;
+      final listTop = list.localToGlobal(Offset.zero).dy;
+      final listBottom = listTop + list.size.height;
+      off = bottom < listTop + 12 || top > listBottom - 12;
+    }
+    if (off != _promptOffscreen) setState(() => _promptOffscreen = off);
+  }
+
   void _onScroll() {
+    _checkPrompt();
     // The list is reversed: offset 0 is the newest message.
     final away = _scroll.hasClients && _scroll.offset > 240;
     if (away != _awayFromBottom) {
@@ -173,6 +199,7 @@ class _ChatViewState extends State<ChatView> {
     if (c.busy || !c.ready || !draft.ready) return;
     if (text.trim().isEmpty && draft.isEmpty) return;
     _input.clear();
+    HapticFeedback.lightImpact();
     c.send(text, attachments: draft.take());
     _focus.requestFocus();
     if (_scroll.hasClients) _jumpToBottom();
@@ -202,6 +229,7 @@ class _ChatViewState extends State<ChatView> {
     }
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: textBarHeight(context, text: 38, rest: 18),
         automaticallyImplyLeading: !widget.embedded,
         titleSpacing: widget.embedded ? 16 : 0,
         title: Row(
@@ -211,7 +239,11 @@ class _ChatViewState extends State<ChatView> {
               child: InkResponse(
                 onTap: () => HobDetailScreen.open(context, c.hob),
                 radius: 24,
-                child: HobAvatar(hob: c.hob, size: 30, working: working),
+                child: HobHero(
+                  name: c.hob.name,
+                  enabled: !widget.embedded,
+                  child: HobAvatar(hob: c.hob, size: 30, working: working),
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -235,11 +267,34 @@ class _ChatViewState extends State<ChatView> {
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: s.scheduledJobs,
-            onPressed: () => showCronSheet(context, c.hob),
-            icon: const Icon(Icons.event_repeat_outlined),
+          PopupMenuButton<String>(
+            tooltip: s.chatMenu,
+            position: PopupMenuPosition.under,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            onSelected: (v) {
+              if (v == 'cron') showCronSheet(context, c.hob);
+              if (v == 'profile') HobDetailScreen.open(context, c.hob);
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'profile',
+                child: _MenuLine(
+                  icon: Icons.badge_outlined,
+                  label: s.hobProfile,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'cron',
+                child: _MenuLine(
+                  icon: Icons.event_repeat_outlined,
+                  label: s.scheduledJobs,
+                ),
+              ),
+            ],
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: Column(
@@ -254,12 +309,22 @@ class _ChatViewState extends State<ChatView> {
               actionLabel: s.reconnectNow,
               onAction: () => context.read<AppState>().onAppResumed(),
             ),
-          if (prompt != null && c.messages.length > 2)
-            _PinnedPrompt(
-              text: prompt,
-              expanded: _promptExpanded,
-              onTap: () => setState(() => _promptExpanded = !_promptExpanded),
-            ),
+          // The question this reply answers, once it scrolled away.
+          AnimatedSize(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: prompt != null && _promptOffscreen
+                ? _PinnedPrompt(
+                    text: prompt,
+                    expanded: _promptExpanded,
+                    onTap: () =>
+                        setState(() => _promptExpanded = !_promptExpanded),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
           Expanded(
             child: Stack(
               children: [
@@ -350,7 +415,7 @@ class _ChatViewState extends State<ChatView> {
     if (c.busy) return s.workingOn(c.statusText);
     if (c.hob.workingNow) return s.workingInBackground;
     final last = c.hob.lastActive;
-    return last != null ? s.activeAgo(relativeAge(last)) : (c.hob.description);
+    return last != null ? s.activeSince(last) : c.hob.description;
   }
 
   /// Desktops have a pointer to hover with.
@@ -407,8 +472,12 @@ class _ChatViewState extends State<ChatView> {
     final newestEnd = [for (var i = 0; i < items.length; i++) i]
         .where(endOfTurn)
         .firstOrNull;
+    final newestUser = items.indexWhere((m) => m.role == ChatRole.user);
+    // Rows move as replies stream in: recheck the question after layout.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPrompt());
     return SelectionArea(
       child: ListView.builder(
+        key: _listKey,
         controller: _scroll,
         reverse: true,
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -418,7 +487,9 @@ class _ChatViewState extends State<ChatView> {
             if (i == 0) return _TypingRow(status: c.statusText);
             i -= 1;
           }
-          return _MessageRow(
+          final m = items[i];
+          final row = _MessageRow(
+            key: i == newestUser ? _lastUserKey : null,
             message: items[i],
             meta: !endOfTurn(i)
                 ? _Meta.none
@@ -429,6 +500,11 @@ class _ChatViewState extends State<ChatView> {
                 : _Meta.none,
             controller: c,
           );
+          // Just written or just started: it slides in. Older rows built
+          // again by scrolling stay put.
+          return DateTime.now().difference(m.time) < const Duration(seconds: 2)
+              ? AppearIn(key: ValueKey(m), child: row)
+              : row;
         },
       ),
     );
@@ -577,6 +653,7 @@ enum _Meta { none, shown, onHover }
 
 class _MessageRow extends StatefulWidget {
   const _MessageRow({
+    super.key,
     required this.message,
     required this.meta,
     required this.controller,
@@ -603,40 +680,59 @@ class _MessageRowState extends State<_MessageRow> {
     final cs = theme.colorScheme;
     switch (message.role) {
       case ChatRole.user:
+        // Your side of the conversation: on the right, never full width,
+        // the corner nearest the composer a little sharper.
         return Padding(
           padding: const EdgeInsets.only(top: 14, bottom: 6),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: cs.primaryContainer,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (message.attachments.isNotEmpty)
-                  Padding(
-                    padding: EdgeInsets.only(
-                      bottom: message.text.isEmpty ? 0 : 8,
-                    ),
-                    child: MessageAttachments(
-                      attachments: message.attachments,
-                      profile: controller.hob.name,
+          child: LayoutBuilder(
+            builder: (context, box) => Align(
+              alignment: Alignment.centerRight,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: (box.maxWidth * 0.82).clamp(0, 620),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(18),
+                      bottomLeft: Radius.circular(18),
+                      bottomRight: Radius.circular(6),
                     ),
                   ),
-                if (message.text.isNotEmpty)
-                  Text.rich(
-                    _withMentions(
-                      message.text,
-                      controller,
-                      const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: cs.onPrimaryContainer,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (message.attachments.isNotEmpty)
+                        Padding(
+                          padding: EdgeInsets.only(
+                            bottom: message.text.isEmpty ? 0 : 8,
+                          ),
+                          child: MessageAttachments(
+                            attachments: message.attachments,
+                            profile: controller.hob.name,
+                          ),
+                        ),
+                      if (message.text.isNotEmpty)
+                        Text.rich(
+                          _withMentions(
+                            message.text,
+                            controller,
+                            const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: cs.onPrimaryContainer,
+                          ),
+                        ),
+                    ],
                   ),
-              ],
+                ),
+              ),
             ),
           ),
         );
@@ -791,108 +887,117 @@ class _ActivityRow extends StatelessWidget {
     final failed = message.tools.any((t) => t.state == ToolState.failed);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: onToggle,
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
-              decoration: BoxDecoration(
-                color: cs.surfaceContainer,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (running)
-                    const SizedBox(
-                      width: 13,
-                      height: 13,
-                      child: CircularProgressIndicator(strokeWidth: 1.6),
-                    )
-                  else
-                    Icon(
-                      failed ? Icons.error_outline : Icons.build_outlined,
-                      size: 14,
-                      color: failed ? cs.error : cs.outline,
-                    ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      _summary(Strings.of(context)),
-                      style: muted,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 2),
-                  Icon(
-                    message.expanded ? Icons.expand_less : Icons.chevron_right,
-                    size: 16,
-                    color: cs.outline,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (message.expanded)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 0, 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final t in message.tools)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            switch (t.state) {
-                              ToolState.running => Icons.more_horiz,
-                              ToolState.done => Icons.check,
-                              ToolState.failed => Icons.close,
-                            },
-                            size: 13,
-                            color: t.state == ToolState.failed
-                                ? cs.error
-                                : cs.outline,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text.rich(
-                              TextSpan(
-                                children: [
-                                  TextSpan(
-                                    text: t.name,
-                                    style: const TextStyle(
-                                      fontFamily: HobsTheme.monoFamily,
-                                    ),
-                                  ),
-                                  if ((t.summary ?? t.preview) != null)
-                                    TextSpan(
-                                      text: '  ${t.summary ?? t.preview}',
-                                    ),
-                                  if (t.durationS != null)
-                                    TextSpan(
-                                      text:
-                                          '  ${t.durationS!.toStringAsFixed(1)} s',
-                                    ),
-                                ],
-                              ),
-                              style: muted,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+      child: AnimatedSize(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topLeft,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: onToggle,
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainer,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (running)
+                      const SizedBox(
+                        width: 13,
+                        height: 13,
+                        child: CircularProgressIndicator(strokeWidth: 1.6),
+                      )
+                    else
+                      Icon(
+                        failed ? Icons.error_outline : Icons.build_outlined,
+                        size: 14,
+                        color: failed ? cs.error : cs.outline,
+                      ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        _summary(Strings.of(context)),
+                        style: muted,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                ],
+                    const SizedBox(width: 2),
+                    Icon(
+                      message.expanded
+                          ? Icons.expand_less
+                          : Icons.chevron_right,
+                      size: 16,
+                      color: cs.outline,
+                    ),
+                  ],
+                ),
               ),
             ),
-        ],
+            if (message.expanded)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 6, 0, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final t in message.tools)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              switch (t.state) {
+                                ToolState.running => Icons.more_horiz,
+                                ToolState.done => Icons.check,
+                                ToolState.failed => Icons.close,
+                              },
+                              size: 13,
+                              color: t.state == ToolState.failed
+                                  ? cs.error
+                                  : cs.outline,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: t.name,
+                                      style: const TextStyle(
+                                        fontFamily: HobsTheme.monoFamily,
+                                      ),
+                                    ),
+                                    if ((t.summary ?? t.preview) != null)
+                                      TextSpan(
+                                        text: '  ${t.summary ?? t.preview}',
+                                      ),
+                                    if (t.durationS != null)
+                                      TextSpan(
+                                        text:
+                                            '  ${t.durationS!.toStringAsFixed(1)} s',
+                                      ),
+                                  ],
+                                ),
+                                style: muted,
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1083,70 +1188,48 @@ class _ApprovalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = controller.approval!;
-    final theme = Theme.of(context);
     final s = Strings.of(context);
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      color: theme.colorScheme.tertiaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.shield_outlined, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    s.approvalTitle(a.toolName),
-                    style: theme.textTheme.titleSmall,
-                  ),
-                ),
-              ],
+    final cs = Theme.of(context).colorScheme;
+    void answer(String choice) {
+      HapticFeedback.selectionClick();
+      controller.answerApproval(choice);
+    }
+
+    // Deny and allow-once are the main pair; any other choice the server
+    // offers (this chat, always) sits quieter below.
+    final more = [
+      for (final c in a.choices)
+        if (c != 'deny' && c != 'once') c,
+    ];
+    return PromptCard(
+      tone: PromptTone.approval,
+      icon: Icons.shield_outlined,
+      title: s.approvalTitle(a.toolName),
+      subtitle: s.approvalWaiting,
+      body: a.description.isEmpty
+          ? null
+          : Text(a.description, style: Theme.of(context).textTheme.bodyMedium),
+      command: a.command,
+      actions: [
+        if (a.choices.contains('deny'))
+          OutlinedButton(
+            style: promptButtonStyle().merge(
+              OutlinedButton.styleFrom(foregroundColor: cs.error),
             ),
-            if (a.description.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(a.description),
-            ],
-            if (a.command.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: SelectableText(
-                  a.command,
-                  style: const TextStyle(
-                    fontFamily: HobsTheme.monoFamily,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                for (final choice in a.choices)
-                  choice == 'deny'
-                      ? OutlinedButton(
-                          onPressed: () => controller.answerApproval(choice),
-                          child: Text(_label(s, choice)),
-                        )
-                      : FilledButton.tonal(
-                          onPressed: () => controller.answerApproval(choice),
-                          child: Text(_label(s, choice)),
-                        ),
-              ],
-            ),
-          ],
-        ),
-      ),
+            onPressed: () => answer('deny'),
+            child: Text(s.deny),
+          ),
+        if (a.choices.contains('once'))
+          FilledButton(
+            style: promptButtonStyle(),
+            onPressed: () => answer('once'),
+            child: Text(s.allowOnce),
+          ),
+      ],
+      secondary: [
+        for (final c in more)
+          TextButton(onPressed: () => answer(c), child: Text(_label(s, c))),
+      ],
     );
   }
 }
@@ -1189,72 +1272,69 @@ class _ClarifyCardState extends State<_ClarifyCard> {
     final qs = widget.controller.clarify!;
     final theme = Theme.of(context);
     final s = Strings.of(context);
-    return Card(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      color: theme.colorScheme.secondaryContainer,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height * 0.45,
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return PromptCard(
+      tone: PromptTone.question,
+      icon: Icons.help_outline,
+      title: s.hobAsks,
+      subtitle: s.clarifyWaiting,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final q in qs) ...[
+            Text(q.question, style: theme.textTheme.bodyLarge),
+            const SizedBox(height: 8),
+            if (q.choices != null && q.choices!.isNotEmpty) ...[
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
                 children: [
-                  const Icon(Icons.help_outline, size: 18),
-                  const SizedBox(width: 8),
-                  Text(s.hobAsks, style: theme.textTheme.titleSmall),
+                  for (final ch in q.choices!)
+                    ChoiceChip(
+                      label: Text(ch),
+                      selected: _answers[q.qid] == ch,
+                      side: BorderSide.none,
+                      color: WidgetStateProperty.resolveWith(
+                        (st) => st.contains(WidgetState.selected)
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.surfaceContainerHigh,
+                      ),
+                      onSelected: (_) => setState(
+                        () =>
+                            _answers[q.qid] = _answers[q.qid] == ch ? null : ch,
+                      ),
+                    ),
                 ],
               ),
-              for (final q in qs) ...[
-                const SizedBox(height: 10),
-                Text(q.question),
-                const SizedBox(height: 6),
-                if (q.choices != null && q.choices!.isNotEmpty)
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      for (final ch in q.choices!)
-                        ChoiceChip(
-                          label: Text(ch),
-                          selected: _answers[q.qid] == ch,
-                          onSelected: (_) =>
-                              setState(() => _answers[q.qid] = ch),
-                        ),
-                    ],
-                  ),
-                TextField(
-                  controller: _text.putIfAbsent(
-                    q.qid,
-                    TextEditingController.new,
-                  ),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: (q.choices?.isNotEmpty ?? false)
-                        ? s.orOwnAnswer
-                        : s.answerHint,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => widget.controller.answerClarify(null),
-                    child: Text(s.skip),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(onPressed: _submit, child: Text(s.answer)),
-                ],
-              ),
+              const SizedBox(height: 8),
             ],
-          ),
-        ),
+            TextField(
+              controller: _text.putIfAbsent(q.qid, TextEditingController.new),
+              minLines: 1,
+              maxLines: 4,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: (q.choices?.isNotEmpty ?? false)
+                    ? s.orOwnAnswer
+                    : s.answerHint,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ],
       ),
+      actions: [
+        OutlinedButton(
+          style: promptButtonStyle(),
+          onPressed: () => widget.controller.answerClarify(null),
+          child: Text(s.skip),
+        ),
+        FilledButton(
+          style: promptButtonStyle(),
+          onPressed: _submit,
+          child: Text(s.answer),
+        ),
+      ],
     );
   }
 }
@@ -1424,5 +1504,22 @@ Future<void> showChatSettings(BuildContext context, ChatController chat) {
         );
       },
     ),
+  );
+}
+
+/// An icon and a label in a popup menu.
+class _MenuLine extends StatelessWidget {
+  const _MenuLine({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(icon, size: 20),
+      const SizedBox(width: 12),
+      Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+    ],
   );
 }

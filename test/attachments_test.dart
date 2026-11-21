@@ -357,8 +357,8 @@ void main() {
       expect(find.byType(MessageAttachments), findsNWidgets(2));
       expect(find.text('report.pdf'), findsOneWidget);
       expect(find.text('https://example.com/a'), findsOneWidget);
-      // The bubble and the pinned last prompt.
-      expect(find.text('Shrň to'), findsNWidgets(2));
+      // The bubble only: the question is on screen, so it is not pinned.
+      expect(find.text('Shrň to'), findsOneWidget);
       expect(find.text('@file:attachments/report.pdf'), findsNothing);
       await pumpUntil(
         tester,
