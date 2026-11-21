@@ -261,6 +261,6 @@ them or a drag.
   which Hob gets it and opens that chat with everything in the composer.
   Nothing is sent until you tap send.
 - iOS setup: the Runner and the extension share the app group
-  `group.cz.devrel.hobs` (`CUSTOM_GROUP_ID`); a signed device build needs that
+  `group.cz.devrel.hermeshobs` (`CUSTOM_GROUP_ID`); a signed device build needs that
   group registered for the team. The extension writes the hand-over the
-  plugin reads and opens `ShareMedia-cz.devrel.hobs:share`.
+  plugin reads and opens `ShareMedia-cz.devrel.hermeshobs:share`.
