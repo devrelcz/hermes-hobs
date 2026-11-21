@@ -12,6 +12,7 @@ import '../state/composer_draft.dart';
 import 'attachments_ui.dart';
 import '../state/mentions.dart';
 import 'hob_avatar.dart';
+import 'offline_bar.dart';
 import 'model_picker.dart';
 import 'hob_detail_screen.dart';
 import 'cron_sheet.dart';
@@ -240,8 +241,10 @@ class _ChatViewState extends State<ChatView> {
       ),
       body: Column(
         children: [
+          // Offline, the bar above the app already says why.
           if (c.connection != ConnectionStatus.connected &&
-              c.phase != ChatPhase.starting)
+              c.phase != ChatPhase.starting &&
+              !isOffline(context))
             MaterialBanner(
               content: Text(s.connectionLost),
               leading: const Icon(Icons.wifi_off),

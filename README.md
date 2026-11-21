@@ -30,6 +30,8 @@ Hermes Agent dashboard (default `https://hermes.devrel.cz`), where each
   into a Hob from any other app.
 - **Notifications.** Hear about it when a Hob finishes a reply or waits for
   you, in a Hob chat or a group chat.
+- **Offline bar.** Without internet, a bar asks you to turn on Wi-Fi or
+  mobile data, and the chats reconnect as soon as it is back.
 - **Face ID, Touch ID or fingerprint** lock the app when you leave it.
 - Czech and English.
 

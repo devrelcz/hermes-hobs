@@ -11,6 +11,7 @@ import '../state/app_state.dart';
 import '../state/group_chat_controller.dart';
 import 'format.dart';
 import 'hob_avatar.dart';
+import 'offline_bar.dart';
 import 'theme.dart';
 
 /// A group chat: the user and two to six Hobs in one room. Members answer in
@@ -213,7 +214,10 @@ class _GroupChatViewState extends State<_GroupChatView> {
       ),
       body: Column(
         children: [
-          if (c.connection != ConnectionStatus.connected && !c.loading)
+          // Offline, the bar above the app already says why.
+          if (c.connection != ConnectionStatus.connected &&
+              !c.loading &&
+              !isOffline(context))
             MaterialBanner(
               content: Text(s.connectionLost),
               leading: const Icon(Icons.wifi_off),

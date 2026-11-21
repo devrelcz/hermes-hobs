@@ -212,6 +212,18 @@ class StringsCs extends Strings {
       'Spojení se serverem přerušeno, připojuji znovu…';
   @override
   String get reconnectNow => 'Teď';
+
+  // --- offline -------------------------------------------------------------
+  @override
+  String get offlineTitle => 'Nejste připojeni k internetu';
+  @override
+  String offlineHint({required bool phone}) => phone
+      ? 'Zapněte Wi-Fi nebo mobilní data.'
+      : 'Připojte se k Wi-Fi nebo k síti.';
+  @override
+  String get offlineRetry => 'Zkusit znovu';
+  @override
+  String get offlineChecking => 'Ověřuji…';
   @override
   String newMessages(int n) => switch (n) {
     1 => '1 nová',

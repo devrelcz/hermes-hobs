@@ -1281,6 +1281,12 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }
     unawaited(_refreshBiometricKind());
+    reconnect();
+  }
+
+  /// Reconnects the socket now (skipping its backoff) and refreshes the
+  /// lists: after the app returns to the screen or the network comes back.
+  void reconnect() {
     _rpc?.reconnectNow();
     if (phase == AuthPhase.signedIn) unawaited(refreshHobs(silent: true));
     for (final c in _groupChats.values) {
