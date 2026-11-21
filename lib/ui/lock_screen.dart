@@ -35,7 +35,9 @@ class LockScreen extends StatefulWidget {
 
 class _LockScreenState extends State<LockScreen> {
   bool _busy = false;
-  String? _error;
+
+  /// Built at paint time, so a language switch re-words it.
+  String? Function()? _error;
 
   @override
   void initState() {
@@ -52,7 +54,7 @@ class _LockScreenState extends State<LockScreen> {
     try {
       await context.read<AppState>().unlock();
     } on BiometricException catch (e) {
-      if (mounted) setState(() => _error = describeBiometricFailure(e));
+      if (mounted) setState(() => _error = () => describeBiometricFailure(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -63,6 +65,7 @@ class _LockScreenState extends State<LockScreen> {
     final app = context.watch<AppState>();
     final s = Strings.of(context);
     final kind = app.biometricKind;
+    final error = _error?.call();
     const ink = SplashScreen.ink;
     const amber = SplashScreen.amber;
     return Scaffold(
@@ -112,10 +115,10 @@ class _LockScreenState extends State<LockScreen> {
                     icon: Icon(biometricIcon(kind)),
                     label: Text(s.unlockWith(kind ?? BiometricKind.generic)),
                   ),
-                  if (_error != null) ...[
+                  if (error != null) ...[
                     const SizedBox(height: 16),
                     Text(
-                      _error!,
+                      error,
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Color(0xFFFF8A80)),
                     ),
