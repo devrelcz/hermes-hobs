@@ -84,6 +84,8 @@ class StringsEn extends Strings {
   @override
   String get searchHobs => 'Search Hobs';
   @override
+  String get clearSearch => 'Clear search';
+  @override
   String get retry => 'Try again';
   @override
   String get noHobs => 'This server has no Hobs yet.';
@@ -222,6 +224,8 @@ class StringsEn extends Strings {
   String get newHobNameHint => 'For example Bookkeeper Pete';
   @override
   String get hobHandleLabel => 'Handle';
+  @override
+  String get editHobHandle => 'Edit handle';
   @override
   String get hobHandleHelp =>
       'Used for @mentions and as the profile name on the server. It cannot be changed later.';

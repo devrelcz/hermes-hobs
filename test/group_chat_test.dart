@@ -169,7 +169,12 @@ void main() {
       expect(find.text(s.groupChats.toUpperCase()), findsOneWidget);
       expect(find.text('Porada'), findsOneWidget);
       expect(find.text('2 Hobíci · CTO, Pošta'), findsOneWidget);
-      expect(find.byTooltip(s.newGroupChat), findsOneWidget);
+      await tester.tap(find.byTooltip(s.create));
+      await tester.pumpAndSettle();
+      expect(find.text(s.newHob), findsOneWidget);
+      expect(find.text(s.newGroupChat), findsOneWidget);
+      await tester.tapAt(Offset.zero);
+      await tester.pumpAndSettle();
 
       app.setQuery('nic');
       await tester.pump();

@@ -82,6 +82,8 @@ class StringsCs extends Strings {
   @override
   String get searchHobs => 'Hledat Hobíky';
   @override
+  String get clearSearch => 'Vymazat hledání';
+  @override
   String get retry => 'Zkusit znovu';
   @override
   String get noHobs => 'Na serveru nejsou žádní Hobíci.';
@@ -220,6 +222,8 @@ class StringsCs extends Strings {
   String get newHobNameHint => 'Třeba Účetní Péťa';
   @override
   String get hobHandleLabel => 'Identifikátor';
+  @override
+  String get editHobHandle => 'Upravit identifikátor';
   @override
   String get hobHandleHelp =>
       'Pro @zmínky a název profilu na serveru. Později už nejde změnit.';

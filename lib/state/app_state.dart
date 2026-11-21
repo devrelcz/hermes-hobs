@@ -943,6 +943,23 @@ class AppState extends ChangeNotifier {
   /// Whether a Hob named [name] already exists (hidden ones included).
   bool hobNameTaken(String name) => name == 'default' || hobNamed(name) != null;
 
+  /// A handle for a new Hob called [title] that no Hob has yet: the title
+  /// without accents, `-2`, `-3`… added when taken. A title with nothing
+  /// usable in it ("🙂") falls back to `hob`. Empty only for an empty title.
+  String freeHobNameFor(String title) {
+    if (title.trim().isEmpty) return '';
+    final base = hobNameFor(title);
+    final stem = base.isEmpty ? 'hob' : base;
+    if (!hobNameTaken(stem)) return stem;
+    for (var i = 2; ; i++) {
+      final suffix = '-$i';
+      final room = 64 - suffix.length;
+      final cut = stem.length <= room ? stem : stem.substring(0, room);
+      final name = '${cut.replaceAll(RegExp(r'[-_]+$'), '')}$suffix';
+      if (!hobNameTaken(name)) return name;
+    }
+  }
+
   /// Creates a new Hob the way the dashboard's New Bot dialog does: a profile
   /// cloned from the default one (its config, skills and shared sign-ins),
   /// a SOUL.md introducing it, and its title and face in `ui_meta`. Returns

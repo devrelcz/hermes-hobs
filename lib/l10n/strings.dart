@@ -84,6 +84,7 @@ abstract class Strings {
   String get settings;
   String get signOut;
   String get searchHobs;
+  String get clearSearch;
   String get retry;
   String get noHobs;
   String get noMatches;
@@ -155,6 +156,7 @@ abstract class Strings {
   String get newHobNameLabel;
   String get newHobNameHint;
   String get hobHandleLabel;
+  String get editHobHandle;
   String get hobHandleHelp;
   String get hobHandleInvalid;
   String get hobHandleTaken;
