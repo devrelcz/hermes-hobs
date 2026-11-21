@@ -76,6 +76,24 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Geist and Geist Mono (SIL Open Font License, assets/fonts/OFL.txt),
+  # bundled so text never waits on a download. One variable file each; the
+  # weights below map FontWeight onto its weight axis.
+  fonts:
+    - family: Geist
+      fonts:
+        - asset: assets/fonts/Geist-Variable.ttf
+          weight: 400
+        - asset: assets/fonts/Geist-Variable.ttf
+          weight: 500
+        - asset: assets/fonts/Geist-Variable.ttf
+          weight: 600
+        - asset: assets/fonts/Geist-Variable.ttf
+          weight: 700
+    - family: GeistMono
+      fonts:
+        - asset: assets/fonts/GeistMono-Variable.ttf
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

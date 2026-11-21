@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
@@ -9,6 +10,7 @@ import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/chat_controller.dart';
 import '../state/composer_draft.dart';
+import 'placeholders.dart';
 import 'sheets.dart';
 import 'attachments_ui.dart';
 import '../state/mentions.dart';
@@ -351,9 +353,17 @@ class _ChatViewState extends State<ChatView> {
     return last != null ? s.activeAgo(relativeAge(last)) : (c.hob.description);
   }
 
+  /// Desktops have a pointer to hover with.
+  static bool get _pointer => switch (defaultTargetPlatform) {
+    TargetPlatform.macOS ||
+    TargetPlatform.windows ||
+    TargetPlatform.linux => true,
+    _ => false,
+  };
+
   Widget _buildMessages(ChatController c, ThemeData theme) {
     if (c.phase == ChatPhase.starting && c.messages.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const ChatSkeleton();
     }
     if (c.messages.isEmpty) {
       return Center(
@@ -385,6 +395,18 @@ class _ChatViewState extends State<ChatView> {
     }
     final items = c.messages.reversed.toList();
     final showTyping = c.busy && items.first.role == ChatRole.user;
+    bool endOfTurn(int i) {
+      final m = items[i];
+      return m.role == ChatRole.assistant &&
+          !m.streaming &&
+          (i == 0 || items[i - 1].role == ChatRole.user);
+    }
+
+    // Time and copy stay out under the newest reply only; older replies
+    // show them under a mouse pointer (on touch, text selection copies).
+    final newestEnd = [for (var i = 0; i < items.length; i++) i]
+        .where(endOfTurn)
+        .firstOrNull;
     return SelectionArea(
       child: ListView.builder(
         controller: _scroll,
@@ -396,14 +418,17 @@ class _ChatViewState extends State<ChatView> {
             if (i == 0) return _TypingRow(status: c.statusText);
             i -= 1;
           }
-          final m = items[i];
-          // Meta row (time, copy) under the last assistant row of a turn.
-          final newer = i > 0 ? items[i - 1] : null;
-          final endOfTurn =
-              m.role == ChatRole.assistant &&
-              !m.streaming &&
-              (newer == null || newer.role == ChatRole.user);
-          return _MessageRow(message: m, showMeta: endOfTurn, controller: c);
+          return _MessageRow(
+            message: items[i],
+            meta: !endOfTurn(i)
+                ? _Meta.none
+                : i == newestEnd
+                ? _Meta.shown
+                : _pointer
+                ? _Meta.onHover
+                : _Meta.none,
+            controller: c,
+          );
         },
       ),
     );
@@ -547,19 +572,33 @@ class _PinnedPrompt extends StatelessWidget {
   }
 }
 
-class _MessageRow extends StatelessWidget {
+/// Whether a reply shows its time and copy button.
+enum _Meta { none, shown, onHover }
+
+class _MessageRow extends StatefulWidget {
   const _MessageRow({
     required this.message,
-    required this.showMeta,
+    required this.meta,
     required this.controller,
   });
 
   final ChatMessage message;
-  final bool showMeta;
+  final _Meta meta;
   final ChatController controller;
 
   @override
+  State<_MessageRow> createState() => _MessageRowState();
+}
+
+class _MessageRowState extends State<_MessageRow> {
+  bool _hover = false;
+
+  @override
   Widget build(BuildContext context) {
+    final message = widget.message;
+    final controller = widget.controller;
+    final showMeta =
+        widget.meta == _Meta.shown || (widget.meta == _Meta.onHover && _hover);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     switch (message.role) {
@@ -602,7 +641,7 @@ class _MessageRow extends StatelessWidget {
           ),
         );
       case ChatRole.assistant:
-        return Padding(
+        final body = Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -612,7 +651,7 @@ class _MessageRow extends StatelessWidget {
                 styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
                   p: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
                   code: theme.textTheme.bodySmall?.copyWith(
-                    fontFamily: 'monospace',
+                    fontFamily: HobsTheme.monoFamily,
                     backgroundColor: cs.surfaceContainerHighest,
                   ),
                   codeblockDecoration: BoxDecoration(
@@ -631,9 +670,11 @@ class _MessageRow extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (showMeta)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
+              if (widget.meta != _Meta.none)
+                // Keeps its height while hidden, so hovering never moves
+                // the messages below.
+                Visibility.maintain(
+                  visible: showMeta,
                   child: Row(
                     children: [
                       Text(
@@ -650,11 +691,10 @@ class _MessageRow extends StatelessWidget {
                         color: cs.outline,
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: message.text));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(Strings.of(context).copied),
-                              duration: const Duration(seconds: 1),
-                            ),
+                          showToast(
+                            context,
+                            Strings.of(context).copied,
+                            icon: Icons.content_copy,
                           );
                         },
                         icon: const Icon(Icons.copy_outlined),
@@ -664,6 +704,12 @@ class _MessageRow extends StatelessWidget {
                 ),
             ],
           ),
+        );
+        if (widget.meta != _Meta.onHover) return body;
+        return MouseRegion(
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: body,
         );
       case ChatRole.activity:
         return _ActivityRow(
@@ -707,7 +753,7 @@ class _MessageRow extends StatelessWidget {
   }
 }
 
-/// One muted line summarizing consecutive tool calls; tap to expand.
+/// A quiet chip summarizing consecutive tool calls; tap to expand.
 class _ActivityRow extends StatelessWidget {
   const _ActivityRow({required this.message, required this.onToggle});
 
@@ -744,16 +790,21 @@ class _ActivityRow extends StatelessWidget {
     final running = message.toolsRunning;
     final failed = message.tools.any((t) => t.state == ToolState.failed);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
             onTap: onToggle,
-            borderRadius: BorderRadius.circular(6),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5),
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+              decoration: BoxDecoration(
+                color: cs.surfaceContainer,
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   if (running)
                     const SizedBox(
@@ -775,6 +826,7 @@ class _ActivityRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SizedBox(width: 2),
                   Icon(
                     message.expanded ? Icons.expand_less : Icons.chevron_right,
                     size: 16,
@@ -786,7 +838,7 @@ class _ActivityRow extends StatelessWidget {
           ),
           if (message.expanded)
             Padding(
-              padding: const EdgeInsets.only(left: 21, bottom: 4),
+              padding: const EdgeInsets.fromLTRB(12, 6, 0, 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -815,7 +867,7 @@ class _ActivityRow extends StatelessWidget {
                                   TextSpan(
                                     text: t.name,
                                     style: const TextStyle(
-                                      fontFamily: 'monospace',
+                                      fontFamily: HobsTheme.monoFamily,
                                     ),
                                   ),
                                   if ((t.summary ?? t.preview) != null)
@@ -1004,111 +1056,9 @@ class _Composer extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Row(
-              children: [
-                if (chat.model != null)
-                  Flexible(
-                    child: _ModelChip(chat: chat, style: chipStyle),
-                  ),
-                const SizedBox(width: 6),
-                PopupMenuButton<String>(
-                  enabled: chat.ready,
-                  tooltip: s.reasoningLevel,
-                  initialValue: chat.reasoningEffort,
-                  onSelected: chat.setReasoningEffort,
-                  itemBuilder: (_) => [
-                    for (final l in ChatController.effortLevels)
-                      PopupMenuItem(
-                        value: l,
-                        child: Text('${_effortLabels[l]} · $l'),
-                      ),
-                  ],
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: cs.outlineVariant),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _effortLabels[chat.reasoningEffort] ??
-                              (chat.reasoningEffort ?? s.reasoning),
-                          style: chipStyle,
-                        ),
-                        Icon(
-                          Icons.arrow_drop_down,
-                          size: 16,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                PopupMenuButton<String>(
-                  key: const ValueKey('approval-mode'),
-                  enabled: chat.ready,
-                  tooltip: s.approvalModeTooltip,
-                  initialValue: chat.approvalMode,
-                  onSelected: chat.setApprovalMode,
-                  itemBuilder: (_) => [
-                    for (final m in ChatController.approvalModes)
-                      PopupMenuItem(
-                        value: m,
-                        child: ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          dense: true,
-                          leading: Icon(_approvalIcons[m]),
-                          title: Text(s.approvalModeLabel(m)),
-                          subtitle: Text(s.approvalModeHint(m)),
-                        ),
-                      ),
-                  ],
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        // "off" runs commands unasked: make it visible.
-                        color: chat.approvalMode == 'off'
-                            ? cs.error
-                            : cs.outlineVariant,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _approvalIcons[chat.approvalMode] ??
-                              Icons.shield_outlined,
-                          size: 14,
-                          color: chat.approvalMode == 'off'
-                              ? cs.error
-                              : cs.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          s.approvalModeLabel(chat.approvalMode ?? ''),
-                          style: chipStyle,
-                        ),
-                        Icon(
-                          Icons.arrow_drop_down,
-                          size: 16,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _ChatSettingsChip(chat: chat, style: chipStyle),
             ),
           ],
         ),
@@ -1170,7 +1120,10 @@ class _ApprovalCard extends StatelessWidget {
                 ),
                 child: SelectableText(
                   a.command,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                  style: const TextStyle(
+                    fontFamily: HobsTheme.monoFamily,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],
@@ -1306,10 +1259,11 @@ class _ClarifyCardState extends State<_ClarifyCard> {
   }
 }
 
-/// The session's model in the composer. Tapping it picks a model for this
-/// chat only; a chat off the hob's default model is outlined and tagged.
-class _ModelChip extends StatelessWidget {
-  const _ModelChip({required this.chat, required this.style});
+/// The chat's settings in one chip under the composer: the model, the
+/// reasoning level and the approval mode. Tapping it opens them in a sheet.
+/// A model off the Hob's default and approvals turned off stand out.
+class _ChatSettingsChip extends StatelessWidget {
+  const _ChatSettingsChip({required this.chat, required this.style});
 
   final ChatController chat;
   final TextStyle? style;
@@ -1318,45 +1272,157 @@ class _ModelChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = Strings.of(context);
     final cs = Theme.of(context).colorScheme;
-    final overridden = chat.modelOverridden;
-    final label = chat.sessionModel?.shortLabel ?? chat.model!;
+    final unasked = chat.approvalMode == 'off';
+    final model = chat.sessionModel?.shortLabel ?? chat.model;
+    final effort = _Composer._effortLabels[chat.reasoningEffort];
+    final parts = [?model, ?effort];
     return Tooltip(
-      message: overridden
-          ? '${s.modelTooltip} · ${s.sessionModelTag}'
-          : s.modelTooltip,
+      message: s.chatSettings,
       child: InkWell(
-        key: const ValueKey('session-model'),
-        borderRadius: BorderRadius.circular(12),
-        onTap: chat.ready ? () => pickSessionModel(context, chat) : null,
+        key: const ValueKey('chat-settings'),
+        borderRadius: BorderRadius.circular(14),
+        onTap: chat.ready ? () => showChatSettings(context, chat) : null,
         child: Container(
+          constraints: const BoxConstraints(minHeight: 32),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            border: Border.all(
-              color: overridden ? cs.primary : cs.outlineVariant,
-            ),
-            borderRadius: BorderRadius.circular(12),
+            color: cs.surfaceContainerHigh,
+            border: unasked ? Border.all(color: cs.error) : null,
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (overridden) ...[
-                Icon(Icons.push_pin_outlined, size: 12, color: cs.primary),
-                const SizedBox(width: 4),
-              ],
+              Icon(
+                _Composer._approvalIcons[chat.approvalMode] ?? Icons.tune,
+                size: 14,
+                color: unasked ? cs.error : cs.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
               Flexible(
                 child: Text(
-                  label,
-                  style: overridden
+                  parts.isEmpty ? s.chatSettings : parts.join('  ·  '),
+                  style: chat.modelOverridden
                       ? style?.copyWith(color: cs.primary)
                       : style,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Icon(Icons.arrow_drop_down, size: 16, color: cs.onSurfaceVariant),
+              const SizedBox(width: 2),
+              Icon(Icons.expand_more, size: 16, color: cs.onSurfaceVariant),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+/// The chat's model, reasoning level and approval mode in one sheet. Every
+/// choice applies at once; the sheet stays open until dismissed.
+Future<void> showChatSettings(BuildContext context, ChatController chat) {
+  return showContentSheet<void>(
+    context,
+    kind: SheetKind.bottom,
+    builder: (context) => ListenableBuilder(
+      listenable: chat,
+      builder: (context, _) {
+        final s = Strings.of(context);
+        final theme = Theme.of(context);
+        final cs = theme.colorScheme;
+        Widget heading(String text) => Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+          child: Text(
+            text,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: cs.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        );
+        final model = chat.sessionModel?.shortLabel ?? chat.model;
+        return Padding(
+          padding: EdgeInsets.only(
+            top: isWideWindow(context) ? 16 : sheetHandleGap - 8,
+            bottom: 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(s.chatSettings, style: theme.textTheme.titleLarge),
+              ),
+              if (model != null) ...[
+                heading(s.modelLabel),
+                ListTile(
+                  key: const ValueKey('session-model'),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                  leading: const Icon(Icons.memory_outlined),
+                  title: Text(model, overflow: TextOverflow.ellipsis),
+                  subtitle: chat.modelOverridden
+                      ? Text(s.sessionModelTag)
+                      : null,
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => pickSessionModel(context, chat),
+                ),
+              ],
+              heading(s.reasoningLevel),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final l in ChatController.effortLevels)
+                      ChoiceChip(
+                        label: Text(_Composer._effortLabels[l] ?? l),
+                        selected: chat.reasoningEffort == l,
+                        showCheckmark: false,
+                        side: BorderSide.none,
+                        color: WidgetStateProperty.resolveWith(
+                          (states) => states.contains(WidgetState.selected)
+                              ? cs.primary
+                              : cs.surfaceContainerHigh,
+                        ),
+                        onSelected: (_) => chat.setReasoningEffort(l),
+                      ),
+                  ],
+                ),
+              ),
+              heading(s.approvalHeading),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+                child: Text(
+                  s.approvalScope,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              for (final m in ChatController.approvalModes)
+                ListTile(
+                  key: m == chat.approvalMode
+                      ? const ValueKey('approval-mode')
+                      : null,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+                  leading: Icon(
+                    _Composer._approvalIcons[m],
+                    color: m == 'off' ? cs.error : null,
+                  ),
+                  title: Text(s.approvalModeLabel(m)),
+                  subtitle: Text(s.approvalModeHint(m)),
+                  trailing: m == chat.approvalMode
+                      ? Icon(Icons.check, color: cs.primary)
+                      : null,
+                  selected: m == chat.approvalMode,
+                  onTap: () => chat.setApprovalMode(m),
+                ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
 }

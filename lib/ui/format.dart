@@ -30,8 +30,17 @@ String dayTime(DateTime t, {DateTime? now}) {
   return '$prefix ${clockTime(t)}';
 }
 
-/// One-line preview: drop markdown emphasis and collapse whitespace.
+/// One line of plain text from a markdown reply, for previews: code
+/// blocks, link and image targets, list and quote marks and emphasis go,
+/// whitespace collapses. "V [archivu](https://…)" reads "V archivu".
 String plainPreview(String s) => s
-    .replaceAll(RegExp(r'[*_`#>]+'), '')
+    .replaceAll(RegExp(r'```[\s\S]*?```'), ' ')
+    .replaceAllMapped(
+      // The server cuts long previews, so the link may end unclosed.
+      RegExp(r'!?\[([^\]]*)\]\([^)\s]*\)?'),
+      (m) => m.group(1) ?? '',
+    )
+    .replaceAll(RegExp(r'^\s*(?:[-*+•]|\d+[.)])\s+', multiLine: true), '')
+    .replaceAll(RegExp(r'[*_`#>~]+'), '')
     .replaceAll(RegExp(r'\s+'), ' ')
     .trim();

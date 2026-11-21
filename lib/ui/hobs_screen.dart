@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -16,6 +17,7 @@ import 'format.dart';
 import 'group_chat_screen.dart';
 import 'new_group_sheet.dart';
 import 'new_hob_screen.dart';
+import 'placeholders.dart';
 import 'settings_screen.dart';
 import 'share_target_sheet.dart';
 import 'sheets.dart';
@@ -214,29 +216,23 @@ class _HobsScreenState extends State<HobsScreen> {
   }
 }
 
+/// The right pane of a wide window before a chat is picked: a few of the
+/// user's own Hobs, waiting.
 class _EmptyDetail extends StatelessWidget {
   const _EmptyDetail();
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final app = context.watch<AppState>();
+    final s = Strings.of(context);
+    final faces = app.hobs.where((b) => !b.hidden).take(3).toList();
     return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.forum_outlined,
-              size: 48,
-              color: theme.colorScheme.outline,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              Strings.of(context).pickHob,
-              style: theme.textTheme.titleMedium,
-            ),
-          ],
-        ),
+      body: EmptyState(
+        art: faces.isEmpty
+            ? const EmptyArt(icon: Icons.forum_outlined)
+            : GroupAvatars(hobs: faces, size: 72),
+        title: s.pickHob,
+        body: s.pickHobHint,
       ),
     );
   }
@@ -417,34 +413,53 @@ class _HobListState extends State<_HobList> {
     List<HobSection> sections,
   ) {
     if (app.loadingHobs && app.hobs.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const HobListSkeleton();
     }
     if (app.hobsError != null && app.hobs.isEmpty) {
-      return ListView(
-        children: [
-          const SizedBox(height: 100),
-          Icon(Icons.cloud_off, size: 48, color: theme.colorScheme.error),
-          const SizedBox(height: 12),
-          Center(child: Text(app.hobsError!, textAlign: TextAlign.center)),
-          const SizedBox(height: 12),
-          Center(
-            child: OutlinedButton(
-              onPressed: app.refreshHobs,
-              child: Text(s.retry),
-            ),
-          ),
-        ],
+      return EmptyState(
+        art: const EmptyArt(icon: Icons.cloud_off_outlined, error: true),
+        title: s.hobsLoadFailed,
+        body: app.hobsError,
+        action: OutlinedButton(
+          onPressed: app.refreshHobs,
+          child: Text(s.retry),
+        ),
       );
     }
     final hidden = app.hiddenHobs;
     final rooms = app.visibleGroups;
     final groupSection = rooms.isEmpty ? null : _groups(app, rooms);
     if (sections.isEmpty && groupSection == null && hidden.isEmpty) {
-      return ListView(
-        children: [
-          const SizedBox(height: 100),
-          Center(child: Text(app.hobs.isEmpty ? s.noHobs : s.noMatches)),
-        ],
+      if (app.hobs.isEmpty) {
+        return EmptyState(
+          art: HobAvatar(
+            hob: Hob(
+              name: 'hob',
+              displayName: 'Hob',
+              shape: HobAvatar.blobShape('hello', null),
+            ),
+            size: 72,
+          ),
+          title: s.noHobsTitle,
+          body: s.noHobs,
+          action: FilledButton.icon(
+            onPressed: widget.onNewHob,
+            icon: const Icon(Icons.add),
+            label: Text(s.newHob),
+          ),
+        );
+      }
+      return EmptyState(
+        art: const EmptyArt(icon: Icons.search_off),
+        title: s.noMatches,
+        action: TextButton(
+          onPressed: () {
+            _search.clear();
+            app.setQuery('');
+            app.setFilter(HobFilter.all);
+          },
+          child: Text(s.showAllHobs),
+        ),
       );
     }
     if (!app.hasFolders) {
@@ -861,7 +876,10 @@ class _RenameDialogState extends State<_RenameDialog> {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
+/// A folder's title row. Holding it picks the folder up to reorder it; the
+/// folder menu and the drag handle appear only under a mouse pointer, so a
+/// phone shows just the name and the count.
+class _SectionHeader extends StatefulWidget {
   const _SectionHeader({
     required this.title,
     required this.count,
@@ -885,92 +903,121 @@ class _SectionHeader extends StatelessWidget {
   final VoidCallback? onRename;
 
   @override
+  State<_SectionHeader> createState() => _SectionHeaderState();
+}
+
+class _SectionHeaderState extends State<_SectionHeader> {
+  bool _hover = false;
+
+  @override
   Widget build(BuildContext context) {
+    final w = widget;
     final theme = Theme.of(context);
-    final style = theme.textTheme.labelSmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-      letterSpacing: 0.8,
-      fontWeight: FontWeight.w600,
-    );
+    final cs = theme.colorScheme;
+    final muted = cs.onSurfaceVariant;
     final s = Strings.of(context);
-    final muted = theme.colorScheme.onSurfaceVariant;
+    final index = w.dragIndex;
     final label = InkWell(
-      onTap: onTap,
+      onTap: w.onTap,
+      onSecondaryTap: w.onRename,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(12, 14, dragIndex == null ? 16 : 4, 6),
+        padding: EdgeInsets.fromLTRB(16, 16, index == null ? 16 : 4, 6),
         child: Row(
           children: [
-            Icon(
-              collapsed ? Icons.chevron_right : Icons.expand_more,
-              size: 18,
-              color: muted,
-            ),
-            const SizedBox(width: 4),
-            Icon(icon, size: 16, color: muted),
-            const SizedBox(width: 6),
             Expanded(
               child: Text(
-                title.toUpperCase(),
-                style: style,
+                w.title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (collapsed && unread > 0) ...[
-              Icon(
-                Icons.circle,
-                size: 7,
-                color: HobsColors.of(context).lantern,
-              ),
+            if (w.collapsed && w.unread > 0) ...[
+              _UnreadMark(color: HobsColors.of(context).lantern),
               const SizedBox(width: 8),
             ],
-            Text('$count', style: style),
+            Text(
+              '${w.count}',
+              style: theme.textTheme.labelMedium?.copyWith(color: muted),
+            ),
+            const SizedBox(width: 4),
+            AnimatedRotation(
+              turns: w.collapsed ? -0.25 : 0,
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 160),
+              child: Icon(Icons.expand_more, size: 18, color: muted),
+            ),
           ],
         ),
       ),
     );
-    final index = dragIndex;
     if (index == null) return label;
-    return Row(
-      children: [
-        // Holding the header picks the folder up, for touch screens.
-        Expanded(
-          child: ReorderableDelayedDragStartListener(
-            index: index,
-            child: label,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: SizedBox(
-            width: 32,
-            height: 24,
-            child: PopupMenuButton<void>(
-              tooltip: s.folderOptions,
-              padding: EdgeInsets.zero,
-              iconSize: 18,
-              icon: Icon(Icons.more_horiz, color: muted),
-              itemBuilder: (_) => [
-                PopupMenuItem(onTap: onRename, child: Text(s.renameFolder)),
-              ],
+    return MouseRegion(
+      onEnter: (e) {
+        if (e.kind == PointerDeviceKind.mouse) setState(() => _hover = true);
+      },
+      onExit: (_) => setState(() => _hover = false),
+      child: Row(
+        children: [
+          // Holding the header picks the folder up, for touch screens.
+          Expanded(
+            child: ReorderableDelayedDragStartListener(
+              index: index,
+              child: label,
             ),
           ),
-        ),
-        ReorderableDragStartListener(
-          index: index,
-          child: Tooltip(
-            message: s.moveFolder,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.grab,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(2, 8, 10, 0),
-                child: Icon(Icons.drag_handle, size: 18, color: muted),
+          Padding(
+            padding: EdgeInsets.only(top: 10, right: _hover ? 0 : 8),
+            child: SizedBox(
+              width: 32,
+              height: 28,
+              child: PopupMenuButton<void>(
+                tooltip: s.folderOptions,
+                padding: EdgeInsets.zero,
+                iconSize: 18,
+                icon: Icon(Icons.more_horiz, color: cs.outline),
+                itemBuilder: (_) => [
+                  PopupMenuItem(onTap: w.onRename, child: Text(s.renameFolder)),
+                ],
               ),
             ),
           ),
-        ),
-      ],
+          // The drag handle is for a mouse; fingers hold the header.
+          if (_hover)
+            ReorderableDragStartListener(
+              index: index,
+              child: Tooltip(
+                message: s.moveFolder,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.grab,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(2, 10, 12, 0),
+                    child: Icon(Icons.drag_handle, size: 18, color: muted),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
+}
+
+/// The one mark of something unread: a small lantern dot.
+class _UnreadMark extends StatelessWidget {
+  const _UnreadMark({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 8,
+    height: 8,
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  );
 }
 
 class _HobRow extends StatefulWidget {
@@ -1074,7 +1121,7 @@ class _HobRowState extends State<_HobRow> {
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: working
                                   ? HobsColors.of(context).working
-                                  : (unread ? cs.primary : cs.outline),
+                                  : cs.outline,
                             ),
                           ),
                         ],
@@ -1088,19 +1135,20 @@ class _HobRowState extends State<_HobRow> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: unread
+                                color: preview.isEmpty
+                                    ? cs.outline
+                                    : unread
                                     ? cs.onSurface
                                     : cs.onSurfaceVariant,
+                                fontStyle: preview.isEmpty
+                                    ? FontStyle.italic
+                                    : null,
                               ),
                             ),
                           ),
                           if (unread) ...[
                             const SizedBox(width: 8),
-                            Icon(
-                              Icons.circle,
-                              size: 8,
-                              color: HobsColors.of(context).lantern,
-                            ),
+                            _UnreadMark(color: HobsColors.of(context).lantern),
                           ],
                         ],
                       ),
@@ -1183,7 +1231,7 @@ class _GroupRow extends StatelessWidget {
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: working
                                 ? HobsColors.of(context).working
-                                : (unread ? cs.primary : cs.outline),
+                                : cs.outline,
                           ),
                         ),
                       ],
@@ -1205,11 +1253,7 @@ class _GroupRow extends StatelessWidget {
                         ),
                         if (unread) ...[
                           const SizedBox(width: 8),
-                          Icon(
-                            Icons.circle,
-                            size: 8,
-                            color: HobsColors.of(context).lantern,
-                          ),
+                          _UnreadMark(color: HobsColors.of(context).lantern),
                         ],
                       ],
                     ),

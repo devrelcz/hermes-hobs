@@ -9,6 +9,11 @@ import 'package:wolt_modal_sheet/wolt_modal_sheet.dart';
 /// Shape rule: buttons and chips are pills, text fields 14, cards and list
 /// rows 16, sheets and dialogs 24 (full-screen sheets on phones are square).
 abstract final class HobsTheme {
+  /// Geist for all text, Geist Mono for code and SOUL.md (bundled, see
+  /// pubspec.yaml).
+  static const fontFamily = 'Geist';
+  static const monoFamily = 'GeistMono';
+
   static const _moss = Color(0xFF2F6B4A);
 
   static final ColorScheme light =
@@ -100,6 +105,7 @@ abstract final class HobsTheme {
     );
     return ThemeData(
       colorScheme: cs,
+      fontFamily: fontFamily,
       scaffoldBackgroundColor: cs.surface,
       extensions: [
         extra,
@@ -147,9 +153,32 @@ abstract final class HobsTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(shape: pill),
       ),
+      // Choice chips (filters, reasoning level): flat, the picked one in
+      // moss. Plain chips keep a hairline.
       chipTheme: ChipThemeData(
         shape: pill,
         side: BorderSide(color: cs.outlineVariant),
+        showCheckmark: false,
+        selectedColor: cs.primary,
+        secondarySelectedColor: cs.primary,
+        // Spelled out in full: a chip's label style replaces the theme's
+        // (labelLarge in Geist). The second one is for the picked chip.
+        labelStyle: TextStyle(
+          fontFamily: fontFamily,
+          fontSize: 14,
+          height: 20 / 14,
+          letterSpacing: 0.1,
+          fontWeight: FontWeight.w500,
+          color: cs.onSurfaceVariant,
+        ),
+        secondaryLabelStyle: TextStyle(
+          fontFamily: fontFamily,
+          fontSize: 14,
+          height: 20 / 14,
+          letterSpacing: 0.1,
+          fontWeight: FontWeight.w600,
+          color: cs.onPrimary,
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

@@ -9,6 +9,7 @@ import '../api/models.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/group_chat_controller.dart';
+import 'placeholders.dart';
 import 'sheets.dart';
 import 'format.dart';
 import 'hob_avatar.dart';
@@ -255,7 +256,7 @@ class _GroupChatViewState extends State<_GroupChatView> {
 
   Widget _buildLog(GroupChatController c, AppState app, ThemeData theme) {
     if (c.loading && c.log.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const ChatSkeleton();
     }
     final rows = _rows(c);
     if (rows.isEmpty && c.pendingText == null) {
@@ -555,7 +556,7 @@ class _MemberMessage extends StatelessWidget {
                   styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
                     p: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
                     code: theme.textTheme.bodySmall?.copyWith(
-                      fontFamily: 'monospace',
+                      fontFamily: HobsTheme.monoFamily,
                       backgroundColor: cs.surfaceContainerHighest,
                     ),
                     codeblockDecoration: BoxDecoration(
@@ -751,7 +752,10 @@ class _ActionCard extends StatelessWidget {
                 ),
                 child: Text(
                   action.command,
-                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                  style: const TextStyle(
+                    fontFamily: HobsTheme.monoFamily,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],

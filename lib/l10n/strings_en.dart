@@ -96,7 +96,16 @@ class StringsEn extends Strings {
   @override
   String get retry => 'Try again';
   @override
-  String get noHobs => 'This server has no Hobs yet.';
+  String get noHobs =>
+      'Create the first one, name it and say what it should help with.';
+  @override
+  String get noHobsTitle => 'No Hobs here yet';
+  @override
+  String get hobsLoadFailed => 'Could not load the Hobs';
+  @override
+  String get showAllHobs => 'Show all Hobs';
+  @override
+  String get pickHobHint => 'Create a new one with + above the list.';
   @override
   String get noMatches => 'No Hobs match this filter.';
   @override
@@ -206,6 +215,15 @@ class StringsEn extends Strings {
   String get modelRequired => 'Fill in both the provider and the model.';
   @override
   String get soulSection => 'SOUL.md';
+  @override
+  String get profileSection => 'Name and description';
+  @override
+  String get editSoul => 'Edit';
+  @override
+  String get soulEmpty =>
+      'Empty so far. Write who the Hob is and how it should work.';
+  @override
+  String get done => 'Done';
   @override
   String get soulHint => 'The Hob\'s persona and standing instructions';
   @override
@@ -374,6 +392,12 @@ class StringsEn extends Strings {
   String get modelsUnavailable => 'Couldn\'t load the list of models.';
   @override
   String get reasoningLevel => 'Reasoning level';
+  @override
+  String get chatSettings => 'Chat settings';
+  @override
+  String get approvalHeading => 'Command approval';
+  @override
+  String get approvalScope => 'Applies to the whole Hob, not just this chat.';
   @override
   String get reasoning => 'Reasoning';
   @override

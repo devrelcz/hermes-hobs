@@ -276,10 +276,10 @@ void main() {
           Hob(name: 'ghost', displayName: 'Ghost', hidden: true),
         ];
       await pump(tester, app, const Size(400, 800));
-      expect(find.text('SKRYTÍ HOBÍCI'), findsOneWidget);
+      expect(find.text('Skrytí Hobíci'), findsOneWidget);
       expect(find.text('Ghost'), findsNothing);
 
-      await tester.tap(find.text('SKRYTÍ HOBÍCI'));
+      await tester.tap(find.text('Skrytí Hobíci'));
       await tester.pumpAndSettle();
       expect(find.text('Ghost'), findsOneWidget);
 
