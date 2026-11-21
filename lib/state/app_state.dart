@@ -788,7 +788,13 @@ class AppState extends ChangeNotifier {
 
   HermesRpc get _connected {
     final rpc = _rpc;
-    if (rpc == null) throw RpcException(-1, 'Not connected');
+    if (rpc == null) {
+      throw RpcException.local(
+        RpcLocalFailure.notConnected,
+        -1,
+        'Not connected',
+      );
+    }
     return rpc;
   }
 
@@ -1904,7 +1910,14 @@ class AppState extends ChangeNotifier {
     if (e is TimeoutException) return s.errorTimeout;
     if (e is FormatException) return s.errorBadServerUrl;
     if (e is StateError) return e.message;
-    if (e is RpcException) return e.message;
+    if (e is RpcException) {
+      return switch (e.local) {
+        RpcLocalFailure.notConnected => s.errorNotConnected,
+        RpcLocalFailure.connectionClosed => s.errorConnectionClosed,
+        RpcLocalFailure.timedOut => s.errorTimeout,
+        null => e.message,
+      };
+    }
     return e.toString();
   }
 

@@ -68,6 +68,8 @@ abstract class Strings {
   String errorUnreachable(String message);
   String errorTls(String message);
   String get errorTimeout;
+  String get errorNotConnected;
+  String get errorConnectionClosed;
   String get errorBadServerUrl;
   String get errorNoSessionCookie;
 
