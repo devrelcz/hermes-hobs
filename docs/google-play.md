@@ -1,8 +1,21 @@
 # Google Play release
 
-How Hermes Hobs is built, signed and listed on Google Play. Package name:
-`cz.devrel.hermeshobs`. The app uses Play App Signing: Google holds the app
-signing key, we sign uploads with our own upload key.
+How Hermes Hobs is built, signed and listed on Google Play, and what is set
+in Play Console. Package name: `cz.devrel.hermeshobs`. The app uses Play App
+Signing: Google holds the app signing key, we sign uploads with our own
+upload key.
+
+Store page: https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs
+
+## Current state
+
+| | |
+|---|---|
+| Published version | 1.0.0 (versionCode 101), first release, November 2026 |
+| Production | Full rollout, 177 countries / regions plus "rest of world" |
+| Internal testing | Same build, tester list *Internal - Home* |
+| Managed publishing | Off: an approved release goes live on its own |
+| Listing languages | English (en-US, default) and Czech (cs-CZ) |
 
 ## Upload key
 
@@ -35,17 +48,34 @@ versionCode is the commit count, so it rises with every commit on master;
 the versionName is the `version:` in `pubspec.yaml`. Bump that before a
 release users will see.
 
-## Releasing
+## Releasing an update
 
-1. Build on master and upload the `.aab` to a track in Play Console
-   (Test and release > Testing > Internal testing, or Production).
-2. Release notes: what changed, in Czech and English.
-3. Promote the same release from internal testing to closed testing or
-   production once it is checked.
+1. Bump `version:` in `pubspec.yaml` (for example `1.0.1+1`; the build number
+   after `+` is ignored, the script sets it), commit, merge to master.
+2. On master run `tool/build_play.sh`.
+3. The bundle is about 60 MB, too big for browser automation, so drag it
+   into Play Console by hand: Test and release > Testing > Internal testing >
+   Create new release. Release notes in both languages:
 
-A personal developer account created after November 2023 must run a closed
-test with at least 12 testers for 14 days before it can apply for
-production access.
+   ```text
+   <en-US>
+   ...
+   </en-US>
+   <cs-CZ>
+   ...
+   </cs-CZ>
+   ```
+
+   The notes field starts with an `en-US` placeholder block; replace all of
+   it, or Play reports a tag error.
+4. Save and publish: internal testers get it within minutes, without review.
+5. Production > Create new release > Add from library, pick the same
+   versionCode, the same notes, Save. Then Publishing overview > Send changes
+   for review. Reviews usually take up to 7 days; sending new changes while
+   one is running restarts it.
+
+This account already had production access, so no closed test with 12
+testers was needed.
 
 ## Store listing
 
@@ -55,10 +85,15 @@ README screenshots padded to 600x1200 so they fit Play's 2:1 limit; they show
 the iOS status bar, so replace them with Android captures when there is
 time).
 
-Category: Productivity.
+Store settings: app, free, category Productivity. Contact email: the
+developer account's address; website: https://github.com/danielrataj/hermes-hobs.
+
+AI asset declaration: *Don't label assets*. The form covers only images, and
+the icon, graphic and screenshots are not AI-generated.
 
 The demo (*Try the demo* on the sign-in screen, `lib/demo/`) is how
-reviewers and people without a server see the app. Contact email: the developer account's address.
+reviewers and people without a server see the app.
+
 Privacy policy URL:
 https://github.com/danielrataj/hermes-hobs/blob/master/docs/privacy-policy.md
 
@@ -132,36 +167,48 @@ nic neposílá.
 
 ## App content answers
 
-Answers for Policy > App content. Check them against the current Play forms
-before submitting; the forms change.
+What is filed under Policy and programs > App content. Keep it in step with
+the app: a change in what data the app sends, or in how reviewers get in,
+means updating the form and sending it for review.
 
 - **Privacy policy**: URL above.
-- **Ads**: No ads.
-- **App access** (Sign in details): All functionality is available without
-  special access, through the built-in demo. Instructions for reviewers:
-  "On the sign-in screen tap *Try the demo* (Czech: *Vyzkoušet demo*). It
-  runs a sample Hermes server inside the app with demo Hobs, chats and a
-  group chat; no account or network server is needed. Real use needs the
-  user's own Hermes Agent server, entered in the Server field."
-- **Content rating** (IARC questionnaire): category "Communication" style
-  app; users can exchange content with an AI agent on their own server; no
-  violence, sexual content, gambling or purchases. Users interact with
-  generated content, so answer yes to user-generated / shared content where
-  asked.
+- **Ads**: No ads. **Advertising ID**: not used.
+- **Sign in details** (formerly App access): *Yes, part of the app is
+  restricted*, with one entry, "Built-in demo (no account needed)", no
+  username or password, these instructions, and "full access" ticked:
+  "No username or password is needed. On the sign-in screen tap "Try the
+  demo" (Czech: "Vyzkoušet demo"). It runs a sample Hermes server inside the
+  app with demo Hobs, chats and a group chat; no account or network server is
+  needed, and every feature can be reviewed there. Real use needs the user's
+  own Hermes Agent server, entered in the Server field."
+- **Content rating** (IARC): category *All Other App Types*. Online content
+  (AI-generated content from the user's server): Yes. Everything else No:
+  ratings-relevant content in the package, sharing content with other users,
+  violence, sexuality, language, controlled substances, age-restricted
+  products, sharing location, digital purchases, cash rewards, browser or
+  search engine, news or education. Result: PEGI 3, ESRB Everyone, USK 0,
+  IARC 3+.
 - **Target audience**: 18 and over.
-- **News app**: No.
-- **Government app**: No.
-- **Financial features**: None.
-- **Health**: None.
+- **Government app, financial features, health**: none.
 - **Data safety**:
-  - The app sends messages, photos, files and the username to a server the
-    user chooses, not to the developer. Play counts any transmission off the
-    device as collection, so declare: Messages (other in-app messages),
-    Photos, Files and docs, Personal info > User IDs. Purpose: App
-    functionality. Not shared with third parties. Collection is required to
-    use the app.
+  - Collected (sent to the server the user chooses; Play counts any
+    transmission off the device), none shared with third parties:
+
+    | Data type | Required | Purpose |
+    |---|---|---|
+    | Personal info > User IDs | Yes | App functionality, Account management |
+    | Messages > Other in-app messages | Yes | App functionality |
+    | Photos and videos > Photos | No, users choose | App functionality |
+    | Files and docs | No, users choose | App functionality |
+
+    None is processed ephemerally: the Hermes server keeps it.
   - Encrypted in transit: No. The app connects to the address the user
-    enters, which may be `http://`; it is encrypted only on `https://`.
-  - Data deletion: users remove an account in Settings > Accounts, which
-    deletes its data from the device; messages on the server are deleted by
-    the server's operator.
+    enters, which may be `http://` (Dart's HTTP client ignores Android's
+    cleartext block); it is encrypted only on `https://`.
+  - Accounts: the app does not create accounts. Users sign in with accounts
+    created outside the app, "Other": by the operator of their own Hermes
+    Agent server.
+  - Data deletion request (optional question): not answered. The developer
+    holds no user data; removing an account in Settings > Accounts deletes
+    its data from the device, and messages on the server are deleted by the
+    server's operator.
