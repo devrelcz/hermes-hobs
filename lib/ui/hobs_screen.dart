@@ -1642,8 +1642,16 @@ class _AccountButton extends StatelessWidget {
     final s = Strings.of(context);
     final name = app.username.trim();
     final host = Uri.tryParse(app.serverUrl)?.host ?? '';
+    // The connection's state as a dot on the avatar, always there: green
+    // when connected, lantern while connecting, red when cut off.
+    final hobs = HobsColors.of(context);
+    final (dot, state) = switch (app.connection) {
+      ConnectionStatus.connected => (hobs.working, s.connected),
+      ConnectionStatus.connecting => (hobs.lantern, s.connecting),
+      ConnectionStatus.disconnected => (cs.error, s.disconnected),
+    };
     return PopupMenuButton<String>(
-      tooltip: s.account,
+      tooltip: '${s.account}: $state',
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (v) {
@@ -1668,6 +1676,26 @@ class _AccountButton extends StatelessWidget {
                   color: cs.onSurfaceVariant,
                 ),
               ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: dot,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    state,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -1682,19 +1710,45 @@ class _AccountButton extends StatelessWidget {
         ),
       ],
       padding: EdgeInsets.zero,
-      icon: CircleAvatar(
-        radius: 18,
-        backgroundColor: cs.primaryContainer,
-        foregroundColor: cs.onPrimaryContainer,
-        child: name.isEmpty
-            ? const Icon(Icons.person_outline, size: 18)
-            : Text(
-                name.characters.first.toUpperCase(),
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: cs.onPrimaryContainer,
-                  fontWeight: FontWeight.w700,
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: cs.primaryContainer,
+            foregroundColor: cs.onPrimaryContainer,
+            child: name.isEmpty
+                ? const Icon(Icons.person_outline, size: 18)
+                : Text(
+                    name.characters.first.toUpperCase(),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: cs.onPrimaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+          ),
+          Positioned(
+            right: -1,
+            bottom: -1,
+            child: AnimatedContainer(
+              key: const ValueKey('connection-dot'),
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : const Duration(milliseconds: 240),
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: dot,
+                shape: BoxShape.circle,
+                // A ring in the bar's color keeps it apart from the avatar.
+                border: Border.all(
+                  color: theme.scaffoldBackgroundColor,
+                  width: 2,
                 ),
               ),
+            ),
+          ),
+        ],
       ),
     );
   }
