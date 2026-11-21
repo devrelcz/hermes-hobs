@@ -156,6 +156,7 @@ abstract class Strings {
   String get newHobNameLabel;
   String get newHobNameHint;
   String get hobHandleLabel;
+  String get editHobHandle;
   String get hobHandleHelp;
   String get hobHandleInvalid;
   String get hobHandleTaken;

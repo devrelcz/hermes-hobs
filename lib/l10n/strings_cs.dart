@@ -223,6 +223,8 @@ class StringsCs extends Strings {
   @override
   String get hobHandleLabel => 'Identifikátor';
   @override
+  String get editHobHandle => 'Upravit identifikátor';
+  @override
   String get hobHandleHelp =>
       'Pro @zmínky a název profilu na serveru. Později už nejde změnit.';
   @override

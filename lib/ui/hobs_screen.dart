@@ -16,7 +16,7 @@ import 'chat_screen.dart';
 import 'format.dart';
 import 'group_chat_screen.dart';
 import 'new_group_sheet.dart';
-import 'new_hob_dialog.dart';
+import 'new_hob_screen.dart';
 import 'settings_screen.dart';
 import 'share_target_sheet.dart';
 import 'theme.dart';
@@ -148,7 +148,7 @@ class _HobsScreenState extends State<HobsScreen> {
   Future<void> _newHob(bool wide) async {
     final messenger = ScaffoldMessenger.of(context);
     final s = Strings.of(context);
-    final hob = await showNewHobDialog(context);
+    final hob = await NewHobScreen.open(context);
     if (hob == null || !mounted) return;
     messenger.showSnackBar(
       SnackBar(content: Text(s.hobCreated(hob.displayName))),

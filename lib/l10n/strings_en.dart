@@ -225,6 +225,8 @@ class StringsEn extends Strings {
   @override
   String get hobHandleLabel => 'Handle';
   @override
+  String get editHobHandle => 'Edit handle';
+  @override
   String get hobHandleHelp =>
       'Used for @mentions and as the profile name on the server. It cannot be changed later.';
   @override

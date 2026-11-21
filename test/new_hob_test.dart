@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hobs/api/models.dart';
 import 'package:hobs/state/app_state.dart';
 import 'package:hobs/ui/hobs_screen.dart';
+import 'package:hobs/ui/new_hob_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -22,6 +23,23 @@ void main() {
       expect(AppState.hobNameFor('žluťoučký_kůň'), 'zlutoucky_kun');
       expect(AppState.hobNameFor('🤖'), '');
       expect(AppState.hobNameFor('a' * 80).length, 64);
+    });
+
+    test('is made free when the name is taken', () {
+      final app = AppState()
+        ..hobs = [
+          Hob(name: 'cto', displayName: 'CTO'),
+          Hob(name: 'cto-2', displayName: 'CTO 2'),
+          Hob(name: 'hob', displayName: 'Hob'),
+        ];
+      expect(app.freeHobNameFor(''), '');
+      expect(app.freeHobNameFor('Účetní Péťa'), 'ucetni-peta');
+      expect(app.freeHobNameFor('CTO'), 'cto-3');
+      expect(app.freeHobNameFor('Default'), 'default-2');
+      expect(app.freeHobNameFor('🤖'), 'hob-2');
+      final long = app.freeHobNameFor('a' * 80);
+      expect(long.length, 64);
+      expect(AppState.hobNamePattern.hasMatch(long), isTrue);
     });
 
     test('is checked against the server rule', () {
@@ -94,12 +112,12 @@ void main() {
     });
   });
 
-  group('dialog', () {
+  group('page', () {
     setUp(() => SharedPreferences.setMockInitialValues({}));
 
     final cto = Hob(name: 'cto', displayName: 'CTO');
 
-    Future<void> openDialog(WidgetTester tester) async {
+    Future<void> openPage(WidgetTester tester) async {
       await tester.pumpWidget(
         ChangeNotifierProvider.value(
           value: AppState()..hobs = [cto],
@@ -114,20 +132,32 @@ void main() {
         tester.widget(find.widgetWithText(FilledButton, 'Vytvořit'));
 
     testWidgets('the list offers a new Hob', (tester) async {
-      await openDialog(tester);
+      await openPage(tester);
       expect(find.text('Nový Hobík'), findsWidgets);
       expect(create(tester).onPressed, isNull);
     });
 
-    testWidgets('the handle follows the name until edited', (tester) async {
-      await openDialog(tester);
+    testWidgets('the handle is made up until edited', (tester) async {
+      await openPage(tester);
       final name = find.widgetWithText(TextField, 'Jméno');
       final handle = find.widgetWithText(TextField, 'Identifikátor');
+      expect(handle, findsNothing);
 
       await tester.enterText(name, 'Účetní Péťa');
       await tester.pump();
-      expect(tester.widget<TextField>(handle).controller!.text, 'ucetni-peta');
+      expect(find.text('@ucetni-peta'), findsOne);
       expect(create(tester).onPressed, isNotNull);
+
+      // Taken: a free one is picked instead of blocking.
+      await tester.enterText(name, 'CTO');
+      await tester.pumpAndSettle();
+      expect(find.text('@cto-2'), findsOne);
+      expect(create(tester).onPressed, isNotNull);
+
+      await tester.tap(find.byTooltip('Upravit identifikátor'));
+      await tester.pump();
+      expect(tester.widget<TextField>(handle).controller!.text, 'cto-2');
+      expect(tester.widget<TextField>(handle).focusNode!.hasFocus, isTrue);
 
       await tester.enterText(handle, 'cto');
       await tester.pump();
@@ -144,15 +174,33 @@ void main() {
       expect(create(tester).onPressed, isNull);
     });
 
-    testWidgets('a refused create keeps the dialog open', (tester) async {
-      await openDialog(tester);
+    testWidgets('a refused create keeps the page open', (tester) async {
+      await openPage(tester);
       await tester.enterText(find.widgetWithText(TextField, 'Jméno'), 'Péťa');
       await tester.pump();
       await tester.tap(find.widgetWithText(FilledButton, 'Vytvořit'));
       await tester.pumpAndSettle();
       // Offline: no gateway to create it on.
-      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byType(NewHobScreen), findsOneWidget);
       expect(find.textContaining('Hobíka se nepodařilo vytvořit'), findsOne);
+    });
+
+    testWidgets('backing out of a filled page asks first', (tester) async {
+      await openPage(tester);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.byType(NewHobScreen), findsNothing);
+
+      await tester.tap(find.byTooltip('Nový Hobík'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, 'Jméno'), 'Péťa');
+      await tester.pump();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('Zahodit neuložené změny?'), findsOne);
+      await tester.tap(find.text('Zahodit'));
+      await tester.pumpAndSettle();
+      expect(find.byType(NewHobScreen), findsNothing);
     });
   });
 }
