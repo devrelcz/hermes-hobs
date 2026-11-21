@@ -99,6 +99,57 @@ class StringsEn extends Strings {
   @override
   String get signOut => 'Sign out';
   @override
+  String get accounts => 'Accounts';
+  @override
+  String get addServer => 'Add server';
+  @override
+  String get manageAccounts => 'Manage accounts';
+  @override
+  String signOutFrom(String name) => 'Sign out of $name';
+  @override
+  String get accountName => 'Account name';
+  @override
+  String get accountNameHint => 'e.g. Home, Work';
+  @override
+  String get accountColor => 'Color';
+  @override
+  String accountColorName(int i) =>
+      const ['green', 'purple', 'orange', 'blue', 'pink', 'amber'][i % 6];
+  @override
+  String get signInAndSwitch => 'Sign in and switch';
+  @override
+  String get addServerHint => 'The account is saved once signing in works.';
+  @override
+  String get otherServer => 'Another server';
+  @override
+  String get savedAccounts => 'Saved accounts';
+  @override
+  String switchedTo(String name) => 'Switched to $name';
+  @override
+  String get editAccount => 'Edit account';
+  @override
+  String get newPassword => 'New password';
+  @override
+  String get newPasswordHint => 'Leave empty to keep the saved password.';
+  @override
+  String get accountSaved => 'Account saved';
+  @override
+  String get removeAccount => 'Remove account';
+  @override
+  String removeAccountTitle(String name) => 'Remove $name?';
+  @override
+  String get removeAccountBody =>
+      'Its saved password and session leave this device. The Hobs on the server stay.';
+  @override
+  String get remove => 'Remove';
+  @override
+  String get accountActive => 'Active';
+  @override
+  String get accountsHint =>
+      'Only the active account is connected and sends notifications.';
+  @override
+  String get dragToReorder => 'Drag to reorder';
+  @override
   String get searchHobs => 'Search Hobs';
   @override
   String get clearSearch => 'Clear search';

@@ -109,6 +109,9 @@ abstract class Notifier {
   });
 
   Future<void> clear(String key);
+
+  /// Clears every notification the app shows (another account took over).
+  Future<void> clearAll();
 }
 
 /// Stable notification id for a [NotifyTarget.key] (String.hashCode is not
@@ -372,6 +375,14 @@ class LocalNotifier implements Notifier {
           await _plugin.cancel(id: _summaryId);
         }
       }
+    } catch (_) {}
+  }
+
+  @override
+  Future<void> clearAll() async {
+    if (_init == null) return;
+    try {
+      await _plugin.cancelAll();
     } catch (_) {}
   }
 }

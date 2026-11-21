@@ -104,6 +104,23 @@ class AppState extends ChangeNotifier {
   String serverUrl = '';
   String username = '';
 
+  /// The saved Hermes servers, in the user's order. Only [activeId] is
+  /// connected (and notifies); the others wait with their session cookies.
+  List<ServerAccount> accounts = [];
+  String activeId = '';
+
+  ServerAccount? get activeAccount => accountById(activeId);
+
+  ServerAccount? accountById(String id) {
+    for (final a in accounts) {
+      if (a.id == id) return a;
+    }
+    return null;
+  }
+
+  /// A switch is in progress; further taps wait for it.
+  bool _switching = false;
+
   /// Remembered password (secure storage); null when not kept.
   String? _password;
 
@@ -196,13 +213,25 @@ class AppState extends ChangeNotifier {
     biometricLock = await _store.biometricLock();
     biometricKind = await _biometrics.available();
     locked = biometricLock;
-    serverUrl = await _store.serverUrl();
-    username = await _store.username();
+    accounts = await _store.accounts();
+    var id = await _store.savedActiveId();
+    if (accountById(id) == null && accounts.isNotEmpty) id = accounts.first.id;
+    activeId = _store.activeId = id;
+    await _openActive();
+  }
+
+  /// Loads the active account and gets it signed in if it can: its session
+  /// cookies, else its remembered password. [chosen] is a sign-in the user
+  /// asked for (picked the account), which overrides an earlier sign-out.
+  Future<void> _openActive({bool chosen = false}) async {
+    final account = activeAccount;
+    serverUrl = account?.serverUrl ?? '';
+    username = account?.username ?? '';
     _password = await _store.password();
     await _loadLocal();
     final cookies = await _store.cookies();
-    if (cookies.isEmpty) {
-      if (await _store.autoLogin() && await _silentLogin()) return;
+    if (cookies.isEmpty || serverUrl.isEmpty) {
+      if ((chosen || await _store.autoLogin()) && await _silentLogin()) return;
       phase = AuthPhase.signedOut;
       notifyListeners();
       return;
@@ -251,7 +280,10 @@ class AppState extends ChangeNotifier {
 
   void _setupClients(Uri base, Map<String, String> cookies) {
     final http = HermesHttp(baseUrl: base, cookies: cookies);
-    http.onCookiesChanged = (c) => _store.saveCookies(c);
+    // Bound to this account: a late response must not write its cookies
+    // into the account switched to meanwhile.
+    final account = activeId;
+    http.onCookiesChanged = (c) => _store.saveCookies(c, account: account);
     final rpc = HermesRpc(http)..onUnauthorized = _onSessionExpired;
     _statusSub = rpc.statusStream.listen((s) {
       if (s == ConnectionStatus.connected) unawaited(refreshHobs(silent: true));
@@ -285,47 +317,286 @@ class AppState extends ChangeNotifier {
     });
   }
 
+  /// Signs in from the login form. A server and user already saved signs
+  /// that account in; a new pair becomes a new account, saved only once
+  /// the server takes the password.
   Future<void> login({
     required String serverUrl,
     required String username,
     required String password,
     bool rememberPassword = true,
   }) async {
-    await _passwordLogin(serverUrl, username, password);
+    final known = _accountFor(serverUrl, username);
+    await _signInAs(
+      known ??
+          ServerAccount(
+            // The first account keeps the original storage keys.
+            id: accounts.isEmpty ? '' : CredentialsStore.newId(),
+            name: '',
+            color: nextAccountColor(),
+            serverUrl: serverUrl,
+            username: username,
+          ),
+      password,
+      rememberPassword: rememberPassword,
+    );
+  }
+
+  /// Adds a server while signed in to another one, and switches to it once
+  /// it signs in. Nothing is saved when the sign-in fails; the current
+  /// account stays connected meanwhile.
+  Future<void> addAccount({
+    required String name,
+    required String color,
+    required String serverUrl,
+    required String username,
+    required String password,
+    bool rememberPassword = true,
+  }) async {
+    final known = _accountFor(serverUrl, username);
+    await _signInAs(
+      (known ??
+              ServerAccount(
+                id: accounts.isEmpty ? '' : CredentialsStore.newId(),
+                name: '',
+                color: color,
+                serverUrl: serverUrl,
+                username: username,
+              ))
+          .copyWith(name: name, color: color),
+      password,
+      rememberPassword: rememberPassword,
+    );
+  }
+
+  /// Signs [account] in with [password] and makes it the active one.
+  Future<void> _signInAs(
+    ServerAccount account,
+    String password, {
+    required bool rememberPassword,
+  }) async {
+    // Checked on the side first: a wrong password leaves the current
+    // session untouched.
+    final cookies = await _signIn(
+      account.serverUrl,
+      account.username,
+      password,
+    );
+    await _teardown(clearCookies: false);
+    if (account.id != activeId) await _leaveAccount();
+    final i = accounts.indexWhere((a) => a.id == account.id);
+    accounts = [
+      for (final a in accounts) a.id == account.id ? account : a,
+      if (i < 0) account,
+    ];
+    await _store.saveAccounts(accounts);
+    await _activate(account.id);
     locked = false;
-    this.serverUrl = serverUrl;
-    this.username = username;
+    serverUrl = account.serverUrl;
+    username = account.username;
     _password = rememberPassword ? password : null;
     _authError = null;
+    _hobsError = null;
     await _store.saveLogin(serverUrl: serverUrl, username: username);
     await _store.savePassword(_password);
     await _store.setAutoLogin(true);
+    await _store.saveCookies(cookies);
+    _setupClients(Uri.parse(serverUrl), cookies);
     await _loadLocal();
     _enterSignedIn();
   }
 
-  /// POSTs the password login on fresh clients; on success the session
-  /// cookies are in the client (and persisted via [_setupClients]).
-  Future<void> _passwordLogin(
+  /// POSTs the password login on a client of its own and returns the
+  /// session cookies; the app's clients are not touched.
+  Future<Map<String, String>> _signIn(
     String serverUrl,
     String username,
     String password,
   ) async {
-    await _teardown(clearCookies: true);
-    _setupClients(Uri.parse(serverUrl), {});
+    final http = HermesHttp(baseUrl: Uri.parse(serverUrl));
     try {
-      await _http!.postJson('/auth/password-login', {
+      await http.postJson('/auth/password-login', {
         'provider': 'basic',
         'username': username,
         'password': password,
         'next': '',
       });
-      if (!_http!.hasSession) {
+      if (!http.hasSession) {
         throw HermesHttpException(500, Strings.current.errorNoSessionCookie);
       }
-    } catch (e) {
-      await _teardown(clearCookies: true);
-      rethrow;
+      return Map.of(http.cookies);
+    } finally {
+      http.close();
+    }
+  }
+
+  /// Signs the active account in again with its password, on fresh clients.
+  Future<void> _passwordLogin(
+    String serverUrl,
+    String username,
+    String password,
+  ) async {
+    final cookies = await _signIn(serverUrl, username, password);
+    await _teardown(clearCookies: true);
+    await _store.saveCookies(cookies);
+    _setupClients(Uri.parse(serverUrl), cookies);
+  }
+
+  // --- accounts --------------------------------------------------------------
+
+  ServerAccount? _accountFor(String serverUrl, String username) {
+    String norm(String u) =>
+        u.trim().replaceAll(RegExp(r'/+$'), '').toLowerCase();
+    for (final a in accounts) {
+      if (norm(a.serverUrl) == norm(serverUrl) &&
+          a.username.trim() == username.trim()) {
+        return a;
+      }
+    }
+    return null;
+  }
+
+  /// The first color no account wears yet.
+  String nextAccountColor() {
+    for (final c in accountColors) {
+      if (!accounts.any((a) => a.color == c)) return c;
+    }
+    return accountColors[accounts.length % accountColors.length];
+  }
+
+  Future<void> _activate(String id) async {
+    activeId = id;
+    await _store.saveActiveId(id);
+  }
+
+  /// What the old account leaves behind on a switch: its notifications
+  /// (their taps would open the new account's chats) and pending opens.
+  Future<void> _leaveAccount() async {
+    pendingChat = null;
+    pendingGroup = null;
+    _hobsError = null;
+    _authError = null;
+    await _notifier.clearAll();
+  }
+
+  /// Makes [id] the connected account. Signs it in from its cookies or
+  /// remembered password; when neither works, the login form opens for it.
+  /// [showLoading] trades the current screen for the splash meanwhile; the
+  /// login screen keeps itself up and shows its own progress instead.
+  Future<void> switchAccount(String id, {bool showLoading = true}) async {
+    if (_switching || accountById(id) == null) return;
+    if (id == activeId && phase == AuthPhase.signedIn) return;
+    _switching = true;
+    try {
+      if (showLoading) {
+        phase = AuthPhase.loading;
+        notifyListeners();
+      }
+      await _teardown(clearCookies: false);
+      if (id != activeId) await _leaveAccount();
+      await _activate(id);
+      await _openActive(chosen: true);
+    } finally {
+      _switching = false;
+    }
+  }
+
+  /// Picks an account on the login screen without signing it in, so the
+  /// form shows its server and user (and a biometric sign-in, if it can).
+  Future<void> selectAccount(String id) async {
+    if (accountById(id) == null || id == activeId) return;
+    await _leaveAccount();
+    await _activate(id);
+    final account = activeAccount!;
+    serverUrl = account.serverUrl;
+    username = account.username;
+    _password = await _store.password();
+    notifyListeners();
+  }
+
+  /// Renames or recolors an account.
+  Future<void> updateAccount(String id, {String? name, String? color}) async {
+    final i = accounts.indexWhere((a) => a.id == id);
+    if (i < 0) return;
+    accounts = [...accounts]
+      ..[i] = accounts[i].copyWith(name: name, color: color);
+    await _store.saveAccounts(accounts);
+    notifyListeners();
+  }
+
+  /// Remembers a new password for an account, once its server takes it.
+  Future<void> setAccountPassword(String id, String password) async {
+    final account = accountById(id);
+    if (account == null) return;
+    await _signIn(account.serverUrl, account.username, password);
+    await _store.savePassword(password, account: id);
+    if (id == activeId) {
+      _password = password;
+      notifyListeners();
+    }
+  }
+
+  Future<void> reorderAccounts(int from, int to) async {
+    if (from == to) return;
+    final list = [...accounts];
+    final a = list.removeAt(from);
+    list.insert(to.clamp(0, list.length), a);
+    accounts = list;
+    await _store.saveAccounts(accounts);
+    notifyListeners();
+  }
+
+  /// Forgets an account on this device: its password, session and local
+  /// bookkeeping. Its Hobs on the server stay as they are. Removing the
+  /// active account moves to the next one, or to an empty login form.
+  Future<void> removeAccount(String id) async {
+    final account = accountById(id);
+    if (account == null) return;
+    if (id == activeId) {
+      if (phase == AuthPhase.signedIn) {
+        await logout();
+      } else {
+        await _teardown(clearCookies: true);
+      }
+    } else {
+      await _signOutQuietly(account);
+    }
+    accounts = [
+      for (final a in accounts)
+        if (a.id != id) a,
+    ];
+    await _store.saveAccounts(accounts);
+    await _store.forget(id);
+    await _forgetLocal(account);
+    if (id != activeId) {
+      notifyListeners();
+    } else if (accounts.isNotEmpty) {
+      await switchAccount(accounts.first.id);
+    } else {
+      await _activate('');
+      serverUrl = '';
+      username = '';
+      _password = null;
+      phase = AuthPhase.signedOut;
+      notifyListeners();
+    }
+  }
+
+  /// Ends a waiting account's session on its server, if it is reachable.
+  Future<void> _signOutQuietly(ServerAccount account) async {
+    final cookies = await _store.cookies(account: account.id);
+    if (cookies.isEmpty) return;
+    final http = HermesHttp(
+      baseUrl: Uri.parse(account.serverUrl),
+      cookies: cookies,
+    );
+    try {
+      await http
+          .postJson('/auth/logout', null)
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+    } finally {
+      http.close();
     }
   }
 
@@ -1900,6 +2171,16 @@ class AppState extends ChangeNotifier {
   // --- local persistence ---------------------------------------------------
 
   String get _localKey => 'local::$serverUrl::$username';
+
+  Future<void> _forgetLocal(ServerAccount account) async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final prefix = 'local::${account.serverUrl}::${account.username}::';
+      for (final k in p.getKeys().where((k) => k.startsWith(prefix)).toList()) {
+        await p.remove(k);
+      }
+    } catch (_) {}
+  }
 
   Future<void> _loadLocal() async {
     try {

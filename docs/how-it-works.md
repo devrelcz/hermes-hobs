@@ -1,7 +1,42 @@
 # How Hermes Hobs works
 
-Details behind the features in the [README](../README.md): the biometric lock,
-notifications, the calls the app makes to Hermes, and attachments.
+Details behind the features in the [README](../README.md): server accounts,
+the biometric lock, notifications, the calls the app makes to Hermes, and
+attachments.
+
+## Server accounts
+
+An account is one Hermes server and one user on it, under a name and color
+the user picks (the name defaults to the server's host). The avatar wears the
+active account's color and initial.
+
+- **Switching**: the avatar menu lists the other accounts; tapping one tears
+  down the current connection and opens the other from its saved session
+  cookies, or its remembered password when the session has expired. When
+  neither works, the login form opens for that account.
+- **Only the active account is connected.** Nothing runs for the others: no
+  socket, no roster polling, no notifications. Switching clears the old
+  account's notifications, since tapping one would open the new account.
+- **Adding**: *Add server* checks the password on a client of its own first,
+  so a typo leaves the current account connected and nothing is saved. On
+  success the new account is saved and becomes the active one.
+- **Login screen**: saved accounts come first. With the biometric lock on,
+  picking one asks for the biometric before its remembered password is used;
+  backing out of the prompt opens its form. *Another server* opens an empty
+  form, and signing in to a server and user that is already saved signs that
+  account in instead of adding a copy.
+- **Settings → Accounts**: reorder (drag handle), rename, recolor, store a new
+  password (kept only once the server accepts it), or remove. Removing signs
+  the account out on its server when it can and deletes its password,
+  cookies and local bookkeeping (read markers, folders) from the device; the
+  Hobs on the server stay.
+
+Storage: the list (id, name, color, server, user) and the active id live in
+plain preferences. Each account's password and cookies are in the
+keychain/keystore under `password@<id>` and `session_cookies@<id>`. The
+account that existed before accounts were added keeps id `''` and the
+original keys (`password`, `session_cookies`), so updating the app signs
+nobody out. The biometric lock is one setting for the whole app.
 
 ## Face ID, Touch ID, fingerprint
 

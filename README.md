@@ -46,6 +46,11 @@ flutter run -d macos   # or an iOS simulator / Android device
 Enter the dashboard's address, then sign in with its username and password
 (provider `basic`).
 
+More than one Hermes server? Tap your avatar and pick *Add server*: each
+server is an account with its own name and color, and the avatar menu
+switches between them. Only the account you are in is connected and sends
+notifications.
+
 To put a numbered release build on an Android phone over adb:
 
 ```bash
@@ -89,7 +94,7 @@ The tests run the whole flow against a fake Hermes server
 
 ## How it works
 
-[docs/how-it-works.md](docs/how-it-works.md) covers the biometric lock, how
+[docs/how-it-works.md](docs/how-it-works.md) covers server accounts, the biometric lock, how
 notifications reach the app, every call the app makes to Hermes, and
 attachments.
 
@@ -100,11 +105,13 @@ attachments.
 - `lib/state/chat_controller.dart`: one conversation, event → message model
 - `lib/state/group_chat_controller.dart`: one group chat (room state, log, sending, member status)
 - `lib/state/app_state.dart`: login, biometric lock, Hob list, chats per Hob
+- `lib/state/credentials_store.dart`: saved accounts; per-account cookies and password in secure storage
 - `lib/state/biometrics.dart`: `local_auth` wrapper (which biometric, prompt)
 - `lib/state/notifications.dart`: local notifications, iOS background time
 - `lib/api/attachments.dart`: attachment model, `@image:`/`@file:`/`@url:` refs, turn preparation
 - `lib/state/composer_draft.dart`: uploads per Hob (progress, cancel, retry); `image_prep.dart` downscales photos
 - `lib/state/share_inbox.dart`: shares from other apps waiting for a Hob
+- `lib/ui/accounts_ui.dart`: account switcher pieces, Add server, Settings > Accounts
 - `lib/ui/`: login, Hob list (split view on wide screens), chat
 - `test/`: fake Hermes server covering the whole flow
 - `tool/demo_server.dart`: demo data for screenshots and manual testing

@@ -13,7 +13,9 @@ import '../api/hermes_rpc.dart';
 import '../api/models.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
+import '../state/credentials_store.dart';
 import '../state/share_inbox.dart';
+import 'accounts_ui.dart';
 import 'hob_avatar.dart';
 import 'chat_screen.dart';
 import 'format.dart';
@@ -1749,20 +1751,42 @@ class _CountLabel extends StatelessWidget {
   }
 }
 
-/// The signed-in user's initial. Opens the account menu, where every action
-/// carries its own icon and label.
+/// The active account's mark. Opens the account menu: who is signed in
+/// where, the other saved servers to switch to, and the account actions.
 class _AccountButton extends StatelessWidget {
   const _AccountButton({required this.app});
 
   final AppState app;
+
+  Future<void> _switch(BuildContext context, ServerAccount to) async {
+    final s = Strings.of(context);
+    // The list leaves the screen while the other account loads; the
+    // navigator's own context stays to show the toast.
+    final root = Navigator.of(context, rootNavigator: true).context;
+    await app.switchAccount(to.id);
+    if (root.mounted && app.phase == AuthPhase.signedIn) {
+      showToast(root, s.switchedTo(to.label), icon: Icons.swap_horiz);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final s = Strings.of(context);
-    final name = app.username.trim();
-    final host = Uri.tryParse(app.serverUrl)?.host ?? '';
+    final active =
+        app.activeAccount ??
+        ServerAccount(
+          id: app.activeId,
+          name: '',
+          color: accountColors.first,
+          serverUrl: app.serverUrl,
+          username: app.username,
+        );
+    final others = [
+      for (final a in app.accounts)
+        if (a.id != active.id) a,
+    ];
     // The connection's state as a dot on the avatar, always there: green
     // when connected, lantern while connecting, red when cut off.
     final hobs = HobsColors.of(context);
@@ -1772,82 +1796,129 @@ class _AccountButton extends StatelessWidget {
       ConnectionStatus.disconnected => (cs.error, s.disconnected),
     };
     return PopupMenuButton<String>(
-      tooltip: '${s.account}: $state',
+      tooltip: '${s.account}: ${active.label}, $state',
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      constraints: const BoxConstraints(minWidth: 260, maxWidth: 320),
       onSelected: (v) {
         if (v == 'logout') app.logout();
         if (v == 'settings') SettingsScreen.open(context);
+        if (v == 'add') AddServerScreen.open(context);
+        if (v == 'manage') AccountsScreen.open(context);
+        if (v.startsWith('switch:')) {
+          final to = app.accountById(v.substring(7));
+          if (to != null) _switch(context, to);
+        }
       },
       itemBuilder: (_) => [
         PopupMenuItem(
           enabled: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Text(
-                name,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: cs.onSurface,
-                ),
-              ),
-              Text(
-                host.isEmpty ? app.serverUrl : host,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: cs.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: dot,
-                      shape: BoxShape.circle,
+              AccountBadge(account: active, size: 40),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      active.label,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: cs.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    state,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: cs.onSurface,
+                    Text(
+                      accountLine(active),
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: dot,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          state,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: cs.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
+        if (others.isNotEmpty) const PopupMenuDivider(),
+        for (final a in others)
+          PopupMenuItem(
+            value: 'switch:${a.id}',
+            child: Row(
+              children: [
+                AccountBadge(account: a, size: 28),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(a.label, overflow: TextOverflow.ellipsis),
+                      Text(
+                        accountLine(a),
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'add',
+          child: _MenuRow(icon: Icons.add, label: s.addServer),
+        ),
+        if (app.accounts.length > 1)
+          PopupMenuItem(
+            value: 'manage',
+            child: _MenuRow(
+              icon: Icons.manage_accounts_outlined,
+              label: s.manageAccounts,
+            ),
+          ),
         PopupMenuItem(
           value: 'settings',
           child: _MenuRow(icon: Icons.settings_outlined, label: s.settings),
         ),
         PopupMenuItem(
           value: 'logout',
-          child: _MenuRow(icon: Icons.logout, label: s.signOut),
+          child: _MenuRow(
+            icon: Icons.logout,
+            label: others.isEmpty ? s.signOut : s.signOutFrom(active.label),
+          ),
         ),
       ],
       padding: EdgeInsets.zero,
       icon: Stack(
         clipBehavior: Clip.none,
         children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: cs.primaryContainer,
-            foregroundColor: cs.onPrimaryContainer,
-            child: name.isEmpty
-                ? const Icon(Icons.person_outline, size: 18)
-                : Text(
-                    name.characters.first.toUpperCase(),
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: cs.onPrimaryContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-          ),
+          AccountBadge(account: active),
           Positioned(
             right: -1,
             bottom: -1,
