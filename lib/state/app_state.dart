@@ -100,7 +100,7 @@ class AppState extends ChangeNotifier {
   bool _authenticating = false;
 
   AuthPhase phase = AuthPhase.loading;
-  String serverUrl = CredentialsStore.defaultServer;
+  String serverUrl = '';
   String username = '';
 
   /// Remembered password (secure storage); null when not kept.

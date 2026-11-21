@@ -8,7 +8,9 @@ import 'package:hobs/ui/login_screen.dart';
 import 'package:provider/provider.dart';
 
 void main() {
-  testWidgets('login screen renders with default server', (tester) async {
+  testWidgets('login screen asks for a server, with no default', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ChangeNotifierProvider(
         create: (_) => AppState(),
@@ -16,10 +18,32 @@ void main() {
       ),
     );
     expect(find.text('Hermes Hobs'), findsOneWidget);
-    expect(find.text('https://hermes.devrel.cz'), findsOneWidget);
+    expect(find.text('https://hermes.devrel.cz'), findsNothing);
     await tester.tap(find.text('Přihlásit'));
     await tester.pump();
-    expect(find.text('Povinné'), findsNWidgets(2));
+    expect(find.text('Povinné'), findsNWidgets(3));
+  });
+
+  testWidgets('password can be shown and hidden again', (tester) async {
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (_) => AppState(),
+        child: const MaterialApp(home: LoginScreen()),
+      ),
+    );
+    EditableText password() => tester.widget<EditableText>(
+      find.descendant(
+        of: find.widgetWithText(TextFormField, 'Heslo'),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(password().obscureText, isTrue);
+    await tester.tap(find.byTooltip('Zobrazit heslo'));
+    await tester.pump();
+    expect(password().obscureText, isFalse);
+    await tester.tap(find.byTooltip('Skrýt heslo'));
+    await tester.pump();
+    expect(password().obscureText, isTrue);
   });
 
   testWidgets('avatars render for every shape', (tester) async {

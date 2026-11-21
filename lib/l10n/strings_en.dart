@@ -14,11 +14,15 @@ class StringsEn extends Strings {
   @override
   String get serverLabel => 'Server';
   @override
-  String get serverInvalid => 'Enter a URL, like https://hermes.devrel.cz';
+  String get serverInvalid => 'Enter a URL, like https://hermes.example.com';
   @override
   String get usernameLabel => 'Username';
   @override
   String get passwordLabel => 'Password';
+  @override
+  String get showPassword => 'Show password';
+  @override
+  String get hidePassword => 'Hide password';
   @override
   String get fieldRequired => 'Required';
   @override

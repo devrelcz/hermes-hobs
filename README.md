@@ -3,7 +3,7 @@
 Talk to your Hobs from your phone or your Mac.
 
 Hermes Hobs is a Flutter app for iOS, Android and macOS. It signs in to a
-Hermes Agent dashboard (default `https://hermes.devrel.cz`), where each
+Hermes Agent dashboard at the address you enter, where each
 **profile** is a Hob, and gives every Hob its own chat.
 
 <p>
@@ -42,7 +42,8 @@ flutter pub get
 flutter run -d macos   # or an iOS simulator / Android device
 ```
 
-Sign in with the dashboard's username and password (provider `basic`).
+Enter the dashboard's address, then sign in with its username and password
+(provider `basic`).
 
 ## Try it without a server
 
