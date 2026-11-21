@@ -108,7 +108,11 @@ class AppState extends ChangeNotifier {
 
   /// Why the user landed on the login screen without asking to (e.g. the
   /// remembered password was rejected). Shown by the login form.
-  String? authError;
+  String? get authError => _authError?.call();
+
+  /// Errors are kept as builders, not text, so a language switch re-words
+  /// them.
+  String Function()? _authError;
 
   String? get savedPassword => _password;
 
@@ -128,7 +132,10 @@ class AppState extends ChangeNotifier {
   /// has to reach them too.
   List<Hob> _hiddenHobs = [];
   bool loadingHobs = false;
-  String? hobsError;
+
+  /// Why the Hob list could not load, in the current language.
+  String? get hobsError => _hobsError?.call();
+  String Function()? _hobsError;
   final Map<String, ChatController> _chats = {};
   final Map<String, ComposerDraft> _drafts = {};
 
@@ -211,7 +218,7 @@ class AppState extends ChangeNotifier {
       } else {
         // Offline / server down: stay signed in, let the user retry.
         _enterSignedIn();
-        hobsError = describeError(e);
+        _hobsError = () => describeError(e);
       }
       notifyListeners();
     }
@@ -225,7 +232,7 @@ class AppState extends ChangeNotifier {
     if (password == null || username.isEmpty) return false;
     try {
       await _passwordLogin(serverUrl, username, password);
-      authError = null;
+      _authError = null;
       await _loadLocal();
       _enterSignedIn();
       return true;
@@ -233,9 +240,9 @@ class AppState extends ChangeNotifier {
       if (e is HermesHttpException && e.isUnauthorized) {
         _password = null;
         await _store.savePassword(null);
-        authError = Strings.current.savedPasswordExpired;
+        _authError = () => Strings.current.savedPasswordExpired;
       } else {
-        authError = describeError(e);
+        _authError = () => describeError(e);
       }
       return false;
     }
@@ -288,7 +295,7 @@ class AppState extends ChangeNotifier {
     this.serverUrl = serverUrl;
     this.username = username;
     _password = rememberPassword ? password : null;
-    authError = null;
+    _authError = null;
     await _store.saveLogin(serverUrl: serverUrl, username: username);
     await _store.savePassword(_password);
     await _store.setAutoLogin(true);
@@ -333,7 +340,7 @@ class AppState extends ChangeNotifier {
     await _teardown(clearCookies: true);
     // Keep the password for the login form, but do not sign back in on our own.
     await _store.setAutoLogin(false);
-    authError = null;
+    _authError = null;
     locked = false;
     phase = AuthPhase.signedOut;
     notifyListeners();
@@ -345,7 +352,7 @@ class AppState extends ChangeNotifier {
     phase = AuthPhase.loading;
     notifyListeners();
     _teardown(clearCookies: true).then((_) async {
-      hobsError = null;
+      _hobsError = null;
       if (await _silentLogin()) return;
       phase = AuthPhase.signedOut;
       notifyListeners();
@@ -430,13 +437,13 @@ class AppState extends ChangeNotifier {
     if (loadingHobs) return;
     loadingHobs = true;
     if (!silent) {
-      hobsError = null;
+      _hobsError = null;
       notifyListeners();
     }
     try {
       final list = await _fetchRoster();
       hobs = list;
-      hobsError = null;
+      _hobsError = null;
       for (final b in list) {
         _chats[b.name]?.updateHob(b);
       }
@@ -457,7 +464,7 @@ class AppState extends ChangeNotifier {
         _onSessionExpired();
         return;
       }
-      if (!silent || hobs.isEmpty) hobsError = describeError(e);
+      if (!silent || hobs.isEmpty) _hobsError = () => describeError(e);
     } finally {
       loadingHobs = false;
       notifyListeners();

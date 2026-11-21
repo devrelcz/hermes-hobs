@@ -21,7 +21,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _pass = TextEditingController();
   bool _busy = false;
   bool _remember = true;
-  String? _error;
+
+  /// Built at paint time, so a language switch re-words it.
+  String? Function()? _error;
 
   @override
   void initState() {
@@ -32,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
     // With the biometric lock on, the remembered password is reached only
     // through the biometric, never by just pressing Sign in.
     if (!app.biometricLock) _pass.text = app.savedPassword ?? '';
-    _error = app.authError;
+    if (app.authError != null) _error = () => app.authError;
   }
 
   @override
@@ -57,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
         rememberPassword: _remember,
       );
     } catch (e) {
-      if (mounted) setState(() => _error = AppState.describeError(e));
+      if (mounted) setState(() => _error = () => AppState.describeError(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -71,9 +73,9 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await context.read<AppState>().biometricSignIn();
     } on BiometricException catch (e) {
-      if (mounted) setState(() => _error = describeBiometricFailure(e));
+      if (mounted) setState(() => _error = () => describeBiometricFailure(e));
     } catch (e) {
-      if (mounted) setState(() => _error = AppState.describeError(e));
+      if (mounted) setState(() => _error = () => AppState.describeError(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -85,6 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final s = Strings.of(context);
     final app = context.watch<AppState>();
     final biometric = app.canBiometricSignIn ? app.biometricKind : null;
+    final error = _error?.call();
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -172,10 +175,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       contentPadding: EdgeInsets.zero,
                       dense: true,
                     ),
-                    if (_error != null) ...[
+                    if (error != null) ...[
                       const SizedBox(height: 16),
                       Text(
-                        _error!,
+                        error,
                         style: TextStyle(color: theme.colorScheme.error),
                       ),
                     ],

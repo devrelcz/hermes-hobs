@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hobs/l10n/strings.dart';
 import 'package:hobs/l10n/strings_cs.dart';
@@ -9,6 +12,9 @@ import 'package:hobs/ui/login_screen.dart';
 import 'package:hobs/ui/settings_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'credentials_test.dart' show settle;
+import 'fake_hermes_server.dart';
 
 Widget _app(AppState state, Widget home) => ChangeNotifierProvider.value(
   value: state,
@@ -85,5 +91,30 @@ void main() {
     expect(find.text('Nastavení'), findsOneWidget);
     expect(state.languageCode, isNull);
     expect(prefs.getString('language'), isNull);
+  });
+
+  test('a stored error follows a language switch', () async {
+    HttpOverrides.global = null;
+    FlutterSecureStorage.setMockInitialValues({});
+    final server = FakeHermesServer();
+    await server.start();
+    final app = AppState();
+    addTearDown(app.dispose);
+    await app.setLanguage('cs');
+    await app.login(
+      serverUrl: server.baseUrl.toString(),
+      username: 'u',
+      password: 'p',
+    );
+    await settle(app);
+
+    // The upgraded socket outlives the HTTP server; drop it too.
+    await server.stop();
+    await server.dropConnections();
+    await app.refreshHobs();
+    expect(app.hobsError, startsWith('Server nedostupný: '));
+
+    await app.setLanguage('en');
+    expect(app.hobsError, startsWith("Can't reach the server: "));
   });
 }
