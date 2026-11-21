@@ -60,6 +60,10 @@ tool/install_android.sh
 The build number is the commit count, and Settings > About shows it with
 the commit and the build time, so you can tell which build is installed.
 
+For Google Play, `tool/build_play.sh` builds the signed App Bundle; signing,
+the store listing and the App content answers are in
+[docs/google-play.md](docs/google-play.md).
+
 ## Try it without a server
 
 `tool/demo_server.dart` serves the demo data from the screenshots on your
