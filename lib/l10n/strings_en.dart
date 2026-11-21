@@ -338,6 +338,24 @@ class StringsEn extends Strings {
   @override
   String get chatMenu => 'More options';
   @override
+  String get a11yPinned => 'pinned';
+  @override
+  String get a11yUnread => 'unread';
+  @override
+  String messageFrom(String who) => '$who:';
+  @override
+  String get toolsUsed => 'Tools used';
+  @override
+  String get searchInChat => 'Search this chat';
+  @override
+  String get searchNone => 'None';
+  @override
+  String searchCount(int at, int of) => '$at of $of';
+  @override
+  String get searchOlder => 'Older match';
+  @override
+  String get searchNewer => 'Newer match';
+  @override
   String get linkLabel => 'Link';
   @override
   String get fileLabel => 'File';
@@ -576,6 +594,8 @@ class StringsEn extends Strings {
   String get you => 'You';
   @override
   String mention(String handle) => 'Mention @$handle';
+  @override
+  String get memberWaits => 'waiting for you';
   @override
   String memberStateLabel(String state) => switch (state) {
     'queued' => 'queued',

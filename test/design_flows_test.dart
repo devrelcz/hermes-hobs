@@ -2,11 +2,20 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hobs/api/models.dart';
+import 'package:hobs/l10n/strings.dart';
+import 'package:hobs/ui/chat_screen.dart';
+import 'package:hobs/state/composer_draft.dart';
+import 'package:hobs/state/chat_controller.dart';
+import 'package:hobs/api/hermes_rpc.dart';
+import 'package:hobs/api/hermes_http.dart';
 import 'package:hobs/state/app_state.dart';
+import 'package:hobs/ui/avatar_bitmap.dart';
 import 'package:hobs/ui/format.dart';
 import 'package:hobs/ui/hobs_screen.dart';
 import 'package:hobs/ui/new_hob_screen.dart';
@@ -226,5 +235,118 @@ void main() {
     expect(find.text('O aplikaci'), findsOneWidget);
     expect(find.text('Přihlášen jako'), findsOneWidget);
     expect(find.text('daniel'), findsOneWidget);
+  });
+
+  testWidgets('a Hob face renders to a PNG for notifications', (tester) async {
+    await tester.pumpWidget(const SizedBox());
+    final bytes = await tester.runAsync(
+      () => AvatarBitmaps.of(Hob(name: 'cto', displayName: 'CTO'), size: 48),
+    );
+    expect(bytes, isNotNull);
+    expect(bytes!.sublist(1, 4), 'PNG'.codeUnits);
+  });
+
+  testWidgets('a screen reader hears a Hob row as one item with actions', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    SharedPreferences.setMockInitialValues({'welcomeSeen': true});
+    await pumpList(tester, signedIn());
+    final row = find.bySemanticsLabel(RegExp(r'^CTO, '));
+    expect(row, findsOneWidget);
+    final node = tester.getSemantics(row);
+    final labels = node
+        .getSemanticsData()
+        .customSemanticsActionIds!
+        .map((id) => CustomSemanticsAction.getAction(id)!.label)
+        .toList();
+    expect(labels, containsAll(['Připnout', 'Skrýt']));
+    expect(node.getSemanticsData().label, contains('Zatím bez zpráv'));
+    handle.dispose();
+  });
+
+  testWidgets('search in a chat counts the hits and keeps the composer', (
+    tester,
+  ) async {
+    HttpOverrides.global = null;
+    late FakeHermesServer server;
+    late HermesRpc rpc;
+    late HermesHttp http;
+    late ChatController chat;
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    await tester.runAsync(() async {
+      server = FakeHermesServer()
+        ..history = [
+          {'role': 'user', 'text': 'Kdy je záloha?', 'timestamp': now - 90},
+          {
+            'role': 'assistant',
+            'text': 'Záloha je v noci.',
+            'timestamp': now - 60,
+          },
+          {'role': 'user', 'text': 'Díky', 'timestamp': now - 30},
+        ];
+      await server.start();
+      http = HermesHttp(baseUrl: server.baseUrl);
+      await http.postJson('/auth/password-login', {
+        'provider': 'basic',
+        'username': 'u',
+        'password': 'p',
+        'next': '',
+      });
+      rpc = HermesRpc(http);
+      await rpc.connect();
+      final res =
+          await rpc.request('profiles.list', {'include_sessions': true}) as Map;
+      final roster = (res['profiles'] as List)
+          .cast<Map<String, dynamic>>()
+          .map(Hob.fromJson)
+          .toList();
+      chat = ChatController(rpc: rpc, hob: roster.first, roster: () => roster);
+      await chat.start();
+    });
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: chat),
+          ChangeNotifierProvider(create: (_) => ComposerDraft(null)),
+        ],
+        child: const MaterialApp(
+          localizationsDelegates: [
+            Strings.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          supportedLocales: Strings.supportedLocales,
+          locale: Locale('cs'),
+          home: ChatView(),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.enterText(find.byType(TextField), 'rozepsáno');
+    await tester.tap(find.byTooltip('Další možnosti'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hledat v konverzaci'));
+    await tester.pumpAndSettle();
+    final field = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.byType(TextField),
+    );
+    expect(
+      tester.widget<TextField>(field).focusNode!.hasFocus,
+      isTrue,
+      reason: 'typing goes to the search, not the composer',
+    );
+    await tester.enterText(field, 'ZÁLOH');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('1 z 2'), findsOneWidget);
+    await tester.tap(find.byTooltip('Zavřít'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('1 z 2'), findsNothing);
+    expect(find.text('rozepsáno'), findsOneWidget);
+    await tester.runAsync(() async {
+      await rpc.dispose();
+      http.close();
+      await server.stop();
+    });
   });
 }

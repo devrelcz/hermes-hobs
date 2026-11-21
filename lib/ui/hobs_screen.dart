@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -1037,40 +1038,44 @@ class _SectionHeaderState extends State<_SectionHeader> {
     final muted = cs.onSurfaceVariant;
     final s = Strings.of(context);
     final index = w.dragIndex;
-    final label = InkWell(
-      onTap: w.onTap,
-      onSecondaryTap: w.onRename,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, index == null ? 16 : 4, 6),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                w.title,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w600,
+    final label = Semantics(
+      header: true,
+      expanded: !w.collapsed,
+      child: InkWell(
+        onTap: w.onTap,
+        onSecondaryTap: w.onRename,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, index == null ? 16 : 4, 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  w.title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: cs.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            if (w.collapsed && w.unread > 0) ...[
-              _UnreadMark(color: HobsColors.of(context).lantern),
-              const SizedBox(width: 8),
+              if (w.collapsed && w.unread > 0) ...[
+                _UnreadMark(color: HobsColors.of(context).lantern),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                '${w.count}',
+                style: theme.textTheme.labelMedium?.copyWith(color: muted),
+              ),
+              const SizedBox(width: 4),
+              AnimatedRotation(
+                turns: w.collapsed ? -0.25 : 0,
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : const Duration(milliseconds: 160),
+                child: Icon(Icons.expand_more, size: 18, color: muted),
+              ),
             ],
-            Text(
-              '${w.count}',
-              style: theme.textTheme.labelMedium?.copyWith(color: muted),
-            ),
-            const SizedBox(width: 4),
-            AnimatedRotation(
-              turns: w.collapsed ? -0.25 : 0,
-              duration: MediaQuery.disableAnimationsOf(context)
-                  ? Duration.zero
-                  : const Duration(milliseconds: 160),
-              child: Icon(Icons.expand_more, size: 18, color: muted),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1295,7 +1300,29 @@ class _HobRowState extends State<_HobRow> {
     );
     final pin = widget.onSwipePin;
     final hide = widget.onSwipeHide;
-    if (pin == null || hide == null || _pointerPlatform) return row;
+    // One stop for a screen reader: who, its state, the latest line; tap
+    // opens the chat, and the swipe actions are offered as actions.
+    final spoken = Semantics(
+      container: true,
+      button: true,
+      selected: selected,
+      excludeSemantics: true,
+      label: [
+        hob.displayName,
+        if (hob.pinned) s.a11yPinned,
+        if (unread) s.a11yUnread,
+        if (working) s.working else relativeAge(hob.lastActive),
+        preview.isEmpty ? s.noMessagesYet : preview,
+      ].where((p) => p.isNotEmpty).join(', '),
+      onTap: widget.onTap,
+      customSemanticsActions: {
+        CustomSemanticsAction(label: hob.pinned ? s.unpinHob : s.pinHob): ?pin,
+        CustomSemanticsAction(label: hob.hidden ? s.unhideHob : s.hideHob):
+            ?hide,
+      },
+      child: row,
+    );
+    if (pin == null || hide == null || _pointerPlatform) return spoken;
     // Phones and tablets: a swipe is the quick way to pin or hide. The row
     // springs back; the list reorders itself after the change.
     return Dismissible(
@@ -1325,7 +1352,7 @@ class _HobRowState extends State<_HobRow> {
             : Icons.visibility_off_outlined,
         label: hob.hidden ? s.unhideHob : s.hideHob,
       ),
-      child: row,
+      child: spoken,
     );
   }
 

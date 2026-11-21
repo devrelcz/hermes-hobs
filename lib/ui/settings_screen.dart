@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/biometrics.dart';
+import 'format.dart';
 import 'lock_screen.dart';
 import 'sheets.dart';
 
@@ -110,11 +111,26 @@ class _Group extends StatelessWidget {
   }
 }
 
+/// The commit and time a build was made from, set by
+/// tool/install_android.sh; empty for a plain `flutter run`.
+const _gitSha = String.fromEnvironment('GIT_SHA');
+const _buildTime = String.fromEnvironment('BUILD_TIME');
+
 /// The app's version, where it is signed in, and the licenses.
 class _About extends StatelessWidget {
   const _About({required this.app});
 
   final AppState app;
+
+  /// "a1b2c3d · 21. 11. 18:47", or null when the build carries neither.
+  static String? _buildLine() {
+    final when = DateTime.tryParse(_buildTime);
+    final parts = [
+      if (_gitSha.isNotEmpty) _gitSha,
+      if (when != null) dayTime(when),
+    ];
+    return parts.isEmpty ? null : parts.join('  ·  ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -134,6 +150,7 @@ class _About extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.info_outline),
               title: Text(s.appVersion),
+              subtitle: _buildLine() == null ? null : Text(_buildLine()!),
               trailing: Text(version),
             ),
             if (host.isNotEmpty)

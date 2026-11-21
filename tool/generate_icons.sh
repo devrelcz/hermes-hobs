@@ -70,3 +70,40 @@ for spec in mdpi:1 hdpi:1.5 xhdpi:2 xxhdpi:3 xxxhdpi:4; do
   px=$(awk "BEGIN{print $SPLASH*${spec#*:}}")
   render $OUT/hobs-glyph.svg "$px" "android/app/src/main/res/mipmap-${spec%:*}/launch_image.png"
 done
+
+# Android 8+ adaptive icon: the glyph on a transparent 108dp canvas, kept
+# inside the 66dp safe zone, over a moss background layer; and Android 13+
+# themed icon: a one-color silhouette the launcher tints to the wallpaper.
+# The silhouette keeps what makes it the hob: the cap and its band, the
+# pompom, the face with ears, the eyes punched out.
+ADAPT="transform=\"translate(18 18) scale(0.72)\""
+echo "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 108 108\"><g $ADAPT>$GLYPH</g></svg>" \
+  > $OUT/hobs-adaptive-foreground.svg
+MONO="<defs><clipPath id=\"cap\"><path d=\"$CAP\"/></clipPath>\
+<mask id=\"m\"><rect width=\"100\" height=\"100\" fill=\"black\"/>\
+<path d=\"M8.5 57.5 C14 59 21 61 28 63 L29 77 C20 75 12 67 8.5 57.5 Z\" fill=\"white\"/>\
+<path d=\"M91.5 57.5 C86 59 79 61 72 63 L71 77 C80 75 88 67 91.5 57.5 Z\" fill=\"white\"/>\
+<path d=\"M27.5 68 A22.5 22.5 0 0 0 72.5 68 C71 61 63 56.5 53 56.8 C48.5 57 44.8 56.5 43 53.3 C40 58 31 61 27.5 68 Z\" fill=\"white\"/>\
+<path d=\"$CAP\" fill=\"white\"/>\
+<path d=\"M0 46 Q50 33 100 46 L100 49 Q50 36 0 49 Z\" fill=\"black\" clip-path=\"url(#cap)\"/>\
+<circle cx=\"83.5\" cy=\"33\" r=\"7\" fill=\"white\"/>\
+<circle cx=\"40\" cy=\"69\" r=\"3.5\" fill=\"black\"/>\
+<circle cx=\"61\" cy=\"69\" r=\"3.5\" fill=\"black\"/></mask></defs>\
+<rect width=\"100\" height=\"100\" fill=\"white\" mask=\"url(#m)\"/>"
+echo "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 108 108\"><g $ADAPT>$MONO</g></svg>" \
+  > $OUT/hobs-adaptive-monochrome.svg
+for spec in mdpi:108 hdpi:162 xhdpi:216 xxhdpi:324 xxxhdpi:432; do
+  dir="android/app/src/main/res/mipmap-${spec%:*}"
+  render $OUT/hobs-adaptive-foreground.svg "${spec#*:}" "$dir/ic_launcher_foreground.png"
+  render $OUT/hobs-adaptive-monochrome.svg "${spec#*:}" "$dir/ic_launcher_monochrome.png"
+done
+
+# Notification small icon: the same silhouette, full size, white on clear
+# (Android draws it in the status bar and tints it).
+echo "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\">$MONO</svg>" \
+  > $OUT/hobs-notification.svg
+for spec in mdpi:24 hdpi:36 xhdpi:48 xxhdpi:72 xxxhdpi:96; do
+  dir="android/app/src/main/res/drawable-${spec%:*}"
+  mkdir -p "$dir"
+  render $OUT/hobs-notification.svg "${spec#*:}" "$dir/ic_notification.png"
+done
