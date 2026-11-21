@@ -11,12 +11,16 @@ enum AlertKind { reply, approval, clarify }
 
 /// Something a hob did that is worth a system notification.
 class HobAlert {
-  const HobAlert(this.kind, this.text);
+  const HobAlert(this.kind, this.text, {this.id});
 
   final AlertKind kind;
 
   /// Reply preview, the command to approve, or the question.
   final String text;
+
+  /// Which request it is (`request:<id>`, `prompt:<id>`), so an answer from
+  /// the notification reaches that request and no later one.
+  final String? id;
 
   /// True when the hob is blocked until the user answers.
   bool get blocking => kind != AlertKind.reply;
@@ -92,11 +96,16 @@ abstract class Notifier {
   Future<bool?> permitted();
 
   /// Shows (or replaces) the notification for [key] ([NotifyTarget.key]).
+  /// [face] is the Hob's face as PNG, shown large. With [approve] set to
+  /// the request's id it offers Deny / Allow once; a pressed button comes
+  /// back on [taps] as `<key>#<choice>#<request id>`.
   Future<void> show({
     required String key,
     required String title,
     required String body,
     required bool blocking,
+    Uint8List? face,
+    String? approve,
   });
 
   Future<void> clear(String key);
@@ -145,13 +154,22 @@ class LocalNotifier implements Notifier {
       );
       await _plugin.initialize(
         settings: const InitializationSettings(
-          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          // The hob's silhouette, white for the status bar (the launcher
+          // icon is adaptive and cannot be a small icon).
+          android: AndroidInitializationSettings('@drawable/ic_notification'),
           iOS: darwin,
           macOS: darwin,
         ),
         onDidReceiveNotificationResponse: (r) {
           final payload = r.payload;
-          if (payload != null && payload.isNotEmpty) _taps.add(payload);
+          if (payload == null || payload.isEmpty) return;
+          final (key, ref) = _split(payload);
+          final action = r.actionId;
+          _taps.add(
+            action != null && action.isNotEmpty && ref != null
+                ? '$key#$action#$ref'
+                : key,
+          );
         },
       );
       // Create the channel up front, so it is listed in the system settings
@@ -169,10 +187,12 @@ class LocalNotifier implements Notifier {
               importance: Importance.high,
             ),
           );
+      // A cold start only opens the chat, even from a button: the request
+      // is answered in the app, once it is seen again.
       final launch = await _plugin.getNotificationAppLaunchDetails();
       if (launch?.didNotificationLaunchApp ?? false) {
         final payload = launch!.notificationResponse?.payload;
-        if (payload != null && payload.isNotEmpty) return payload;
+        if (payload != null && payload.isNotEmpty) return _split(payload).$1;
       }
     } catch (e) {
       debugPrint('notifications unavailable: $e');
@@ -247,12 +267,26 @@ class LocalNotifier implements Notifier {
     }
   }
 
+  /// Android bundles the Hobs' notifications under one summary.
+  static const _group = 'cz.devrel.hobs.chats';
+  static const _summaryId = 0;
+
+  /// The payload's target and, for an approval, its request id.
+  static (String, String?) _split(String payload) {
+    final i = payload.indexOf('#');
+    return i < 0
+        ? (payload, null)
+        : (payload.substring(0, i), payload.substring(i + 1));
+  }
+
   @override
   Future<void> show({
     required String key,
     required String title,
     required String body,
     required bool blocking,
+    Uint8List? face,
+    String? approve,
   }) async {
     await init();
     final s = Strings.current;
@@ -261,7 +295,7 @@ class LocalNotifier implements Notifier {
         id: notificationId(key),
         title: title,
         body: body,
-        payload: key,
+        payload: approve == null ? key : '$key#$approve',
         notificationDetails: NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
@@ -271,14 +305,56 @@ class LocalNotifier implements Notifier {
             priority: Priority.high,
             category: AndroidNotificationCategory.message,
             styleInformation: BigTextStyleInformation(body),
+            groupKey: _group,
+            largeIcon: face == null ? null : ByteArrayAndroidBitmap(face),
+            actions: approve == null
+                ? null
+                : [
+                    // Both open the app: an answer is never sent from a
+                    // locked phone without the app seeing it.
+                    AndroidNotificationAction(
+                      'deny',
+                      s.deny,
+                      showsUserInterface: true,
+                      cancelNotification: true,
+                    ),
+                    AndroidNotificationAction(
+                      'once',
+                      s.allowOnce,
+                      showsUserInterface: true,
+                      cancelNotification: true,
+                    ),
+                  ],
           ),
           iOS: DarwinNotificationDetails(threadIdentifier: key),
           macOS: DarwinNotificationDetails(threadIdentifier: key),
         ),
       );
+      await _summary();
     } catch (e) {
       debugPrint('notification failed: $e');
     }
+  }
+
+  /// The bundle's head on Android: present while any Hob notification is.
+  Future<void> _summary() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return;
+    final s = Strings.current;
+    await _plugin.show(
+      id: _summaryId,
+      title: 'Hermes Hobs',
+      body: null,
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          s.notifyChannelName,
+          channelDescription: s.notifyChannelDescription,
+          groupKey: _group,
+          setAsGroupSummary: true,
+          onlyAlertOnce: true,
+        ),
+      ),
+    );
   }
 
   @override
@@ -286,6 +362,16 @@ class LocalNotifier implements Notifier {
     if (_init == null) return;
     try {
       await _plugin.cancel(id: notificationId(key));
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        final left = await _plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >()
+            ?.getActiveNotifications();
+        if (left != null && left.every((n) => n.id == _summaryId)) {
+          await _plugin.cancel(id: _summaryId);
+        }
+      }
     } catch (_) {}
   }
 }

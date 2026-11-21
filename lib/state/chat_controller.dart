@@ -1225,7 +1225,26 @@ class ChatController extends ChangeNotifier {
   /// known, so the same prompt arriving live later stays quiet too.
   void _raise(String key, HobAlert alert, {required bool live}) {
     if (!_alerted.add(key) || !live || _disposed) return;
-    onAlert?.call(_hob, alert);
+    onAlert?.call(_hob, HobAlert(alert.kind, alert.text, id: key));
+  }
+
+  /// The pending approval's id, as its alert carried it.
+  String? get approvalRef {
+    final prompt = _approvalPromptId;
+    if (prompt != null) return 'prompt:$prompt';
+    final req = _approvalRequest;
+    return req == null ? null : 'request:${req.id}';
+  }
+
+  /// Answers the approval [ref] names, if it is still the one waiting: a
+  /// button on an old notification never answers a newer request.
+  bool answerApprovalFor(String ref, String choice) {
+    if (approval == null || approvalRef != ref) return false;
+    if (choice != 'deny' && !(approval?.choices.contains(choice) ?? false)) {
+      return false;
+    }
+    answerApproval(choice);
+    return true;
   }
 
   void _finishTurn() {

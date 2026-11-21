@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'dart:async';
 import 'dart:io';
 
@@ -61,7 +62,15 @@ class FakeNotifier implements Notifier {
     required String title,
     required String body,
     required bool blocking,
-  }) async => shown.add(Shown(key, title, body, blocking));
+    Uint8List? face,
+    String? approve,
+  }) async {
+    shown.add(Shown(key, title, body, blocking));
+    approvals.add(approve);
+  }
+
+  /// The request id each shown notification offered buttons for.
+  final List<String?> approvals = [];
 
   @override
   Future<void> clear(String key) async => cleared.add(key);
@@ -194,6 +203,34 @@ void main() {
     expect(notifier.shown, hasLength(1), reason: 'no duplicate on replay');
     app.dispose();
   });
+
+  test(
+    'a notification button answers that request, and only that one',
+    () async {
+      server
+        ..canonical = true
+        ..askApproval = true;
+      final app = await signedIn();
+      final chat = await openChat(app, leave: false);
+      app.onAppHidden();
+
+      unawaited(chat.send('ls'));
+      await waitFor(() => chat.approval != null);
+      await waitFor(() => notifier.shown.isNotEmpty);
+      final ref = notifier.approvals.single;
+      expect(ref, chat.approvalRef, reason: 'the buttons name this request');
+
+      // A stale button (another request) is ignored; the chat still opens.
+      app.openChatFromNotification('hob:cto#once#prompt:older');
+      expect(chat.approval, isNotNull);
+      expect(app.pendingChat, 'cto');
+
+      app.openChatFromNotification('hob:cto#once#$ref');
+      expect(chat.approval, isNull, reason: 'answered from the notification');
+      await waitFor(() => !chat.busy);
+      app.dispose();
+    },
+  );
 
   test('legacy approval server request notifies and keeps iOS time for the '
       'running turn', () async {

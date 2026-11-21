@@ -209,6 +209,15 @@ abstract class Strings {
   /// "active 3 h ago" in words, for a chat header.
   String activeSince(DateTime t, {DateTime? now});
   String get chatMenu;
+  String get a11yPinned;
+  String get a11yUnread;
+  String messageFrom(String who);
+  String get toolsUsed;
+  String get searchInChat;
+  String get searchNone;
+  String searchCount(int at, int of);
+  String get searchOlder;
+  String get searchNewer;
   String get linkLabel;
   String get fileLabel;
   String get resizeList;
@@ -315,6 +324,7 @@ abstract class Strings {
   String get you;
   String mention(String handle);
   String memberStateLabel(String state);
+  String get memberWaits;
   String get roundCapped;
   String get continueRound;
   String turnFailed(String member, String? reason);

@@ -46,6 +46,15 @@ flutter run -d macos   # or an iOS simulator / Android device
 Enter the dashboard's address, then sign in with its username and password
 (provider `basic`).
 
+To put a numbered release build on an Android phone over adb:
+
+```bash
+tool/install_android.sh
+```
+
+The build number is the commit count, and Settings > About shows it with
+the commit and the build time, so you can tell which build is installed.
+
 ## Try it without a server
 
 `tool/demo_server.dart` serves the demo data from the screenshots on your

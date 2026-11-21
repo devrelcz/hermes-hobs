@@ -341,6 +341,24 @@ class StringsCs extends Strings {
   @override
   String get chatMenu => 'Další možnosti';
   @override
+  String get a11yPinned => 'připnutý';
+  @override
+  String get a11yUnread => 'nepřečteno';
+  @override
+  String messageFrom(String who) => '$who:';
+  @override
+  String get toolsUsed => 'Použité nástroje';
+  @override
+  String get searchInChat => 'Hledat v konverzaci';
+  @override
+  String get searchNone => 'Nic';
+  @override
+  String searchCount(int at, int of) => '$at z $of';
+  @override
+  String get searchOlder => 'Starší výskyt';
+  @override
+  String get searchNewer => 'Novější výskyt';
+  @override
   String get linkLabel => 'Odkaz';
   @override
   String get fileLabel => 'Soubor';
@@ -587,6 +605,8 @@ class StringsCs extends Strings {
   String get you => 'Ty';
   @override
   String mention(String handle) => 'Oslovit @$handle';
+  @override
+  String get memberWaits => 'čeká na tebe';
   @override
   String memberStateLabel(String state) => switch (state) {
     'queued' => 've frontě',

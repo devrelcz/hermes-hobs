@@ -406,6 +406,9 @@ class GroupAvatars extends StatelessWidget {
 }
 
 /// The members with their state; tapping one starts the draft with `@handle`.
+/// The members across the top: each face with a ring for what it is doing
+/// (green working, grey queued, red failed) and a shield when it waits for
+/// your approval, its name and state under it. Tapping one mentions it.
 class _MemberStrip extends StatelessWidget {
   const _MemberStrip({required this.chat, required this.onMention});
 
@@ -418,52 +421,125 @@ class _MemberStrip extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final s = Strings.of(context);
+    final hobs = HobsColors.of(context);
+    final asking = {
+      for (final a in chat.driver?.actions ?? const <GroupAction>[])
+        if (a.kind == 'approval') a.memberId,
+    };
     return SizedBox(
-      height: 44,
+      height: textBarHeight(context, text: 30, rest: 58),
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         children: [
           for (final m in chat.room.members)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: Builder(
-                builder: (context) {
-                  final state = chat.stateOf(m.memberId);
-                  final busy =
-                      state == MemberState.working ||
-                      state == MemberState.queued;
-                  final color = switch (state) {
-                    MemberState.working => HobsColors.of(context).working,
-                    MemberState.failed => cs.error,
-                    _ => cs.onSurfaceVariant,
-                  };
-                  return Tooltip(
+            Builder(
+              builder: (context) {
+                final state = chat.stateOf(m.memberId);
+                final waits = asking.contains(m.memberId);
+                final (ring, label, labelColor) = waits
+                    ? (hobs.lantern, s.memberWaits, hobs.lantern)
+                    : switch (state) {
+                        MemberState.working => (
+                          hobs.working,
+                          s.memberStateLabel(state.name),
+                          hobs.working,
+                        ),
+                        MemberState.queued => (
+                          cs.outline,
+                          s.memberStateLabel(state.name),
+                          cs.onSurfaceVariant,
+                        ),
+                        MemberState.failed => (
+                          cs.error,
+                          s.memberStateLabel(state.name),
+                          cs.error,
+                        ),
+                        _ => (
+                          Colors.transparent,
+                          s.memberStateLabel(state.name),
+                          cs.onSurfaceVariant,
+                        ),
+                      };
+                final name = app.memberName(m);
+                return Semantics(
+                  button: !chat.disbanded,
+                  label: '$name, $label',
+                  hint: s.mention(m.handle),
+                  excludeSemantics: true,
+                  child: Tooltip(
                     message: s.mention(m.handle),
-                    child: ActionChip(
-                      visualDensity: VisualDensity.compact,
-                      avatar: HobAvatar(
-                        hob: app.memberHob(m),
-                        size: 20,
-                        working: busy,
-                      ),
-                      label: Text.rich(
-                        TextSpan(
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: chat.disbanded ? null : () => onMention(m),
+                      child: SizedBox(
+                        width: 72,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            TextSpan(text: app.memberName(m)),
-                            TextSpan(
-                              text: ' · ${s.memberStateLabel(state.name)}',
-                              style: TextStyle(color: color),
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: ring, width: 2),
+                                  ),
+                                  child: HobAvatar(
+                                    hob: app.memberHob(m),
+                                    size: 32,
+                                    working: state == MemberState.working,
+                                  ),
+                                ),
+                                if (waits)
+                                  Positioned(
+                                    right: -4,
+                                    bottom: -4,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: BoxDecoration(
+                                        color: cs.tertiaryContainer,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: theme.scaffoldBackgroundColor,
+                                          width: 2,
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        Icons.shield_outlined,
+                                        size: 12,
+                                        color: cs.onTertiaryContainer,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: labelColor,
+                              ),
                             ),
                           ],
                         ),
-                        style: theme.textTheme.labelMedium,
                       ),
-                      onPressed: chat.disbanded ? null : () => onMention(m),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
         ],
       ),

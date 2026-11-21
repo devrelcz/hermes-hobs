@@ -241,6 +241,12 @@ class HobAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final face = this.face ?? faceOf(hob);
     final dot = size * 0.3;
+    // A face is decoration: the Hob's name always stands next to it (or in
+    // its button's tooltip), so screen readers skip it.
+    return ExcludeSemantics(child: _face(context, face, dot));
+  }
+
+  Widget _face(BuildContext context, HobFace face, double dot) {
     return SizedBox(
       width: size,
       height: size,

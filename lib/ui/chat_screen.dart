@@ -70,6 +70,84 @@ class _ChatViewState extends State<ChatView> {
   final _listKey = GlobalKey();
   bool _promptOffscreen = false;
 
+  /// Search within the chat: the typed words, the messages that hold them
+  /// (newest first) and the one on screen.
+  bool _searching = false;
+  final _query = TextEditingController();
+  final _queryFocus = FocusNode();
+  List<ChatMessage> _matches = const [];
+  int _match = 0;
+  final _matchKeys = Expando<GlobalKey>();
+
+  void _openSearch() {
+    setState(() {
+      _searching = true;
+      _query.clear();
+      _matches = const [];
+    });
+    // The composer may hold the focus: take it, or typing would go there.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _queryFocus.requestFocus();
+    });
+  }
+
+  void _closeSearch() => setState(() {
+    _searching = false;
+    _matches = const [];
+  });
+
+  void _runSearch(ChatController c) {
+    final q = _query.text.trim().toLowerCase();
+    final found = q.isEmpty
+        ? const <ChatMessage>[]
+        : [
+            for (final m in c.messages.reversed)
+              if ((m.role == ChatRole.user || m.role == ChatRole.assistant) &&
+                  m.text.toLowerCase().contains(q))
+                m,
+          ];
+    setState(() {
+      _matches = found;
+      _match = 0;
+    });
+    if (found.isNotEmpty) _reveal(found.first, older: true);
+  }
+
+  /// Steps to the next older ([delta] 1) or newer (-1) match.
+  void _step(int delta) {
+    if (_matches.isEmpty) return;
+    setState(
+      () => _match = (_match + delta + _matches.length) % _matches.length,
+    );
+    _reveal(_matches[_match], older: delta >= 0);
+  }
+
+  /// Scrolls until [m] is built, then brings it into view. The list builds
+  /// rows lazily, so a far one is reached a screen at a time.
+  Future<void> _reveal(ChatMessage m, {required bool older}) async {
+    final key = _matchKeys[m] ??= GlobalKey();
+    final still = MediaQuery.disableAnimationsOf(context);
+    for (var i = 0; i < 80 && mounted; i++) {
+      final ctx = key.currentContext;
+      if (ctx != null && ctx.mounted) {
+        await Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.4,
+          duration: still ? Duration.zero : const Duration(milliseconds: 220),
+        );
+        return;
+      }
+      if (!_scroll.hasClients) return;
+      final pos = _scroll.position;
+      // The list is reversed: older messages lie at larger offsets.
+      final next = (pos.pixels + (older ? 1 : -1) * pos.viewportDimension * 0.8)
+          .clamp(pos.minScrollExtent, pos.maxScrollExtent);
+      if (next == pos.pixels) older = !older;
+      _scroll.jumpTo(next);
+      await WidgetsBinding.instance.endOfFrame;
+    }
+  }
+
   /// The `@word` being typed and the Hobs it can become.
   ({int start, String query})? _mention;
   List<Hob> _mentionOptions = const [];
@@ -183,6 +261,8 @@ class _ChatViewState extends State<ChatView> {
   @override
   void dispose() {
     _input.dispose();
+    _query.dispose();
+    _queryFocus.dispose();
     _scroll.dispose();
     _focus.dispose();
     super.dispose();
@@ -228,75 +308,92 @@ class _ChatViewState extends State<ChatView> {
       prompt = last.attachments.map((a) => a.name).join(', ');
     }
     return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: textBarHeight(context, text: 38, rest: 18),
-        automaticallyImplyLeading: !widget.embedded,
-        titleSpacing: widget.embedded ? 16 : 0,
-        title: Row(
-          children: [
-            Tooltip(
-              message: s.editHob(c.hob.displayName),
-              child: InkResponse(
-                onTap: () => HobDetailScreen.open(context, c.hob),
-                radius: 24,
-                child: HobHero(
-                  name: c.hob.name,
-                  enabled: !widget.embedded,
-                  child: HobAvatar(hob: c.hob, size: 30, working: working),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: _searching
+          ? _searchBar(c, s, theme)
+          : AppBar(
+              toolbarHeight: textBarHeight(context, text: 38, rest: 18),
+              automaticallyImplyLeading: !widget.embedded,
+              titleSpacing: widget.embedded ? 16 : 0,
+              title: Row(
                 children: [
-                  Text(c.hob.displayName, overflow: TextOverflow.ellipsis),
-                  Text(
-                    _subtitle(c, s),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: c.busy
-                          ? HobsColors.of(context).working
-                          : theme.colorScheme.onSurfaceVariant,
+                  Tooltip(
+                    message: s.editHob(c.hob.displayName),
+                    child: InkResponse(
+                      onTap: () => HobDetailScreen.open(context, c.hob),
+                      radius: 24,
+                      child: HobHero(
+                        name: c.hob.name,
+                        enabled: !widget.embedded,
+                        child: HobAvatar(
+                          hob: c.hob,
+                          size: 30,
+                          working: working,
+                        ),
+                      ),
                     ),
-                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          c.hob.displayName,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          _subtitle(c, s),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: c.busy
+                                ? HobsColors.of(context).working
+                                : theme.colorScheme.onSurfaceVariant,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-        actions: [
-          PopupMenuButton<String>(
-            tooltip: s.chatMenu,
-            position: PopupMenuPosition.under,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            onSelected: (v) {
-              if (v == 'cron') showCronSheet(context, c.hob);
-              if (v == 'profile') HobDetailScreen.open(context, c.hob);
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'profile',
-                child: _MenuLine(
-                  icon: Icons.badge_outlined,
-                  label: s.hobProfile,
+              actions: [
+                PopupMenuButton<String>(
+                  tooltip: s.chatMenu,
+                  position: PopupMenuPosition.under,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  onSelected: (v) {
+                    if (v == 'search') _openSearch();
+                    if (v == 'cron') showCronSheet(context, c.hob);
+                    if (v == 'profile') HobDetailScreen.open(context, c.hob);
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'search',
+                      child: _MenuLine(
+                        icon: Icons.search,
+                        label: s.searchInChat,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'profile',
+                      child: _MenuLine(
+                        icon: Icons.badge_outlined,
+                        label: s.hobProfile,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'cron',
+                      child: _MenuLine(
+                        icon: Icons.event_repeat_outlined,
+                        label: s.scheduledJobs,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              PopupMenuItem(
-                value: 'cron',
-                child: _MenuLine(
-                  icon: Icons.event_repeat_outlined,
-                  label: s.scheduledJobs,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
+                const SizedBox(width: 4),
+              ],
+            ),
       body: Column(
         children: [
           // Offline, the bar above the app already says why.
@@ -419,6 +516,74 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
+  /// The header while searching: the field, how many found and which one,
+  /// and arrows to the older and newer hits.
+  PreferredSizeWidget _searchBar(ChatController c, Strings s, ThemeData theme) {
+    final n = _matches.length;
+    final typed = _query.text.trim().isNotEmpty;
+    return AppBar(
+      toolbarHeight: textBarHeight(context, text: 38, rest: 18),
+      leading: IconButton(
+        tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+        icon: const Icon(Icons.close),
+        onPressed: _closeSearch,
+      ),
+      titleSpacing: 0,
+      title: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): _closeSearch,
+          const SingleActivator(LogicalKeyboardKey.enter): () => _step(1),
+          const SingleActivator(LogicalKeyboardKey.enter, shift: true): () =>
+              _step(-1),
+        },
+        child: TextField(
+          controller: _query,
+          focusNode: _queryFocus,
+          autofocus: true,
+          textInputAction: TextInputAction.search,
+          onChanged: (_) => _runSearch(c),
+          onSubmitted: (_) => _step(1),
+          decoration: InputDecoration(
+            hintText: s.searchInChat,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            filled: false,
+            isDense: true,
+          ),
+        ),
+      ),
+      actions: [
+        if (typed)
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Center(
+              child: Semantics(
+                liveRegion: true,
+                child: Text(
+                  n == 0 ? s.searchNone : s.searchCount(_match + 1, n),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        IconButton(
+          tooltip: s.searchOlder,
+          onPressed: n > 1 ? () => _step(1) : null,
+          icon: const Icon(Icons.keyboard_arrow_up),
+        ),
+        IconButton(
+          tooltip: s.searchNewer,
+          onPressed: n > 1 ? () => _step(-1) : null,
+          icon: const Icon(Icons.keyboard_arrow_down),
+        ),
+        const SizedBox(width: 4),
+      ],
+    );
+  }
+
   String _subtitle(ChatController c, Strings s) {
     if (c.phase == ChatPhase.starting) return s.openingChat;
     if (c.busy) return s.workingOn(c.statusText);
@@ -497,6 +662,8 @@ class _ChatViewState extends State<ChatView> {
             i -= 1;
           }
           final m = items[i];
+          final hit = _matches.contains(m);
+          final current = hit && identical(_matches[_match], m);
           final row = _MessageRow(
             key: i == newestUser ? _lastUserKey : null,
             message: items[i],
@@ -511,10 +678,31 @@ class _ChatViewState extends State<ChatView> {
           );
           // Just written or just started: it slides in. Older rows built
           // again by scrolling stay put.
-          final shown =
+          final fresh =
               DateTime.now().difference(m.time) < const Duration(seconds: 2)
               ? AppearIn(key: ValueKey(m), child: row)
               : row;
+          // A search hit: keyed so the search can scroll to it, and lit
+          // while it is the current one.
+          final shown = !hit
+              ? fresh
+              : KeyedSubtree(
+                  key: _matchKeys[m] ??= GlobalKey(),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    decoration: BoxDecoration(
+                      // Only the hit on screen is lit; the bar counts the rest.
+                      color: current
+                          ? theme.colorScheme.tertiaryContainer.withValues(
+                              alpha: 0.7,
+                            )
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: fresh,
+                  ),
+                );
           // The first message of a day carries the day above it (the list
           // runs newest first, so "first" is the next item's neighbour).
           final older = i + 1 < items.length ? items[i + 1] : null;
@@ -692,6 +880,15 @@ class _MessageRow extends StatefulWidget {
 class _MessageRowState extends State<_MessageRow> {
   bool _hover = false;
 
+  /// [child] read as one message, its author first.
+  static Widget _spoken(BuildContext context, String who, Widget child) =>
+      MergeSemantics(
+        child: Semantics(
+          label: Strings.of(context).messageFrom(who),
+          child: child,
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final message = widget.message;
@@ -703,55 +900,60 @@ class _MessageRowState extends State<_MessageRow> {
     switch (message.role) {
       case ChatRole.user:
         // Your side of the conversation: on the right, never full width,
-        // the corner nearest the composer a little sharper.
-        return Padding(
-          padding: const EdgeInsets.only(top: 14, bottom: 6),
-          child: LayoutBuilder(
-            builder: (context, box) => Align(
-              alignment: Alignment.centerRight,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: (box.maxWidth * 0.82).clamp(0, 620),
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
+        // the corner nearest the composer a little sharper. A screen
+        // reader hears who wrote it first.
+        return _spoken(
+          context,
+          Strings.of(context).you,
+          Padding(
+            padding: const EdgeInsets.only(top: 14, bottom: 6),
+            child: LayoutBuilder(
+              builder: (context, box) => Align(
+                alignment: Alignment.centerRight,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: (box.maxWidth * 0.82).clamp(0, 620),
                   ),
-                  decoration: BoxDecoration(
-                    color: cs.primaryContainer,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(18),
-                      topRight: Radius.circular(18),
-                      bottomLeft: Radius.circular(18),
-                      bottomRight: Radius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (message.attachments.isNotEmpty)
-                        Padding(
-                          padding: EdgeInsets.only(
-                            bottom: message.text.isEmpty ? 0 : 8,
+                    decoration: BoxDecoration(
+                      color: cs.primaryContainer,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(18),
+                        topRight: Radius.circular(18),
+                        bottomLeft: Radius.circular(18),
+                        bottomRight: Radius.circular(6),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (message.attachments.isNotEmpty)
+                          Padding(
+                            padding: EdgeInsets.only(
+                              bottom: message.text.isEmpty ? 0 : 8,
+                            ),
+                            child: MessageAttachments(
+                              attachments: message.attachments,
+                              profile: controller.hob.name,
+                            ),
                           ),
-                          child: MessageAttachments(
-                            attachments: message.attachments,
-                            profile: controller.hob.name,
+                        if (message.text.isNotEmpty)
+                          Text.rich(
+                            _withMentions(
+                              message.text,
+                              controller,
+                              const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: cs.onPrimaryContainer,
+                            ),
                           ),
-                        ),
-                      if (message.text.isNotEmpty)
-                        Text.rich(
-                          _withMentions(
-                            message.text,
-                            controller,
-                            const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: cs.onPrimaryContainer,
-                          ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -823,11 +1025,12 @@ class _MessageRowState extends State<_MessageRow> {
             ],
           ),
         );
-        if (widget.meta != _Meta.onHover) return body;
+        final spoken = _spoken(context, controller.hob.displayName, body);
+        if (widget.meta != _Meta.onHover) return spoken;
         return MouseRegion(
           onEnter: (_) => setState(() => _hover = true),
           onExit: (_) => setState(() => _hover = false),
-          child: body,
+          child: spoken,
         );
       case ChatRole.activity:
         return _ActivityRow(
@@ -918,47 +1121,52 @@ class _ActivityRow extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            InkWell(
-              onTap: onToggle,
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainer,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (running)
-                      const SizedBox(
-                        width: 13,
-                        height: 13,
-                        child: CircularProgressIndicator(strokeWidth: 1.6),
-                      )
-                    else
+            Semantics(
+              button: true,
+              expanded: message.expanded,
+              label: Strings.of(context).toolsUsed,
+              child: InkWell(
+                onTap: onToggle,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainer,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (running)
+                        const SizedBox(
+                          width: 13,
+                          height: 13,
+                          child: CircularProgressIndicator(strokeWidth: 1.6),
+                        )
+                      else
+                        Icon(
+                          failed ? Icons.error_outline : Icons.build_outlined,
+                          size: 14,
+                          color: failed ? cs.error : cs.outline,
+                        ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          _summary(Strings.of(context)),
+                          style: muted,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
                       Icon(
-                        failed ? Icons.error_outline : Icons.build_outlined,
-                        size: 14,
-                        color: failed ? cs.error : cs.outline,
+                        message.expanded
+                            ? Icons.expand_less
+                            : Icons.chevron_right,
+                        size: 16,
+                        color: cs.outline,
                       ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        _summary(Strings.of(context)),
-                        style: muted,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(width: 2),
-                    Icon(
-                      message.expanded
-                          ? Icons.expand_less
-                          : Icons.chevron_right,
-                      size: 16,
-                      color: cs.outline,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1033,27 +1241,30 @@ class _TypingRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 13,
-            height: 13,
-            child: CircularProgressIndicator(strokeWidth: 1.6),
-          ),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Text(
-              status ?? Strings.of(context).thinking,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+    return Semantics(
+      liveRegion: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 13,
+              height: 13,
+              child: CircularProgressIndicator(strokeWidth: 1.6),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                status ?? Strings.of(context).thinking,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

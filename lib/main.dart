@@ -9,6 +9,7 @@ import 'l10n/strings.dart';
 import 'state/app_state.dart';
 import 'state/network_status.dart';
 import 'state/share_inbox.dart';
+import 'ui/avatar_bitmap.dart';
 import 'ui/hobs_screen.dart';
 import 'ui/lock_screen.dart';
 import 'ui/offline_bar.dart';
@@ -31,7 +32,12 @@ void main() {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AppState()..init()),
+        ChangeNotifierProvider(
+          // Notifications carry the Hob's face, drawn off screen.
+          create: (_) => AppState()
+            ..faceBitmap = AvatarBitmaps.of
+            ..init(),
+        ),
         // Shares from other apps wait here for the Hob list (see HobsScreen).
         ChangeNotifierProvider(create: (_) => ShareInbox()..start()),
         // No internet: a bar asks to turn it on (see OfflineGate). When it

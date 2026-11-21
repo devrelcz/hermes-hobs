@@ -1503,8 +1503,16 @@ class AppState extends ChangeNotifier {
   /// when they are looking at that chat right now.
   bool _chatVisible(String hob) => appActive && !locked && openHob == hob;
 
+  /// Draws a Hob's face as PNG for its notifications; set by the app (the
+  /// state layer knows no widgets). Null leaves notifications without it.
+  Future<Uint8List?> Function(Hob hob)? faceBitmap;
+
   void _onAlert(Hob hob, HobAlert alert) {
     if (!notificationsEnabled || _chatVisible(hob.name)) return;
+    unawaited(_showAlert(hob, alert));
+  }
+
+  Future<void> _showAlert(Hob hob, HobAlert alert) async {
     final s = Strings.current;
     final preview = notificationPreview(alert.text);
     final body = switch (alert.kind) {
@@ -1512,15 +1520,22 @@ class AppState extends ChangeNotifier {
       AlertKind.approval => s.notifyApproval(preview),
       AlertKind.clarify => s.notifyClarify(preview),
     };
-    unawaited(
-      _notifier.show(
-        key: NotifyTarget.hob(hob.name).key,
-        title: hob.displayName,
-        body: body,
-        blocking: alert.blocking,
-      ),
-    );
+    Uint8List? face;
+    try {
+      // A face that takes long is left out rather than holding the alert.
+      face = await faceBitmap
+          ?.call(hob)
+          .timeout(const Duration(seconds: 2), onTimeout: () => null);
+    } catch (_) {}
     if (alert.kind == AlertKind.reply) _releaseBackgroundTime();
+    await _notifier.show(
+      key: NotifyTarget.hob(hob.name).key,
+      title: hob.displayName,
+      body: body,
+      blocking: alert.blocking,
+      face: face,
+      approve: alert.kind == AlertKind.approval ? alert.id : null,
+    );
   }
 
   bool _groupVisible(String roomId) =>
@@ -1728,8 +1743,18 @@ class AppState extends ChangeNotifier {
 
   /// The user tapped a notification ([NotifyTarget.key]): open that Hob's
   /// or group's chat as soon as the app is unlocked.
+  /// A tapped notification (`<target>`), or a pressed button on one
+  /// (`<target>#<choice>#<request id>`): the chat opens either way; the
+  /// button also answers that request, if it still waits and the app is
+  /// unlocked (a locked app shows the request once unlocked instead).
   void openChatFromNotification(String payload) {
-    _setPending(payload);
+    final parts = payload.split('#');
+    _setPending(parts.first);
+    if (parts.length == 3 && !locked) {
+      final target = NotifyTarget.parse(parts.first);
+      final chat = target == null || target.isGroup ? null : _chats[target.id];
+      chat?.answerApprovalFor(parts[2], parts[1]);
+    }
     notifyListeners();
   }
 
