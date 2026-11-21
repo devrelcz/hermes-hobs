@@ -1,8 +1,9 @@
 # Hermes Hobs
 
-Talk to your Hobs from your phone or your Mac.
+Talk to your Hobs from wherever you are.
 
-Hermes Hobs is a Flutter app for iOS, Android and macOS. It signs in to a
+Hermes Hobs is a Flutter app. It ships for iOS, Android and macOS, and the same
+code can be built for Windows and Linux too. It signs in to a
 Hermes Agent dashboard at the address you enter, where each
 **profile** is a Hob, and gives every Hob its own chat.
 
