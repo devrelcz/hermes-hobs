@@ -7,6 +7,13 @@ code can be built for Windows and Linux too. It signs in to a
 Hermes Agent dashboard at the address you enter, where each
 **profile** is a Hob, and gives every Hob its own chat.
 
+<a href="https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80" alt="Get it on Google Play"></a>
+
+The Android app is on [Google Play](https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs).
+No server yet? [Try the demo](#try-it-without-a-server). The
+[privacy policy](docs/privacy-policy.md) explains what the app does with your
+data.
+
 <p>
   <img src="docs/screenshots/hobs.png" width="200" alt="Hob list with folders, pinned Hobs and a group chat">
   <img src="docs/screenshots/chat.png" width="200" alt="Chat with a Hob, showing tool calls and a formatted reply">
