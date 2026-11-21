@@ -175,7 +175,8 @@ void main() {
     tester.platformDispatcher.localesTestValue = const [Locale('en')];
     addTearDown(tester.platformDispatcher.clearLocalesTestValue);
     seed(lock: true, autoLogin: false);
-    final app = AppState(biometrics: FakeBiometrics());
+    final biometrics = FakeBiometrics();
+    final app = AppState(biometrics: biometrics);
     await tester.runAsync(app.init);
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
@@ -191,6 +192,15 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    // The saved account comes first, signed in through Face ID; backing
+    // out of the prompt opens its form.
+    expect(find.text('Saved accounts'), findsOneWidget);
+    expect(find.byIcon(Icons.face_outlined), findsOneWidget);
+    biometrics.nextFailure = BiometricFailure.cancelled;
+    await tester.tap(find.text(server.baseUrl.host));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    expect(biometrics.prompts, 1);
     expect(find.text('Sign in with Face ID'), findsOneWidget);
     final password = tester.widget<EditableText>(
       find.descendant(

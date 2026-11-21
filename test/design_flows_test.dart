@@ -147,7 +147,12 @@ void main() {
     await pumpList(tester, signedIn());
     final cs = Theme.of(tester.element(find.byType(HobsScreen))).colorScheme;
     expect(dotColor(tester), cs.error);
-    expect(find.byTooltip('Účet: Odpojeno'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Tooltip && w.message!.endsWith(', Odpojeno'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the avatar dot is green once connected', (tester) async {
@@ -178,7 +183,12 @@ void main() {
     );
     await tester.pump();
     expect(dotColor(tester), HobsColors.light.working);
-    expect(find.byTooltip('Účet: Připojeno'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is Tooltip && w.message!.endsWith(', Připojeno'),
+      ),
+      findsOneWidget,
+    );
     await tester.runAsync(() async {
       app.dispose();
       await server.stop();

@@ -74,6 +74,11 @@ class FakeNotifier implements Notifier {
 
   @override
   Future<void> clear(String key) async => cleared.add(key);
+
+  int clearedAll = 0;
+
+  @override
+  Future<void> clearAll() async => clearedAll++;
 }
 
 class FakeBackgroundTime extends BackgroundTime {

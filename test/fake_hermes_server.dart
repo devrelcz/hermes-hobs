@@ -12,6 +12,9 @@ class FakeHermesServer {
   bool capabilitiesAnnounced = false;
   int sessionCounter = 0;
 
+  /// Successful password sign-ins.
+  int passwordLogins = 0;
+
   /// Speak the canonical session-authority dialect (gateway Webapp): strict
   /// params, prompts as events, generation-fenced controls.
   bool canonical = false;
@@ -401,6 +404,7 @@ class FakeHermesServer {
       if (body['provider'] == 'basic' &&
           body['username'] == 'u' &&
           body['password'] == 'p') {
+        passwordLogins++;
         return _json(
           r,
           200,

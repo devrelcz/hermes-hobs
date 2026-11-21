@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/biometrics.dart';
+import 'accounts_ui.dart';
 import 'format.dart';
 import 'lock_screen.dart';
 import 'sheets.dart';
@@ -37,6 +38,29 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
         children: [
+          _Group(
+            title: s.accounts,
+            children: [
+              if (app.activeAccount case final active?)
+                ListTile(
+                  leading: AccountBadge(account: active),
+                  title: Text(active.label, overflow: TextOverflow.ellipsis),
+                  subtitle: Text(
+                    accountLine(active),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ListTile(
+                leading: const Icon(Icons.manage_accounts_outlined),
+                title: Text(s.manageAccounts),
+                trailing: Text(
+                  '${app.accounts.length}',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                onTap: () => AccountsScreen.open(context),
+              ),
+            ],
+          ),
           // Shown while it is on even without a biometric, so it can be
           // turned off after the face or finger was removed.
           if (app.biometricKind != null || app.biometricLock)

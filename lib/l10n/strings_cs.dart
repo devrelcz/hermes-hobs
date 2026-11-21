@@ -97,6 +97,63 @@ class StringsCs extends Strings {
   @override
   String get signOut => 'Odhlásit';
   @override
+  String get accounts => 'Účty';
+  @override
+  String get addServer => 'Přidat server';
+  @override
+  String get manageAccounts => 'Spravovat účty';
+  @override
+  String signOutFrom(String name) => 'Odhlásit z $name';
+  @override
+  String get accountName => 'Název účtu';
+  @override
+  String get accountNameHint => 'např. Doma, Práce';
+  @override
+  String get accountColor => 'Barva';
+  @override
+  String accountColorName(int i) => const [
+    'zelená',
+    'fialová',
+    'oranžová',
+    'modrá',
+    'růžová',
+    'jantarová',
+  ][i % 6];
+  @override
+  String get signInAndSwitch => 'Přihlásit a přepnout';
+  @override
+  String get addServerHint => 'Účet se uloží, až se přihlášení povede.';
+  @override
+  String get otherServer => 'Jiný server';
+  @override
+  String get savedAccounts => 'Uložené účty';
+  @override
+  String switchedTo(String name) => 'Přepnuto na $name';
+  @override
+  String get editAccount => 'Upravit účet';
+  @override
+  String get newPassword => 'Nové heslo';
+  @override
+  String get newPasswordHint => 'Prázdné ponechá uložené heslo.';
+  @override
+  String get accountSaved => 'Účet uložen';
+  @override
+  String get removeAccount => 'Odebrat účet';
+  @override
+  String removeAccountTitle(String name) => 'Odebrat $name?';
+  @override
+  String get removeAccountBody =>
+      'Z tohoto zařízení zmizí uložené heslo a přihlášení. Hobíci na serveru zůstanou.';
+  @override
+  String get remove => 'Odebrat';
+  @override
+  String get accountActive => 'Aktivní';
+  @override
+  String get accountsHint =>
+      'Připojený je jen aktivní účet a jen ten posílá upozornění.';
+  @override
+  String get dragToReorder => 'Přetažením změníte pořadí';
+  @override
   String get searchHobs => 'Hledat Hobíky';
   @override
   String get clearSearch => 'Vymazat hledání';
