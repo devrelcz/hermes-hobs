@@ -248,6 +248,12 @@ class FakeHermesServer {
   /// Profile-wide `approvals.mode` served by `config.get`.
   String approvalMode = 'manual';
 
+  /// Profile names sent to `DELETE /api/profiles/<name>`, in order.
+  final List<String> deletedProfiles = [];
+
+  /// Answers profile deletes with an error, leaving the roster as it is.
+  bool refuseDelete = false;
+
   /// Rows returned by `profiles.list` (RPC) and `/api/profiles` (REST).
   List<Map<String, dynamic>> roster = [
     {
@@ -477,6 +483,17 @@ class FakeHermesServer {
           'profile_home': home,
         },
       });
+    }
+    if (path.startsWith('/api/profiles/') && r.method == 'DELETE') {
+      final name = Uri.decodeComponent(path.substring('/api/profiles/'.length));
+      deletedProfiles.add(name);
+      if (refuseDelete) return _json(r, 409, {'detail': 'gateway busy'});
+      final before = roster.length;
+      roster.removeWhere((row) => row['name'] == name);
+      if (roster.length == before) {
+        return _json(r, 404, {'detail': "Profile '$name' does not exist."});
+      }
+      return _json(r, 200, {'ok': true, 'path': '/profiles/$name'});
     }
     if (path == '/api/fs/download' && r.method == 'GET') {
       final p = r.uri.queryParameters['path'] ?? '';

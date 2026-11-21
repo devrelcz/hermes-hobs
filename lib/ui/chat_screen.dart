@@ -9,6 +9,7 @@ import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/chat_controller.dart';
 import '../state/composer_draft.dart';
+import 'sheets.dart';
 import 'attachments_ui.dart';
 import '../state/mentions.dart';
 import 'hob_avatar.dart';
@@ -245,15 +246,11 @@ class _ChatViewState extends State<ChatView> {
           if (c.connection != ConnectionStatus.connected &&
               c.phase != ChatPhase.starting &&
               !isOffline(context))
-            MaterialBanner(
-              content: Text(s.connectionLost),
-              leading: const Icon(Icons.wifi_off),
-              actions: [
-                TextButton(
-                  onPressed: () => context.read<AppState>().onAppResumed(),
-                  child: Text(s.reconnectNow),
-                ),
-              ],
+            InlineBanner(
+              icon: Icons.wifi_off,
+              message: s.connectionLost,
+              actionLabel: s.reconnectNow,
+              onAction: () => context.read<AppState>().onAppResumed(),
             ),
           if (prompt != null && c.messages.length > 2)
             _PinnedPrompt(

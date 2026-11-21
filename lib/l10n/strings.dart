@@ -87,6 +87,8 @@ abstract class Strings {
   String get signOut;
   String get searchHobs;
   String get clearSearch;
+  String get searchModels;
+  String get noModelMatches;
   String get retry;
   String get noHobs;
   String get noMatches;
@@ -120,6 +122,11 @@ abstract class Strings {
   String hobHidden(String hob);
   String get undo;
   String get hobChangeFailed;
+  String get deleteHob;
+  String deleteHobTitle(String hob);
+  String get deleteHobMessage;
+  String hobDeleted(String hob);
+  String hobDeleteFailed(String reason);
 
   // --- hob profile ---------------------------------------------------------
   String get hobProfile;

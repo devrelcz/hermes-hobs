@@ -56,6 +56,25 @@ void main() {
       'shape': 'circle',
     };
 
+    test('delete removes the hob on the server and from the list', () async {
+      final name = server.roster
+          .map((r) => r['name'] as String)
+          .firstWhere((n) => n != 'default');
+      await app.deleteHob(hob(name));
+      expect(server.deletedProfiles, [name]);
+      expect(app.hobNamed(name), isNull);
+      expect(server.roster.any((r) => r['name'] == name), isFalse);
+    });
+
+    test('a refused delete keeps the hob', () async {
+      final name = server.roster
+          .map((r) => r['name'] as String)
+          .firstWhere((n) => n != 'default');
+      server.refuseDelete = true;
+      await expectLater(app.deleteHob(hob(name)), throwsA(anything));
+      expect(app.hobNamed(name), isNotNull);
+    });
+
     test('pin and unpin send the whole block back', () async {
       await app.setHobPinned(hob('default'), true);
       expect(meta('default'), {'pinned': true});
@@ -167,16 +186,17 @@ void main() {
       );
     }
 
-    testWidgets('long-press opens a sheet on phones', (tester) async {
+    testWidgets('long-press opens a popover on phones too', (tester) async {
       final app = offline();
       await pump(tester, app, const Size(400, 800));
 
       await tester.longPress(find.text('CTO'));
       await tester.pumpAndSettle();
-      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(find.byType(BottomSheet), findsNothing);
       expect(find.text('Připnout'), findsOneWidget);
       expect(find.text('Skrýt'), findsOneWidget);
       expect(find.text('Přesunout do složky'), findsOneWidget);
+      expect(find.text('Smazat'), findsOneWidget);
 
       await tester.tap(find.text('Přesunout do složky'));
       await tester.pumpAndSettle();
@@ -194,6 +214,40 @@ void main() {
         findsOneWidget,
       );
       expect(app.hobNamed('cto')!.sectionName, 'Vibee.one');
+    });
+
+    testWidgets('delete asks in a sheet and keeps the hob when refused', (
+      tester,
+    ) async {
+      final app = offline();
+      await pump(tester, app, const Size(400, 800));
+
+      await tester.longPress(find.text('Dev'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Smazat'));
+      await tester.pumpAndSettle();
+      expect(find.text('Smazat Hobíka Dev?'), findsOneWidget);
+
+      // Backing out deletes nothing.
+      await tester.tap(find.text('Zrušit'));
+      await tester.pumpAndSettle();
+      expect(find.text('Smazat Hobíka Dev?'), findsNothing);
+      expect(app.hobNamed('dev'), isNotNull);
+
+      await tester.longPress(find.text('Dev'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Smazat'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Smazat'));
+      await tester.pumpAndSettle();
+      // Offline: the server never saw it, the hob stays.
+      expect(
+        find.text(
+          'Hobíka se nepodařilo smazat: Aplikace není připojená k serveru.',
+        ),
+        findsOneWidget,
+      );
+      expect(app.hobNamed('dev'), isNotNull);
     });
 
     testWidgets('right-click opens a popup menu', (tester) async {

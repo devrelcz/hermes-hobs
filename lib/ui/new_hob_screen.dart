@@ -7,16 +7,21 @@ import '../api/models.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import 'hob_avatar.dart';
+import 'sheets.dart';
 
 /// A page that asks for a new Hob's name, handle and description and creates
-/// it, laid out like the Hob profile.
+/// it, laid out like the Hob profile. A full-screen sheet on phones, a large
+/// dialog on wide screens.
 class NewHobScreen extends StatefulWidget {
   const NewHobScreen({super.key});
 
-  /// Pushes the page. Returns the new Hob, or null when the user backed out.
-  static Future<Hob?> open(BuildContext context) =>
-      Navigator.of(context)
-          .push<Hob>(MaterialPageRoute(builder: (_) => const NewHobScreen()));
+  /// Opens the sheet. Returns the new Hob, or null when the user backed out.
+  static Future<Hob?> open(BuildContext context) => showScreenSheet<Hob>(
+    context,
+    kind: SheetKind.fullscreen,
+    guarded: true,
+    builder: (_) => const NewHobScreen(),
+  );
 
   @override
   State<NewHobScreen> createState() => _NewHobScreenState();
@@ -116,23 +121,14 @@ class _NewHobScreenState extends State<NewHobScreen> {
   Future<void> _askDiscard() async {
     final s = Strings.of(context);
     final navigator = Navigator.of(context);
-    final discard = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(s.discardChangesTitle),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(s.discardChanges),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(s.keepEditing),
-          ),
-        ],
-      ),
+    final discard = await showConfirmSheet(
+      context,
+      title: s.discardChangesTitle,
+      confirmLabel: s.discardChanges,
+      cancelLabel: s.keepEditing,
+      destructive: true,
     );
-    if (discard == true && mounted) navigator.pop();
+    if (discard && mounted) navigator.pop();
   }
 
   @override
@@ -157,6 +153,7 @@ class _NewHobScreenState extends State<NewHobScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
+          leading: inSheet(context) ? const CloseButton() : null,
           title: Text(s.newHob),
           actions: [
             Padding(

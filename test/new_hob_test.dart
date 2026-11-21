@@ -190,9 +190,9 @@ void main() {
       );
     });
 
-    testWidgets('backing out of a filled page asks first', (tester) async {
+    testWidgets('closing a filled sheet asks first', (tester) async {
       await openPage(tester);
-      await tester.pageBack();
+      await tester.tap(find.byType(CloseButton));
       await tester.pumpAndSettle();
       expect(find.byType(NewHobScreen), findsNothing);
 
@@ -200,7 +200,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.widgetWithText(TextField, 'Jméno'), 'Péťa');
       await tester.pump();
-      await tester.pageBack();
+      await tester.tap(find.byType(CloseButton));
       await tester.pumpAndSettle();
       expect(find.text('Zahodit neuložené změny?'), findsOne);
       await tester.tap(find.text('Zahodit'));
