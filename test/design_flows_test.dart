@@ -7,8 +7,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hobs/api/models.dart';
 import 'package:hobs/state/app_state.dart';
+import 'package:hobs/ui/format.dart';
 import 'package:hobs/ui/hobs_screen.dart';
 import 'package:hobs/ui/new_hob_screen.dart';
+import 'package:hobs/ui/settings_screen.dart';
 import 'package:hobs/ui/sheets.dart';
 import 'package:hobs/ui/theme.dart';
 import 'package:provider/provider.dart';
@@ -172,5 +174,57 @@ void main() {
       app.dispose();
       await server.stop();
     });
+  });
+
+  test('days between messages are named like people say them', () {
+    final now = DateTime(2026, 11, 21, 18); // a Saturday
+    expect(dayLabel(DateTime(2026, 11, 21, 8), now: now), 'Dnes');
+    expect(dayLabel(DateTime(2026, 11, 20, 23), now: now), 'Včera');
+    expect(dayLabel(DateTime(2026, 11, 17, 9), now: now), 'Úterý');
+    expect(dayLabel(DateTime(2026, 11, 2, 9), now: now), '2. 11.');
+    expect(dayLabel(DateTime(2025, 12, 24, 9), now: now), '24. 12. 2025');
+  });
+
+  testWidgets('swiping a Hob right pins it, left hides it', (tester) async {
+    SharedPreferences.setMockInitialValues({'welcomeSeen': true});
+    final app = signedIn();
+    await pumpList(tester, app);
+    // Offline: the write is refused, so the snackbar proves the swipe ran.
+    await tester.fling(find.text('Dev'), const Offset(300, 0), 1200);
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Změnu se nepodařilo uložit. Zkuste to znovu.'),
+      findsOneWidget,
+    );
+    expect(find.text('Dev'), findsOneWidget, reason: 'the row springs back');
+
+    // Left: the hide is tried (and, offline, refused and rolled back).
+    final shown = <String>[];
+    await tester.fling(find.text('Pošta'), const Offset(-300, 0), 1200);
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      for (final w in tester.widgetList<SnackBar>(find.byType(SnackBar))) {
+        final c = w.content;
+        if (c is Text) shown.add(c.data ?? '');
+      }
+    }
+    expect(shown, contains('Pošta je skrytý'));
+    expect(app.hobNamed('posta')!.hidden, isFalse);
+  });
+
+  testWidgets('settings end with the app version and the licenses', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: signedIn()..username = 'daniel',
+        child: const MaterialApp(home: SettingsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Licence'), 200);
+    expect(find.text('O aplikaci'), findsOneWidget);
+    expect(find.text('Přihlášen jako'), findsOneWidget);
+    expect(find.text('daniel'), findsOneWidget);
   });
 }

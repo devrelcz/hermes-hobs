@@ -136,7 +136,11 @@ the window width; wide starts at 700 points):
 | A Hob asks for approval or a question | card above the composer | same |
 | First sign-in on a device | welcome sheet, once | dialog |
 
-In a chat your messages sit on the right, the Hob's answers on the left.
+In a chat your messages sit on the right, the Hob's answers on the left,
+with the day (Today, Yesterday, a weekday, a date) between days. On
+phones a Hob row swipes right to pin or unpin and left to hide (with Undo).
+Settings end with About: the version, the server and account, and the
+licenses, including the bundled Geist typeface.
 The question being answered is pinned above the chat only once it scrolls
 out of view. On phones a Hob's face flies from the list into the chat's
 header; new messages slide in; sending, approving, deleting and moving a

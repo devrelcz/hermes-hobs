@@ -659,6 +659,16 @@ class StringsEn extends Strings {
   @override
   String get security => 'Security';
   @override
+  String get about => 'About';
+  @override
+  String get appVersion => 'Version';
+  @override
+  String get signedInAs => 'Signed in as';
+  @override
+  String get licenses => 'Licenses';
+  @override
+  String get licensesHint => 'The Geist typeface and open-source libraries';
+  @override
   String get language => 'Language';
   @override
   String get languageSystem => 'Same as device';
@@ -702,6 +712,16 @@ class StringsEn extends Strings {
   String get tomorrow => 'tomorrow';
   @override
   String get yesterday => 'yesterday';
+  @override
+  String weekday(int day) => const [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ][day - 1];
 
   static const _months = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //

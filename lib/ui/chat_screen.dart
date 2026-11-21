@@ -338,16 +338,25 @@ class _ChatViewState extends State<ChatView> {
                     left: 0,
                     right: 0,
                     child: Center(
-                      child: ActionChip(
-                        avatar: const Icon(Icons.arrow_downward, size: 16),
-                        label: Text(
-                          c.messages.length > _countWhenLeft
-                              ? s.newMessages(
-                                  c.messages.length - _countWhenLeft,
-                                )
-                              : s.jumpToEnd,
+                      child: AppearIn(
+                        child: FilledButton.tonalIcon(
+                          style: FilledButton.styleFrom(
+                            elevation: 3,
+                            shadowColor: theme.colorScheme.shadow.withValues(
+                              alpha: 0.3,
+                            ),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: _jumpToBottom,
+                          icon: const Icon(Icons.arrow_downward, size: 18),
+                          label: Text(
+                            c.messages.length > _countWhenLeft
+                                ? s.newMessages(
+                                    c.messages.length - _countWhenLeft,
+                                  )
+                                : s.jumpToEnd,
+                          ),
                         ),
-                        onPressed: _jumpToBottom,
                       ),
                     ),
                   ),
@@ -502,9 +511,22 @@ class _ChatViewState extends State<ChatView> {
           );
           // Just written or just started: it slides in. Older rows built
           // again by scrolling stay put.
-          return DateTime.now().difference(m.time) < const Duration(seconds: 2)
+          final shown =
+              DateTime.now().difference(m.time) < const Duration(seconds: 2)
               ? AppearIn(key: ValueKey(m), child: row)
               : row;
+          // The first message of a day carries the day above it (the list
+          // runs newest first, so "first" is the next item's neighbour).
+          final older = i + 1 < items.length ? items[i + 1] : null;
+          if (older != null && sameDay(older.time, m.time)) return shown;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DaySeparator(label: dayLabel(m.time)),
+              shown,
+            ],
+          );
         },
       ),
     );
