@@ -20,5 +20,5 @@ flutter build apk --release \
   --dart-define=GIT_SHA="$SHA" \
   --dart-define=BUILD_TIME="$STAMP"
 adb install -r build/app/outputs/flutter-apk/app-release.apk
-adb shell monkey -p cz.devrel.hobs -c android.intent.category.LAUNCHER 1 >/dev/null
+adb shell monkey -p cz.devrel.hermeshobs -c android.intent.category.LAUNCHER 1 >/dev/null
 echo "Installed build $BUILD ($SHA, $STAMP)."

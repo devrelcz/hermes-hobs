@@ -1,4 +1,4 @@
-package cz.devrel.hobs
+package cz.devrel.hermeshobs
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
