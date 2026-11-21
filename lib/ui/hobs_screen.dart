@@ -266,6 +266,9 @@ class _HobList extends StatefulWidget {
 class _HobListState extends State<_HobList> {
   final _search = TextEditingController();
 
+  /// The list sits under the bar: a hairline marks where the bar ends.
+  bool _scrolled = false;
+
   @override
   void initState() {
     super.initState();
@@ -296,90 +299,112 @@ class _HobListState extends State<_HobList> {
     final unread =
         app.hobs.where(app.isUnread).length +
         app.groups.where(app.isGroupUnread).length;
+    final cs = theme.colorScheme;
     return Scaffold(
       appBar: AppBar(
         centerTitle: false,
-        titleSpacing: 16,
+        titleSpacing: 20,
+        toolbarHeight: 64,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(s.hobsTitle),
+            Text(
+              s.hobsTitle,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
+                height: 1.1,
+              ),
+            ),
             _ConnectionLine(status: app.connection),
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: s.newHob,
-            onPressed: widget.onNewHob,
-            icon: const Icon(Icons.person_add_alt_outlined),
+          _NewButton(
+            groups: app.groupsSupported == true,
+            onNewHob: widget.onNewHob,
+            onNewGroup: widget.onNewGroup,
           ),
-          if (app.groupsSupported == true)
-            IconButton(
-              tooltip: s.newGroupChat,
-              onPressed: widget.onNewGroup,
-              icon: const Icon(Icons.group_add_outlined),
-            ),
+          const SizedBox(width: 8),
           _AccountButton(app: app),
-          const SizedBox(width: 4),
+          const SizedBox(width: 12),
         ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-            child: TextField(
-              controller: _search,
-              onChanged: app.setQuery,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: s.searchHobs,
-                prefixIcon: const Icon(Icons.search, size: 20),
-                suffixIcon: app.query.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () {
-                          _search.clear();
-                          app.setQuery('');
-                        },
-                      ),
-                isDense: true,
-              ),
-            ),
-          ),
-          SizedBox(
-            height: 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              children: [
-                for (final (f, label) in _filters(s))
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: ChoiceChip(
-                      label: f == HobFilter.unread && unread > 0
-                          ? _CountLabel(label: label, count: unread)
-                          : Text(label),
-                      selected: app.filter == f,
-                      onSelected: (_) => app.setFilter(f),
-                      visualDensity: VisualDensity.compact,
-                      showCheckmark: false,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(_filterBarHeight + 57),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: TextField(
+                  controller: _search,
+                  onChanged: app.setQuery,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: s.searchHobs,
+                    hintStyle: TextStyle(color: cs.onSurfaceVariant),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      size: 20,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    suffixIcon: app.query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: s.clearSearch,
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: () {
+                              _search.clear();
+                              app.setQuery('');
+                            },
+                          ),
+                    isDense: true,
+                    filled: true,
+                    fillColor: cs.surfaceContainerHigh,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    // Flat until focused: the field reads as part of the
+                    // bar, not as a form.
+                    border: _flatField,
+                    enabledBorder: _flatField,
+                    focusedBorder: _flatField.copyWith(
+                      borderSide: BorderSide(color: cs.primary, width: 1.5),
                     ),
                   ),
-              ],
-            ),
+                ),
+              ),
+              _FilterBar(
+                filters: _filters(s),
+                selected: app.filter,
+                unread: unread,
+                onSelected: app.setFilter,
+              ),
+              _ScrollEdge(visible: _scrolled),
+            ],
           ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: app.refreshHobs,
-              child: _buildBody(app, theme, s, sections),
-            ),
-          ),
-        ],
+        ),
+      ),
+      body: NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if (n.depth == 0 && n.metrics.axis == Axis.vertical) {
+            final scrolled = n.metrics.pixels > 0.5;
+            if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
+          }
+          return false;
+        },
+        child: RefreshIndicator(
+          onRefresh: app.refreshHobs,
+          child: _buildBody(app, theme, s, sections),
+        ),
       ),
     );
   }
+
+  static const _filterBarHeight = 44.0;
+
+  static final _flatField = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(14),
+    borderSide: BorderSide.none,
+  );
 
   Widget _buildBody(
     AppState app,
@@ -1252,20 +1277,181 @@ class _ConnectionLine extends StatelessWidget {
         s.disconnected,
       ),
     };
+    // Connected is the normal state and needs no words; the line only
+    // shows up when something is off, and slides away once it is fixed.
     final connected = status == ConnectionStatus.connected;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.circle, size: 8, color: color),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: connected ? theme.colorScheme.onSurfaceVariant : color,
-            fontWeight: connected ? FontWeight.w400 : FontWeight.w600,
-          ),
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 220);
+    return AnimatedSize(
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topLeft,
+      child: connected
+          ? const SizedBox(width: 0, height: 0)
+          : Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    status == ConnectionStatus.connecting
+                        ? Icons.sync
+                        : Icons.cloud_off_outlined,
+                    size: 14,
+                    color: color,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+/// One "+" for everything that can be created from the list. Without group
+/// chats on the server it goes straight to a new Hob.
+class _NewButton extends StatelessWidget {
+  const _NewButton({
+    required this.groups,
+    required this.onNewHob,
+    required this.onNewGroup,
+  });
+
+  final bool groups;
+  final VoidCallback onNewHob;
+  final VoidCallback onNewGroup;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final s = Strings.of(context);
+    final style = IconButton.styleFrom(
+      backgroundColor: cs.primary,
+      foregroundColor: cs.onPrimary,
+      fixedSize: const Size.square(40),
+    );
+    if (!groups) {
+      return IconButton(
+        tooltip: s.newHob,
+        onPressed: onNewHob,
+        style: style,
+        icon: const Icon(Icons.add),
+      );
+    }
+    return PopupMenuButton<String>(
+      tooltip: s.create,
+      position: PopupMenuPosition.under,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      style: style,
+      icon: const Icon(Icons.add),
+      onSelected: (v) => v == 'group' ? onNewGroup() : onNewHob(),
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'hob',
+          child: _MenuRow(icon: Icons.person_add_alt_outlined, label: s.newHob),
+        ),
+        PopupMenuItem(
+          value: 'group',
+          child: _MenuRow(icon: Icons.forum_outlined, label: s.newGroupChat),
         ),
       ],
+    );
+  }
+}
+
+/// Filter pills: flat and quiet, the picked one in moss. The row fades out
+/// at the right edge so it is clear there is more to scroll to.
+class _FilterBar extends StatelessWidget {
+  const _FilterBar({
+    required this.filters,
+    required this.selected,
+    required this.unread,
+    required this.onSelected,
+  });
+
+  final List<(HobFilter, String)> filters;
+  final HobFilter selected;
+  final int unread;
+  final ValueChanged<HobFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return SizedBox(
+      height: _HobListState._filterBarHeight,
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (rect) => LinearGradient(
+          colors: const [Colors.white, Colors.white, Colors.transparent],
+          stops: [0, 1 - 28 / rect.width.clamp(28, double.infinity), 1],
+        ).createShader(rect),
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(16, 2, 28, 10),
+          children: [
+            for (final (f, label) in filters)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: _filterChip(theme, cs, f, label),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip(ThemeData theme, ColorScheme cs, HobFilter f, String l) {
+    final on = f == selected;
+    return ChoiceChip(
+      label: f == HobFilter.unread && unread > 0
+          ? _CountLabel(label: l, count: unread)
+          : Text(l),
+      labelStyle: theme.textTheme.labelLarge?.copyWith(
+        color: on ? cs.onPrimary : cs.onSurfaceVariant,
+        fontWeight: on ? FontWeight.w600 : FontWeight.w500,
+      ),
+      selected: on,
+      onSelected: (_) => onSelected(f),
+      side: BorderSide.none,
+      color: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected)
+            ? cs.primary
+            : cs.surfaceContainerHigh,
+      ),
+      visualDensity: VisualDensity.compact,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+      showCheckmark: false,
+    );
+  }
+}
+
+/// Hairline under the bar, shown only while the list is scrolled under it.
+class _ScrollEdge extends StatelessWidget {
+  const _ScrollEdge({required this.visible});
+
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: visible ? 1 : 0,
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 160),
+      child: Divider(
+        height: 1,
+        thickness: 1,
+        color: Theme.of(context).colorScheme.outlineVariant,
+      ),
     );
   }
 }
@@ -1363,8 +1549,9 @@ class _AccountButton extends StatelessWidget {
           child: _MenuRow(icon: Icons.logout, label: s.signOut),
         ),
       ],
+      padding: EdgeInsets.zero,
       icon: CircleAvatar(
-        radius: 16,
+        radius: 18,
         backgroundColor: cs.primaryContainer,
         foregroundColor: cs.onPrimaryContainer,
         child: name.isEmpty

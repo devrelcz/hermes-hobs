@@ -84,6 +84,7 @@ abstract class Strings {
   String get settings;
   String get signOut;
   String get searchHobs;
+  String get clearSearch;
   String get retry;
   String get noHobs;
   String get noMatches;

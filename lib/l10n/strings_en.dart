@@ -84,6 +84,8 @@ class StringsEn extends Strings {
   @override
   String get searchHobs => 'Search Hobs';
   @override
+  String get clearSearch => 'Clear search';
+  @override
   String get retry => 'Try again';
   @override
   String get noHobs => 'This server has no Hobs yet.';
