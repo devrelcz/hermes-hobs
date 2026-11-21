@@ -23,16 +23,16 @@ class CredentialsStore {
   static const _kPassword = 'password';
   static const _kAutoLogin = 'auto_login';
   static const _kBiometricLock = 'biometric_lock';
-  static const defaultServer = 'https://hermes.devrel.cz';
 
   final FlutterSecureStorage _secure;
 
   /// Secrets that secure storage refused, kept only for this run.
   final Map<String, String> _memory = {};
 
+  /// Empty until the user signs in once; there is no default server.
   Future<String> serverUrl() async {
     final p = await SharedPreferences.getInstance();
-    return p.getString(_kServer) ?? defaultServer;
+    return p.getString(_kServer) ?? '';
   }
 
   Future<String> username() async {

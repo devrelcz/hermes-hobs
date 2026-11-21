@@ -21,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _pass = TextEditingController();
   bool _busy = false;
   bool _remember = true;
+  bool _showPassword = false;
 
   /// Built at paint time, so a language switch re-words it.
   String? Function()? _error;
@@ -130,7 +131,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       keyboardType: TextInputType.url,
                       autocorrect: false,
                       validator: (v) {
-                        final u = Uri.tryParse((v ?? '').trim());
+                        final text = (v ?? '').trim();
+                        if (text.isEmpty) return s.fieldRequired;
+                        final u = Uri.tryParse(text);
                         if (u == null ||
                             !(u.scheme == 'https' || u.scheme == 'http') ||
                             u.host.isEmpty) {
@@ -157,8 +160,20 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: InputDecoration(
                         labelText: s.passwordLabel,
                         prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _showPassword
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                          ),
+                          tooltip: _showPassword
+                              ? s.hidePassword
+                              : s.showPassword,
+                          onPressed: () =>
+                              setState(() => _showPassword = !_showPassword),
+                        ),
                       ),
-                      obscureText: true,
+                      obscureText: !_showPassword,
                       autofillHints: const [AutofillHints.password],
                       onFieldSubmitted: (_) => _submit(),
                       validator: (v) =>

@@ -52,6 +52,8 @@ abstract class Strings {
   String get serverInvalid;
   String get usernameLabel;
   String get passwordLabel;
+  String get showPassword;
+  String get hidePassword;
   String get fieldRequired;
   String get rememberPassword;
   String get signIn;

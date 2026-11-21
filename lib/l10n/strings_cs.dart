@@ -14,11 +14,15 @@ class StringsCs extends Strings {
   @override
   String get serverLabel => 'Server';
   @override
-  String get serverInvalid => 'Zadej URL, např. https://hermes.devrel.cz';
+  String get serverInvalid => 'Zadej URL, např. https://hermes.example.com';
   @override
   String get usernameLabel => 'Uživatel';
   @override
   String get passwordLabel => 'Heslo';
+  @override
+  String get showPassword => 'Zobrazit heslo';
+  @override
+  String get hidePassword => 'Skrýt heslo';
   @override
   String get fieldRequired => 'Povinné';
   @override
