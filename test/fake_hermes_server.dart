@@ -105,6 +105,9 @@ class FakeHermesServer {
 
   final List<List<String>> cliCalls = [];
 
+  /// Params of every `profiles.create`.
+  final List<Map<String, dynamic>> profileCreates = [];
+
   /// What `profiles.describe` reports as the profile's model.
   Map<String, dynamic> profileModel = {
     'provider': 'nous',
@@ -703,6 +706,28 @@ class FakeHermesServer {
               'ok': !stale,
               'applied': {'ui_meta': !stale},
             },
+          });
+        case 'profiles.create':
+          profileCreates.add(params);
+          final name = params['name'] as String;
+          if (roster.any((r) => r['name'] == name)) {
+            send({
+              'id': id,
+              'error': {
+                'code': 4062,
+                'message': "A profile named '$name' already exists.",
+              },
+            });
+            return;
+          }
+          roster.add({
+            'name': name,
+            'display_name': '',
+            'description': params['description'] ?? '',
+          });
+          send({
+            'id': id,
+            'result': {'ok': true, 'name': name, 'path': '/p/$name'},
           });
         case 'profiles.describe':
           send({

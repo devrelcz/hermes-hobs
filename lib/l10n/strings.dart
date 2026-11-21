@@ -149,6 +149,18 @@ abstract class Strings {
   String get discardChanges;
   String get keepEditing;
 
+  // --- new hob -------------------------------------------------------------
+  String get newHob;
+  String get newHobHint;
+  String get newHobNameLabel;
+  String get newHobNameHint;
+  String get hobHandleLabel;
+  String get hobHandleHelp;
+  String get hobHandleInvalid;
+  String get hobHandleTaken;
+  String hobCreated(String hob);
+  String hobCreateFailed(String reason);
+
   // --- chat ----------------------------------------------------------------
   String get scheduledJobs;
   String get connectionLost;

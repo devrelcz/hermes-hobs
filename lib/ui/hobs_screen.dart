@@ -16,6 +16,7 @@ import 'chat_screen.dart';
 import 'format.dart';
 import 'group_chat_screen.dart';
 import 'new_group_sheet.dart';
+import 'new_hob_dialog.dart';
 import 'settings_screen.dart';
 import 'share_target_sheet.dart';
 import 'theme.dart';
@@ -144,6 +145,17 @@ class _HobsScreenState extends State<HobsScreen> {
     await _openGroup(room, wide);
   }
 
+  Future<void> _newHob(bool wide) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final s = Strings.of(context);
+    final hob = await showNewHobDialog(context);
+    if (hob == null || !mounted) return;
+    messenger.showSnackBar(
+      SnackBar(content: Text(s.hobCreated(hob.displayName))),
+    );
+    await _open(hob, wide);
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
@@ -167,6 +179,7 @@ class _HobsScreenState extends State<HobsScreen> {
           onOpen: (b) => _open(b, wide),
           onOpenGroup: (r) => _openGroup(r, wide),
           onNewGroup: () => _newGroup(wide),
+          onNewHob: () => _newHob(wide),
         );
         if (!wide) return list;
         // Both panes are Scaffolds. Under one outer Scaffold neither is a
@@ -234,6 +247,7 @@ class _HobList extends StatefulWidget {
     required this.onOpen,
     required this.onOpenGroup,
     required this.onNewGroup,
+    required this.onNewHob,
     this.selected,
     this.selectedGroup,
   });
@@ -241,6 +255,7 @@ class _HobList extends StatefulWidget {
   final void Function(Hob hob) onOpen;
   final void Function(GroupRoom room) onOpenGroup;
   final VoidCallback onNewGroup;
+  final VoidCallback onNewHob;
   final String? selected;
   final String? selectedGroup;
 
@@ -294,6 +309,11 @@ class _HobListState extends State<_HobList> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: s.newHob,
+            onPressed: widget.onNewHob,
+            icon: const Icon(Icons.person_add_alt_outlined),
+          ),
           if (app.groupsSupported == true)
             IconButton(
               tooltip: s.newGroupChat,

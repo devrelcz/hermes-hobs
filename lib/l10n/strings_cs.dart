@@ -208,6 +208,32 @@ class StringsCs extends Strings {
   @override
   String get keepEditing => 'Pokračovat';
 
+  // --- new hob -------------------------------------------------------------
+  @override
+  String get newHob => 'Nový Hobík';
+  @override
+  String get newHobHint =>
+      'Převezme nastavení, dovednosti a přihlášení výchozího profilu. Model a SOUL.md jde později upravit v jeho profilu.';
+  @override
+  String get newHobNameLabel => 'Jméno';
+  @override
+  String get newHobNameHint => 'Třeba Účetní Péťa';
+  @override
+  String get hobHandleLabel => 'Identifikátor';
+  @override
+  String get hobHandleHelp =>
+      'Pro @zmínky a název profilu na serveru. Později už nejde změnit.';
+  @override
+  String get hobHandleInvalid =>
+      'Jen malá písmena bez diakritiky, čísla, - a _. Na začátku písmeno nebo číslo.';
+  @override
+  String get hobHandleTaken => 'Tenhle identifikátor už má jiný Hobík.';
+  @override
+  String hobCreated(String hob) => 'Hobík $hob je na světě';
+  @override
+  String hobCreateFailed(String reason) =>
+      'Hobíka se nepodařilo vytvořit: $reason';
+
   // --- chat ----------------------------------------------------------------
   @override
   String get scheduledJobs => 'Naplánované úlohy';

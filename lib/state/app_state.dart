@@ -895,6 +895,105 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // --- new hob -------------------------------------------------------------
+
+  /// The server's rule for a profile name: lowercase letters, numbers, `-`
+  /// or `_`, starting with a letter or number, up to 64 characters.
+  static final hobNamePattern = RegExp(r'^[a-z0-9][a-z0-9_-]{0,63}$');
+
+  static const _accents = {
+    'a': 'áäàâãåą',
+    'c': 'čćç',
+    'd': 'ďđ',
+    'e': 'éěëèêę',
+    'i': 'íïìî',
+    'l': 'ľĺł',
+    'n': 'ňńñ',
+    'o': 'óöòôõőø',
+    'r': 'řŕ',
+    's': 'šśş',
+    't': 'ťţ',
+    'u': 'úůüùûű',
+    'y': 'ýÿ',
+    'z': 'žźż',
+  };
+
+  static final Map<String, String> _fold = {
+    for (final e in _accents.entries)
+      for (final ch in e.value.split('')) ch: e.key,
+  };
+
+  /// The profile name a Hob called [title] gets: accents dropped, anything
+  /// else than a letter or a number turned into a dash ("Účetní Péťa" →
+  /// `ucetni-peta`). Empty when nothing usable is left.
+  static String hobNameFor(String title) {
+    final folded = title
+        .trim()
+        .toLowerCase()
+        .split('')
+        .map((ch) => _fold[ch] ?? ch)
+        .join()
+        .replaceAll(RegExp(r'[^a-z0-9_-]+'), '-')
+        .replaceAll(RegExp(r'-{2,}'), '-');
+    String trim(String s) => s.replaceAll(RegExp(r'^[-_]+|[-_]+$'), '');
+    final slug = trim(folded);
+    return slug.length <= 64 ? slug : trim(slug.substring(0, 64));
+  }
+
+  /// Whether a Hob named [name] already exists (hidden ones included).
+  bool hobNameTaken(String name) => name == 'default' || hobNamed(name) != null;
+
+  /// Creates a new Hob the way the dashboard's New Bot dialog does: a profile
+  /// cloned from the default one (its config, skills and shared sign-ins),
+  /// a SOUL.md introducing it, and its title and face in `ui_meta`. Returns
+  /// the new Hob as the roster lists it. Throws when the server refuses.
+  Future<Hob> createHob({
+    required String name,
+    String title = '',
+    String description = '',
+    String shape = 'blobatar',
+  }) async {
+    final rpc = _connected;
+    final role = title.trim();
+    final mission = description.trim();
+    final shown = role.isEmpty ? name : role;
+    await rpc.requestWith('profiles.create', {
+      'name': name,
+      'description': ?(mission.isEmpty ? null : mission),
+      'clone_from': 'default',
+      'share_auth': true,
+      'soul': [
+        '# $shown',
+        '',
+        if (role.isNotEmpty) '**Role:** $role',
+        if (mission.isNotEmpty) '**Mission:** $mission',
+        '',
+        'You are $shown, a persistent named agent (profile `$name`) on this '
+            'machine.',
+        'You keep your own memory, skills, and conversation history across '
+            'sessions.',
+      ].join('\n'),
+    }, timeout: const Duration(seconds: 60));
+    // The profile exists now; its look is a nicety the profile screen can
+    // still fix, so a refused write does not fail the creation.
+    try {
+      await rpc.request('profiles.configure', {
+        'name': name,
+        'ui_meta': {
+          Hob.metaKey: {
+            'shape': shape,
+            'imageKind': 'shape',
+            'title': ?(role.isEmpty ? null : role),
+            'created': DateTime.now().millisecondsSinceEpoch,
+          },
+        },
+      });
+    } catch (_) {}
+    await refreshHobs(silent: true);
+    return hobNamed(name) ??
+        Hob(name: name, displayName: shown, description: mission, shape: shape);
+  }
+
   static void _checkCli(Object? res) {
     if (res is! Map) return;
     final code = res['code'];
