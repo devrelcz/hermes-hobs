@@ -5,13 +5,17 @@ import '../api/group_models.dart';
 import '../api/models.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
+import 'group_chat_screen.dart' show GroupAvatars;
 import 'hob_avatar.dart';
+import 'sheets.dart';
 
-/// Picks two to six Hobs and seats them in a new group chat. Returns the new
-/// room, or null when the user backed out.
+/// Picks two to six Hobs and seats them in a new group chat: a full-screen
+/// sheet on phones, a large dialog on wide windows. Returns the new room,
+/// or null when the user backed out.
 Future<GroupRoom?> showNewGroupDialog(BuildContext context) =>
-    showDialog<GroupRoom>(
-      context: context,
+    showScreenSheet<GroupRoom>(
+      context,
+      kind: SheetKind.fullscreen,
       builder: (_) => const _NewGroupDialog(),
     );
 
@@ -85,93 +89,211 @@ class _NewGroupDialogState extends State<_NewGroupDialog> {
     final app = context.watch<AppState>();
     final s = Strings.of(context);
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final hobs = _candidates(app);
+    final members = _members(app);
     final canCreate = !_creating && _picked.length >= _min;
-    return AlertDialog(
-      title: Text(s.groupPickTitle),
-      contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                s.groupPickHint,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
+    final full = _picked.length >= _max;
+    return Scaffold(
+      appBar: AppBar(
+        leading: const CloseButton(),
+        title: Text(s.groupPickTitle),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: FilledButton(
+              onPressed: canCreate ? () => _create(app) : null,
+              child: _creating
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(s.create),
             ),
-            const SizedBox(height: 8),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  for (final b in hobs)
-                    CheckboxListTile(
-                      key: ValueKey('pick-${b.name}'),
-                      value: _picked.contains(b.name),
-                      onChanged:
-                          _creating ||
-                              (!_picked.contains(b.name) &&
-                                  _picked.length >= _max)
-                          ? null
-                          : (_) => _toggle(app, b),
-                      secondary: HobAvatar(hob: b, size: 30),
-                      title: Text(b.displayName),
-                      subtitle: b.description.isEmpty
-                          ? null
-                          : Text(
-                              b.description,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                sliver: SliverList.list(
+                  children: [
+                    // The table so far: who sits at it, and its name.
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            height: 56,
+                            child: Center(
+                              child: members.isEmpty
+                                  ? Text(
+                                      s.groupPickHint,
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: cs.onSurfaceVariant,
+                                          ),
+                                    )
+                                  : GroupAvatars(hobs: members, size: 56),
                             ),
-                      controlAffinity: ListTileControlAffinity.trailing,
-                      dense: true,
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _name,
+                            enabled: !_creating,
+                            maxLength: 80,
+                            onChanged: (_) => _nameEdited = true,
+                            decoration: InputDecoration(
+                              labelText: s.groupNameLabel,
+                              counterText: '',
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            s.groupPickCount(_picked.length, _max),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-              child: TextField(
-                controller: _name,
-                enabled: !_creating,
-                maxLength: 80,
-                onChanged: (_) => _nameEdited = true,
-                decoration: InputDecoration(labelText: s.groupNameLabel),
-              ),
-            ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-                child: Text(
-                  _error!,
-                  style: TextStyle(color: theme.colorScheme.error),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(_error!, style: TextStyle(color: cs.error)),
+                      ),
+                    const SizedBox(height: 16),
+                  ],
                 ),
               ),
-          ],
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                sliver: SliverGrid.builder(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 112,
+                    mainAxisExtent: 112,
+                    mainAxisSpacing: 4,
+                    crossAxisSpacing: 4,
+                  ),
+                  itemCount: hobs.length,
+                  itemBuilder: (context, i) {
+                    final b = hobs[i];
+                    final on = _picked.contains(b.name);
+                    return _FaceTile(
+                      key: ValueKey('pick-${b.name}'),
+                      hob: b,
+                      selected: on,
+                      enabled: !_creating && (on || !full),
+                      onTap: () => _toggle(app, b),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _creating ? null : () => Navigator.pop(context),
-          child: Text(s.cancel),
+    );
+  }
+}
+
+/// One Hob to pick: its face and name; picked ones get a moss ring and a
+/// check.
+class _FaceTile extends StatelessWidget {
+  const _FaceTile({
+    super.key,
+    required this.hob,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final Hob hob;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      label: hob.displayName,
+      excludeSemantics: true,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: enabled ? onTap : null,
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: selected ? cs.primary : Colors.transparent,
+                          width: 2.5,
+                        ),
+                      ),
+                      child: HobAvatar(hob: hob, size: 48),
+                    ),
+                    if (selected)
+                      Positioned(
+                        right: -2,
+                        bottom: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: cs.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: cs.surface, width: 2),
+                          ),
+                          child: Icon(
+                            Icons.check,
+                            size: 14,
+                            color: cs.onPrimary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  hob.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        FilledButton(
-          onPressed: canCreate ? () => _create(app) : null,
-          child: _creating
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(s.create),
-        ),
-      ],
+      ),
     );
   }
 }

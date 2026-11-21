@@ -348,3 +348,160 @@ class _LargeDialogType extends WoltDialogType {
     (availableSize.height - modalContentSize.height) / 2,
   );
 }
+
+/// Asks for one line of text (a folder or group name, a link) in a bottom
+/// sheet on phones, a dialog on wide windows. [validate] returns why the
+/// text cannot be used, or null. Returns the text, or null when cancelled.
+Future<String?> showTextSheet(
+  BuildContext context, {
+  required String title,
+  String? label,
+  String? hint,
+  String initial = '',
+  required String action,
+  required String cancel,
+  int maxLength = 80,
+  TextInputType? keyboardType,
+  bool sentences = true,
+  String? Function(String text)? validate,
+  Key? fieldKey,
+}) => showContentSheet<String>(
+  context,
+  kind: SheetKind.bottom,
+  builder: (_) => _TextSheet(
+    title: title,
+    label: label,
+    hint: hint,
+    initial: initial,
+    action: action,
+    cancel: cancel,
+    maxLength: maxLength,
+    keyboardType: keyboardType,
+    sentences: sentences,
+    validate: validate,
+    fieldKey: fieldKey,
+  ),
+);
+
+class _TextSheet extends StatefulWidget {
+  const _TextSheet({
+    required this.title,
+    required this.label,
+    required this.hint,
+    required this.initial,
+    required this.action,
+    required this.cancel,
+    required this.maxLength,
+    required this.keyboardType,
+    required this.sentences,
+    required this.validate,
+    required this.fieldKey,
+  });
+
+  final String title;
+  final String? label;
+  final String? hint;
+  final String initial;
+  final String action;
+  final String cancel;
+  final int maxLength;
+  final TextInputType? keyboardType;
+  final bool sentences;
+  final String? Function(String text)? validate;
+  final Key? fieldKey;
+
+  @override
+  State<_TextSheet> createState() => _TextSheetState();
+}
+
+class _TextSheetState extends State<_TextSheet> {
+  late final _text = TextEditingController(text: widget.initial)
+    ..selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: widget.initial.length,
+    );
+  String? _error;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final v = _text.text.trim();
+    final problem = widget.validate?.call(v);
+    if (problem != null) {
+      setState(() => _error = problem);
+      return;
+    }
+    Navigator.pop(context, v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        isWideWindow(context) ? 24 : sheetHandleGap,
+        24,
+        16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(widget.title, style: theme.textTheme.titleLarge),
+          const SizedBox(height: 16),
+          TextField(
+            key: widget.fieldKey,
+            controller: _text,
+            autofocus: true,
+            maxLength: widget.maxLength,
+            keyboardType: widget.keyboardType,
+            autocorrect: widget.sentences,
+            textCapitalization: widget.sentences
+                ? TextCapitalization.sentences
+                : TextCapitalization.none,
+            textInputAction: TextInputAction.done,
+            onChanged: (_) {
+              if (_error != null) setState(() => _error = null);
+            },
+            onSubmitted: (_) => _submit(),
+            decoration: InputDecoration(
+              labelText: widget.label,
+              hintText: widget.hint,
+              errorText: _error,
+              counterText: '',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(46),
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(widget.cancel),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(46),
+                  ),
+                  onPressed: _submit,
+                  child: Text(widget.action),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

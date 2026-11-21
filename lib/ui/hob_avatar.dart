@@ -382,3 +382,26 @@ class _AvatarPainter extends CustomPainter {
   @override
   bool shouldRepaint(_AvatarPainter old) => old.face != face;
 }
+
+/// A Hob's face that flies from the list into its chat's header when the
+/// chat opens over the list (phones). Off with reduced motion, and wherever
+/// the list and the chat share one screen (wide windows), where two faces
+/// of the same Hob are on screen at once.
+class HobHero extends StatelessWidget {
+  const HobHero({
+    super.key,
+    required this.name,
+    required this.enabled,
+    required this.child,
+  });
+
+  final String name;
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled || MediaQuery.disableAnimationsOf(context)) return child;
+    return Hero(tag: 'hob-face:$name', child: child);
+  }
+}

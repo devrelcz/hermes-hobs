@@ -245,3 +245,54 @@ class EmptyArt extends StatelessWidget {
     );
   }
 }
+
+/// Fades a new row in and lifts it a few points into place, once. Still
+/// with animations turned off.
+class AppearIn extends StatefulWidget {
+  const AppearIn({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<AppearIn> createState() => _AppearInState();
+}
+
+class _AppearInState extends State<AppearIn>
+    with SingleTickerProviderStateMixin {
+  late final _in = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 240),
+  );
+  late final _curve = CurvedAnimation(parent: _in, curve: Curves.easeOutCubic);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_in.status == AnimationStatus.dismissed) {
+      if (MediaQuery.disableAnimationsOf(context)) {
+        _in.value = 1;
+      } else {
+        _in.forward();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _curve.dispose();
+    _in.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: _curve,
+    child: SlideTransition(
+      position: Tween(
+        begin: const Offset(0, 0.12),
+        end: Offset.zero,
+      ).animate(_curve),
+      child: widget.child,
+    ),
+  );
+}

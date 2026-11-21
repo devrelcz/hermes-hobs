@@ -15,6 +15,8 @@ import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/composer_draft.dart';
 import '../state/image_prep.dart';
+import 'placeholders.dart';
+import 'sheets.dart';
 
 /// Device pickers behind the composer's "+" menu. Tests swap it out.
 class AttachmentPickers {
@@ -133,9 +135,24 @@ class AttachButton extends StatelessWidget {
           }
         case _Pick.link:
           if (!context.mounted) return;
-          final url = await showDialog<String>(
-            context: context,
-            builder: (_) => const LinkDialog(),
+          final url = await showTextSheet(
+            context,
+            title: s.addLink,
+            hint: s.linkHint,
+            action: s.add,
+            cancel: s.cancel,
+            maxLength: 2000,
+            keyboardType: TextInputType.url,
+            sentences: false,
+            fieldKey: const ValueKey('link-field'),
+            validate: (v) {
+              final uri = Uri.tryParse(v);
+              final ok =
+                  uri != null &&
+                  (uri.scheme == 'http' || uri.scheme == 'https') &&
+                  uri.host.isNotEmpty;
+              return ok ? null : s.linkInvalid;
+            },
           );
           if (url != null) draft.addUrl(url);
         case _Pick.paste:
@@ -151,61 +168,6 @@ class AttachButton extends StatelessWidget {
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(s.pickFailed(e))));
     }
-  }
-}
-
-/// Asks for a web address; returns it when valid.
-class LinkDialog extends StatefulWidget {
-  const LinkDialog({super.key});
-
-  @override
-  State<LinkDialog> createState() => _LinkDialogState();
-}
-
-class _LinkDialogState extends State<LinkDialog> {
-  final _text = TextEditingController();
-  String? _error;
-
-  @override
-  void dispose() {
-    _text.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final v = _text.text.trim();
-    final uri = Uri.tryParse(v);
-    if (uri == null ||
-        !(uri.scheme == 'http' || uri.scheme == 'https') ||
-        uri.host.isEmpty) {
-      setState(() => _error = Strings.of(context).linkInvalid);
-      return;
-    }
-    Navigator.pop(context, v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = Strings.of(context);
-    return AlertDialog(
-      title: Text(s.addLink),
-      content: TextField(
-        key: const ValueKey('link-field'),
-        controller: _text,
-        autofocus: true,
-        keyboardType: TextInputType.url,
-        autocorrect: false,
-        decoration: InputDecoration(hintText: s.linkHint, errorText: _error),
-        onSubmitted: (_) => _submit(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(s.cancel),
-        ),
-        FilledButton(onPressed: _submit, child: Text(s.add)),
-      ],
-    );
   }
 }
 
@@ -376,8 +338,9 @@ class _DraftTile extends StatelessWidget {
   );
 }
 
-/// Attachments of a sent message: image thumbnails (tap for full screen),
-/// file chips and links.
+/// A message's attachments: images as a grid (one large, several in rows
+/// of square tiles, "+N" past six), files and links as cards with their
+/// type. Tapping an image opens the gallery at it.
 class MessageAttachments extends StatelessWidget {
   const MessageAttachments({
     super.key,
@@ -390,55 +353,112 @@ class MessageAttachments extends StatelessWidget {
   /// The Hob's profile (images are read from its home).
   final String profile;
 
+  static const _maxTiles = 6;
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+    final images = [
+      for (final a in attachments)
+        if (a.kind == AttachmentKind.image) a,
+    ];
+    final others = [
+      for (final a in attachments)
+        if (a.kind != AttachmentKind.image) a,
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        for (final a in attachments)
-          if (a.kind == AttachmentKind.image)
-            GestureDetector(
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  fullscreenDialog: true,
-                  builder: (_) => ImageViewer(attachment: a, profile: profile),
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(
-                  width: 120,
-                  height: 120,
-                  child: AttachmentImage(
-                    attachment: a,
-                    profile: profile,
-                    cacheWidth: 360,
-                  ),
-                ),
-              ),
-            )
-          else
-            ActionChip(
-              avatar: Icon(
-                a.kind == AttachmentKind.url
-                    ? Icons.link
-                    : Icons.insert_drive_file_outlined,
-                size: 16,
-              ),
-              label: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 220),
-                child: Text(a.name, overflow: TextOverflow.ellipsis),
-              ),
-              backgroundColor: cs.surface,
-              visualDensity: VisualDensity.compact,
-              tooltip: a.url ?? a.path,
-              onPressed: a.kind == AttachmentKind.url
+        if (images.isNotEmpty) _grid(context, images),
+        if (images.isNotEmpty && others.isNotEmpty) const SizedBox(height: 6),
+        for (final a in others)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: _FileCard(
+              attachment: a,
+              onTap: a.kind == AttachmentKind.url
                   ? () => _open(context, a.url!)
                   : null,
             ),
+          ),
       ],
+    );
+  }
+
+  Widget _grid(BuildContext context, List<ChatAttachment> images) {
+    void show(int i) => Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) =>
+            GalleryViewer(images: images, initial: i, profile: profile),
+      ),
+    );
+    Widget tile(int i, double w, double h, {int more = 0}) => Semantics(
+      button: true,
+      image: true,
+      label: images[i].name,
+      child: GestureDetector(
+        onTap: () => show(i),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: w,
+            height: h,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                AttachmentImage(
+                  attachment: images[i],
+                  profile: profile,
+                  cacheWidth: (w * 3).round(),
+                ),
+                if (more > 0)
+                  ColoredBox(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    child: Center(
+                      child: Text(
+                        '+$more',
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(color: Colors.white),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, box) {
+        final width = box.maxWidth.isFinite ? box.maxWidth : 300.0;
+        if (images.length == 1) {
+          final w = width.clamp(0.0, 280.0);
+          return tile(0, w, w * 0.75);
+        }
+        const gap = 4.0;
+        final cols = images.length == 2 || images.length == 4 ? 2 : 3;
+        final side = ((width.clamp(0.0, 300.0) - gap * (cols - 1)) / cols)
+            .floorToDouble();
+        final shown = images.length.clamp(0, _maxTiles);
+        return SizedBox(
+          width: side * cols + gap * (cols - 1),
+          child: Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (var i = 0; i < shown; i++)
+                tile(
+                  i,
+                  side,
+                  side,
+                  more: i == shown - 1 ? images.length - shown : 0,
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -453,6 +473,119 @@ class MessageAttachments extends StatelessWidget {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {}
     if (!ok) messenger.showSnackBar(SnackBar(content: Text(failed)));
+  }
+}
+
+/// A file or link: an icon for its type, the name, and what it is.
+class _FileCard extends StatelessWidget {
+  const _FileCard({required this.attachment, this.onTap});
+
+  final ChatAttachment attachment;
+  final VoidCallback? onTap;
+
+  static (IconData, String) _kind(ChatAttachment a, Strings s) {
+    if (a.kind == AttachmentKind.url) {
+      return (Icons.link, Uri.tryParse(a.url ?? '')?.host ?? s.linkLabel);
+    }
+    final dot = a.name.lastIndexOf('.');
+    final ext = dot > 0 ? a.name.substring(dot + 1).toLowerCase() : '';
+    final icon = switch (ext) {
+      'pdf' => Icons.picture_as_pdf_outlined,
+      'doc' ||
+      'docx' ||
+      'odt' ||
+      'rtf' ||
+      'txt' ||
+      'md' => Icons.description_outlined,
+      'xls' || 'xlsx' || 'ods' || 'csv' => Icons.table_chart_outlined,
+      'ppt' || 'pptx' || 'odp' || 'key' => Icons.slideshow_outlined,
+      'zip' || 'tar' || 'gz' || '7z' || 'rar' => Icons.folder_zip_outlined,
+      'mp3' || 'wav' || 'm4a' || 'ogg' => Icons.audio_file_outlined,
+      'mp4' || 'mov' || 'webm' => Icons.video_file_outlined,
+      'json' ||
+      'yaml' ||
+      'yml' ||
+      'py' ||
+      'js' ||
+      'ts' ||
+      'dart' ||
+      'sh' => Icons.code,
+      _ => Icons.insert_drive_file_outlined,
+    };
+    return (icon, ext.isEmpty ? s.fileLabel : ext.toUpperCase());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final s = Strings.of(context);
+    final (icon, what) = _kind(attachment, s);
+    return Tooltip(
+      message: attachment.url ?? attachment.path ?? attachment.name,
+      child: Material(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 300),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: cs.secondaryContainer,
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Icon(icon, size: 20, color: cs.onSecondaryContainer),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          attachment.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                        Text(
+                          what,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (onTap != null) ...[
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.open_in_new,
+                      size: 16,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -519,15 +652,8 @@ class AttachmentImage extends StatelessWidget {
       builder: (context, snap) {
         if (snap.hasError) return broken();
         if (!snap.hasData) {
-          return ColoredBox(
-            color: cs.surfaceContainerHigh,
-            child: const Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
+          return const SkeletonPulse(
+            child: SkeletonBox(height: double.infinity, radius: 0),
           );
         }
         return Image.memory(
@@ -568,6 +694,75 @@ class ImageViewer extends StatelessWidget {
             attachment: attachment,
             profile: profile,
             fit: BoxFit.contain,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The images of one message, full screen: swipe between them, pinch to
+/// zoom, "2 / 5" in the bar.
+class GalleryViewer extends StatefulWidget {
+  const GalleryViewer({
+    super.key,
+    required this.images,
+    required this.initial,
+    required this.profile,
+  });
+
+  final List<ChatAttachment> images;
+  final int initial;
+  final String profile;
+
+  @override
+  State<GalleryViewer> createState() => _GalleryViewerState();
+}
+
+class _GalleryViewerState extends State<GalleryViewer> {
+  late final _pages = PageController(initialPage: widget.initial);
+  late int _index = widget.initial;
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final n = widget.images.length;
+    final current = widget.images[_index];
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(current.name, overflow: TextOverflow.ellipsis),
+            if (n > 1)
+              Text(
+                '${_index + 1} / $n',
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: Colors.white70),
+              ),
+          ],
+        ),
+      ),
+      body: PageView.builder(
+        controller: _pages,
+        itemCount: n,
+        onPageChanged: (i) => setState(() => _index = i),
+        itemBuilder: (_, i) => InteractiveViewer(
+          maxScale: 6,
+          child: Center(
+            child: AttachmentImage(
+              attachment: widget.images[i],
+              profile: widget.profile,
+              fit: BoxFit.contain,
+            ),
           ),
         ),
       ),

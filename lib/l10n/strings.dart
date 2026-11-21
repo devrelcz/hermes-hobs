@@ -48,6 +48,11 @@ abstract class Strings {
 
   // --- login ---------------------------------------------------------------
   String get loginSubtitle;
+  String get welcomeTitle;
+  String get welcomeWhat;
+  String get welcomeTalk;
+  String get welcomeSafe;
+  String get welcomeStart;
   String get serverLabel;
   String get serverInvalid;
   String get usernameLabel;
@@ -200,6 +205,13 @@ abstract class Strings {
   String workingOn(String? status);
   String get workingInBackground;
   String activeAgo(String age);
+
+  /// "active 3 h ago" in words, for a chat header.
+  String activeSince(DateTime t, {DateTime? now});
+  String get chatMenu;
+  String get linkLabel;
+  String get fileLabel;
+  String get resizeList;
   String writeTo(String hob);
   String get interruptedTag;
   String get copy;
@@ -252,6 +264,8 @@ abstract class Strings {
   String get allowAlways;
   String get deny;
   String get hobAsks;
+  String get approvalWaiting;
+  String get clarifyWaiting;
   String get orOwnAnswer;
   String get answerHint;
   String get skip;
@@ -282,6 +296,7 @@ abstract class Strings {
   String get groupPickTitle;
   String get groupPickHint;
   String get groupNameLabel;
+  String groupPickCount(int picked, int max);
   String get create;
   String get groupCreateFailed;
   String groupLoadFailed(String reason);

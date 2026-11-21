@@ -130,6 +130,27 @@ the window width; wide starts at 700 points):
 | Loading the list or a chat | skeleton rows in the content's shape | same |
 | Nothing to show (no Hobs, no match, no chat picked) | picture, one line and the action that fixes it | same |
 | SOUL.md | full-screen editor from the profile | large dialog |
+| New group | full-screen sheet with a grid of faces to pick | large dialog |
+| Scheduled jobs | tall bottom sheet of job cards | side sheet |
+| Naming (folder, group), adding a link | small text sheet | dialog |
+| A Hob asks for approval or a question | card above the composer | same |
+| First sign-in on a device | welcome sheet, once | dialog |
+
+In a chat your messages sit on the right, the Hob's answers on the left.
+The question being answered is pinned above the chat only once it scrolls
+out of view. On phones a Hob's face flies from the list into the chat's
+header; new messages slide in; sending, approving, deleting and moving a
+folder give a light haptic tap. All motion stops when the system asks for
+reduced motion. Bars that hold text grow with the system text size, and
+small grey text keeps at least 4.5:1 contrast in both themes.
+
+Approval cards show the command as code with a copy button; Deny and
+Allow once are the main pair, other choices sit quieter below. Images in a
+message form a grid (one large, rows of tiles, "+N" past six) and open a
+swipeable gallery; files and links are cards with their type. On desktops
+⌘N (Ctrl+N) starts a new Hob, ⌘K jumps into search, ⌘, opens settings, and
+the line between the list and a chat drags to resize the list (kept per
+device).
 
 Errors stay plain snackbars. Text is set in Geist, code and SOUL.md in Geist Mono, both bundled under `assets/fonts` (SIL Open Font License). Sheets that hold unsaved work (New Hob, the
 profile) close only through their own close button, never by a tap beside

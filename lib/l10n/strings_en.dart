@@ -12,6 +12,19 @@ class StringsEn extends Strings {
   @override
   String get loginSubtitle => 'Sign in to your Hermes Agent dashboard';
   @override
+  String get welcomeTitle => 'Welcome to the Hobs';
+  @override
+  String get welcomeWhat =>
+      'Each Hob is one agent on your server, with its own job and memory.';
+  @override
+  String get welcomeTalk =>
+      'Write to it like in a chat. It answers and can reach for tools.';
+  @override
+  String get welcomeSafe =>
+      'Before it runs anything risky, it asks for your approval.';
+  @override
+  String get welcomeStart => 'Get started';
+  @override
   String get serverLabel => 'Server';
   @override
   String get serverInvalid => 'Enter a URL, like https://hermes.example.com';
@@ -312,6 +325,25 @@ class StringsEn extends Strings {
   @override
   String activeAgo(String age) => 'active $age';
   @override
+  String activeSince(DateTime t, {DateTime? now}) {
+    final d = (now ?? DateTime.now()).difference(t);
+    if (d.inMinutes < 1) return 'active just now';
+    if (d.inHours < 1) return 'active ${d.inMinutes} min ago';
+    if (d.inDays < 1) return 'active ${d.inHours} h ago';
+    if (d.inDays == 1) return 'active yesterday';
+    if (d.inDays < 7) return 'active ${d.inDays} days ago';
+    return 'last active ${shortDate(t)}';
+  }
+
+  @override
+  String get chatMenu => 'More options';
+  @override
+  String get linkLabel => 'Link';
+  @override
+  String get fileLabel => 'File';
+  @override
+  String get resizeList => 'List width, drag sideways';
+  @override
   String writeTo(String hob) => 'Send $hob a message';
   @override
   String get interruptedTag => 'stopped';
@@ -431,6 +463,10 @@ class StringsEn extends Strings {
   @override
   String get hobAsks => 'The Hob has a question';
   @override
+  String get approvalWaiting => 'Waiting for your approval';
+  @override
+  String get clarifyWaiting => 'Answer and it carries on';
+  @override
   String get orOwnAnswer => 'or write your own answer';
   @override
   String get answerHint => 'Your answer';
@@ -493,11 +529,14 @@ class StringsEn extends Strings {
   @override
   String get newGroupChat => 'New group chat';
   @override
-  String get groupPickTitle => 'New group chat';
+  String get groupPickTitle => 'New group';
   @override
   String get groupPickHint => 'Pick 2 to 6 Hobs to talk together.';
   @override
   String get groupNameLabel => 'Group name';
+  @override
+  String groupPickCount(int picked, int max) =>
+      '$picked picked of at most $max, at least 2.';
   @override
   String get create => 'Create';
   @override

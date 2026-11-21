@@ -89,6 +89,30 @@ class _LoginScreenState extends State<LoginScreen> {
     final app = context.watch<AppState>();
     final biometric = app.canBiometricSignIn ? app.biometricKind : null;
     final error = _error?.call();
+    final cs = theme.colorScheme;
+    // Flat fields like the search above the Hob list: filled, outlined
+    // only while focused.
+    final flat = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide.none,
+    );
+    InputDecoration field(String label, IconData icon, {Widget? suffix}) =>
+        InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: cs.onSurfaceVariant),
+          suffixIcon: suffix,
+          filled: true,
+          fillColor: cs.surfaceContainerHigh,
+          border: flat,
+          enabledBorder: flat,
+          focusedBorder: flat.copyWith(
+            borderSide: BorderSide(color: cs.primary, width: 1.5),
+          ),
+          errorBorder: flat.copyWith(borderSide: BorderSide(color: cs.error)),
+          focusedErrorBorder: flat.copyWith(
+            borderSide: BorderSide(color: cs.error, width: 1.5),
+          ),
+        );
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -101,17 +125,34 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Center(
-                      child: CustomPaint(
-                        size: Size.square(88),
-                        painter: HobGlyphPainter(),
+                    // The app's mark as on the home screen: the hob on moss.
+                    Center(
+                      child: Container(
+                        width: 96,
+                        height: 96,
+                        decoration: BoxDecoration(
+                          color: SplashScreen.moss,
+                          borderRadius: BorderRadius.circular(26),
+                          boxShadow: [
+                            BoxShadow(
+                              color: SplashScreen.moss.withValues(alpha: 0.25),
+                              blurRadius: 24,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.all(12),
+                        child: const CustomPaint(painter: HobGlyphPainter()),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 20),
                     Text(
                       'Hermes Hobs',
                       textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineSmall,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -121,13 +162,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 32),
                     TextFormField(
                       controller: _server,
-                      decoration: InputDecoration(
-                        labelText: s.serverLabel,
-                        prefixIcon: const Icon(Icons.dns_outlined),
-                      ),
+                      decoration: field(s.serverLabel, Icons.dns_outlined),
                       keyboardType: TextInputType.url,
                       autocorrect: false,
                       validator: (v) {
@@ -145,10 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _user,
-                      decoration: InputDecoration(
-                        labelText: s.usernameLabel,
-                        prefixIcon: const Icon(Icons.person_outline),
-                      ),
+                      decoration: field(s.usernameLabel, Icons.person_outline),
                       autocorrect: false,
                       autofillHints: const [AutofillHints.username],
                       validator: (v) =>
@@ -157,10 +192,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: _pass,
-                      decoration: InputDecoration(
-                        labelText: s.passwordLabel,
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
+                      decoration: field(
+                        s.passwordLabel,
+                        Icons.lock_outline,
+                        suffix: IconButton(
                           icon: Icon(
                             _showPassword
                                 ? Icons.visibility_off_outlined
@@ -191,14 +226,40 @@ class _LoginScreenState extends State<LoginScreen> {
                       dense: true,
                     ),
                     if (error != null) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        error,
-                        style: TextStyle(color: theme.colorScheme.error),
+                      const SizedBox(height: 12),
+                      Semantics(
+                        liveRegion: true,
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: cs.errorContainer,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 20,
+                                color: cs.onErrorContainer,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  error,
+                                  style: TextStyle(color: cs.onErrorContainer),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                     const SizedBox(height: 16),
                     FilledButton(
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                      ),
                       onPressed: _busy ? null : _submit,
                       child: _busy
                           ? const SizedBox(
@@ -211,6 +272,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (biometric != null) ...[
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                        ),
                         onPressed: _busy ? null : _biometricSignIn,
                         icon: Icon(biometricIcon(biometric)),
                         label: Text(s.signInWith(biometric)),
