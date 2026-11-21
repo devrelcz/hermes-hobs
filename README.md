@@ -66,8 +66,13 @@ the store listing and the App content answers are in
 
 ## Try it without a server
 
-`tool/demo_server.dart` serves the demo data from the screenshots on your
-machine:
+Tap *Try the demo* on the sign-in screen. The app runs a stand-in Hermes
+server with the demo data from the screenshots on the phone itself and signs
+in to it as an account called Demo. Replies are canned, and the demo starts
+fresh each time the app starts. Google Play's reviewers use it too.
+
+To use the same data from another device, `tool/demo_server.dart` serves it
+on your machine:
 
 ```bash
 dart run tool/demo_server.dart

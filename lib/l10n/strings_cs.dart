@@ -124,6 +124,12 @@ class StringsCs extends Strings {
   @override
   String get addServerHint => 'Účet se uloží, až se přihlášení povede.';
   @override
+  String get tryDemo => 'Vyzkoušet demo';
+  @override
+  String get tryDemoHint => 'Bez serveru, s ukázkovými Hoby v telefonu.';
+  @override
+  String get demoAccountName => 'Demo';
+  @override
   String get otherServer => 'Jiný server';
   @override
   String get savedAccounts => 'Uložené účty';

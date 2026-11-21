@@ -120,6 +120,12 @@ class StringsEn extends Strings {
   @override
   String get addServerHint => 'The account is saved once signing in works.';
   @override
+  String get tryDemo => 'Try the demo';
+  @override
+  String get tryDemoHint => 'No server needed: sample Hobs on your phone.';
+  @override
+  String get demoAccountName => 'Demo';
+  @override
   String get otherServer => 'Another server';
   @override
   String get savedAccounts => 'Saved accounts';

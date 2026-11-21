@@ -132,6 +132,20 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _tryDemo() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await context.read<AppState>().tryDemo();
+    } catch (e) {
+      if (mounted) setState(() => _error = () => AppState.describeError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _biometricSignIn() async {
     setState(() {
       _busy = true;
@@ -395,6 +409,21 @@ class _LoginScreenState extends State<LoginScreen> {
                           label: Text(s.signInWith(biometric)),
                         ),
                       ],
+                      const SizedBox(height: 24),
+                      // No server yet (or reviewing the app): the demo
+                      // server built into the app.
+                      TextButton.icon(
+                        onPressed: _busy ? null : _tryDemo,
+                        icon: const Icon(Icons.play_circle_outline),
+                        label: Text(s.tryDemo),
+                      ),
+                      Text(
+                        s.tryDemoHint,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ],
                 ),

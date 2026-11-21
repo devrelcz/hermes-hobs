@@ -12,6 +12,7 @@ import '../api/group_models.dart';
 import '../api/hermes_http.dart';
 import '../api/hermes_rpc.dart';
 import '../api/models.dart';
+import '../demo/demo_hermes.dart';
 import '../l10n/strings.dart';
 import 'biometrics.dart';
 import 'chat_controller.dart';
@@ -236,7 +237,7 @@ class AppState extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    _setupClients(Uri.parse(serverUrl), cookies);
+    _setupClients(await _baseUrl(serverUrl), cookies);
     try {
       await _http!.getJson('/api/auth/me');
       _enterSignedIn();
@@ -342,6 +343,30 @@ class AppState extends ChangeNotifier {
     );
   }
 
+  /// Signs in to the demo server built into the app ([DemoHermes]), as an
+  /// account like any other, also while signed in to another server.
+  Future<void> tryDemo() async {
+    final known = _accountFor(DemoHermes.url, DemoHermes.username);
+    await _signInAs(
+      known ??
+          ServerAccount(
+            id: accounts.isEmpty ? '' : CredentialsStore.newId(),
+            name: Strings.current.demoAccountName,
+            color: nextAccountColor(),
+            serverUrl: DemoHermes.url,
+            username: DemoHermes.username,
+          ),
+      DemoHermes.password,
+      rememberPassword: true,
+    );
+  }
+
+  /// The address the clients talk to: the account's server, or the running
+  /// demo server for a demo account.
+  Future<Uri> _baseUrl(String serverUrl) async => DemoHermes.isDemo(serverUrl)
+      ? await DemoHermes.baseUrl()
+      : Uri.parse(serverUrl);
+
   /// Adds a server while signed in to another one, and switches to it once
   /// it signs in. Nothing is saved when the sign-in fails; the current
   /// account stays connected meanwhile.
@@ -401,7 +426,7 @@ class AppState extends ChangeNotifier {
     await _store.savePassword(_password);
     await _store.setAutoLogin(true);
     await _store.saveCookies(cookies);
-    _setupClients(Uri.parse(serverUrl), cookies);
+    _setupClients(await _baseUrl(serverUrl), cookies);
     await _loadLocal();
     _enterSignedIn();
   }
@@ -413,7 +438,7 @@ class AppState extends ChangeNotifier {
     String username,
     String password,
   ) async {
-    final http = HermesHttp(baseUrl: Uri.parse(serverUrl));
+    final http = HermesHttp(baseUrl: await _baseUrl(serverUrl));
     try {
       await http.postJson('/auth/password-login', {
         'provider': 'basic',
@@ -439,7 +464,7 @@ class AppState extends ChangeNotifier {
     final cookies = await _signIn(serverUrl, username, password);
     await _teardown(clearCookies: true);
     await _store.saveCookies(cookies);
-    _setupClients(Uri.parse(serverUrl), cookies);
+    _setupClients(await _baseUrl(serverUrl), cookies);
   }
 
   // --- accounts --------------------------------------------------------------
@@ -585,7 +610,7 @@ class AppState extends ChangeNotifier {
   /// Ends a waiting account's session on its server, if it is reachable.
   Future<void> _signOutQuietly(ServerAccount account) async {
     final cookies = await _store.cookies(account: account.id);
-    if (cookies.isEmpty) return;
+    if (cookies.isEmpty || DemoHermes.isDemo(account.serverUrl)) return;
     final http = HermesHttp(
       baseUrl: Uri.parse(account.serverUrl),
       cookies: cookies,
