@@ -122,12 +122,16 @@ the window width; wide starts at 700 points):
 | Deleting a Hob, disbanding a group, discarding edits, an expensive model | bottom sheet | dialog |
 | New Hob | full-screen sheet | large dialog |
 | Hob profile, app settings | tall bottom sheet | side sheet from the right |
+| Chat settings (model, reasoning, approvals) | bottom sheet from the chip under the composer | dialog |
 | Picking a model | bottom sheet with search | dialog with search |
 | Hob and folder actions | popover at the finger | popover at the pointer |
 | Saved, created, deleted | toast | toast |
 | Connection lost in a chat | inline banner above the messages | same |
+| Loading the list or a chat | skeleton rows in the content's shape | same |
+| Nothing to show (no Hobs, no match, no chat picked) | picture, one line and the action that fixes it | same |
+| SOUL.md | full-screen editor from the profile | large dialog |
 
-Errors stay plain snackbars. Sheets that hold unsaved work (New Hob, the
+Errors stay plain snackbars. Text is set in Geist, code and SOUL.md in Geist Mono, both bundled under `assets/fonts` (SIL Open Font License). Sheets that hold unsaved work (New Hob, the
 profile) close only through their own close button, never by a tap beside
 them or a drag.
 

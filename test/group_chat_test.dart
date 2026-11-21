@@ -166,7 +166,7 @@ void main() {
         ),
       );
       const s = StringsCs();
-      expect(find.text(s.groupChats.toUpperCase()), findsOneWidget);
+      expect(find.text(s.groupChats), findsOneWidget);
       expect(find.text('Porada'), findsOneWidget);
       expect(find.text('2 Hobíci · CTO, Pošta'), findsOneWidget);
       await tester.tap(find.byTooltip(s.create));

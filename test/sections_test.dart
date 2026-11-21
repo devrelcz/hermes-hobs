@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -68,11 +69,20 @@ void main() {
           child: const MaterialApp(home: HobsScreen()),
         ),
       );
-      expect(find.byIcon(Icons.drag_handle), findsNWidgets(2));
+      // Touch shows no handles (fingers hold the header); a mouse over a
+      // folder brings its handle in.
+      expect(find.byIcon(Icons.drag_handle), findsNothing);
       expect(find.byIcon(Icons.more_horiz), findsNWidgets(2));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(tester.getCenter(find.text('Folder a')));
+      await tester.pump();
+      expect(find.byIcon(Icons.drag_handle), findsOneWidget);
 
       final drag = await tester.startGesture(
-        tester.getCenter(find.byIcon(Icons.drag_handle).first),
+        tester.getCenter(find.byIcon(Icons.drag_handle)),
+        kind: PointerDeviceKind.mouse,
       );
       await tester.pump();
       await drag.moveBy(const Offset(0, 20));

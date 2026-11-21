@@ -131,6 +131,20 @@ void main() {
     FilledButton create(WidgetTester tester) =>
         tester.widget(find.widgetWithText(FilledButton, 'Vytvořit'));
 
+    testWidgets('an empty list invites the first Hob', (tester) async {
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: AppState(),
+          child: const MaterialApp(home: HobsScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Zatím tu není žádný Hobík'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, 'Nový Hobík'));
+      await tester.pumpAndSettle();
+      expect(find.byType(NewHobScreen), findsOneWidget);
+    });
+
     testWidgets('the list offers a new Hob', (tester) async {
       await openPage(tester);
       expect(find.text('Nový Hobík'), findsWidgets);

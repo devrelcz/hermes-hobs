@@ -138,5 +138,16 @@ void main() {
       plainPreview('**Analytik** ověřil\n\n`zdroje`'),
       'Analytik ověřil zdroje',
     );
+    // Links read as their text, even when the server cut the preview short.
+    expect(
+      plainPreview('V [archivu AI Weekly](https://aiweekly.devrel.cz/a) je'),
+      'V archivu AI Weekly je',
+    );
+    expect(
+      plainPreview('V [archivu AI Weekly](https://aiweekly.devrel.cz/…'),
+      'V archivu AI Weekly',
+    );
+    expect(plainPreview('- jedna\n- dvě\n1. tři'), 'jedna dvě tři');
+    expect(plainPreview('• Klikni až po ověření'), 'Klikni až po ověření');
   });
 }

@@ -91,6 +91,10 @@ abstract class Strings {
   String get noModelMatches;
   String get retry;
   String get noHobs;
+  String get noHobsTitle;
+  String get hobsLoadFailed;
+  String get showAllHobs;
+  String get pickHobHint;
   String get noMatches;
   String get working;
   String get noMessagesYet;
@@ -147,6 +151,10 @@ abstract class Strings {
   String get inheritModel;
   String get modelRequired;
   String get soulSection;
+  String get profileSection;
+  String get editSoul;
+  String get soulEmpty;
+  String get done;
   String get soulHint;
   String get setupLoadFailed;
   String get confirmModelTitle;
@@ -231,6 +239,9 @@ abstract class Strings {
   String modelSwitchDeferred(String model);
   String get modelsUnavailable;
   String get reasoningLevel;
+  String get chatSettings;
+  String get approvalHeading;
+  String get approvalScope;
   String get reasoning;
   String get approvalModeTooltip;
   String approvalModeLabel(String mode);

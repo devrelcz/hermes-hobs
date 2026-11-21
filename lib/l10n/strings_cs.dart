@@ -94,7 +94,15 @@ class StringsCs extends Strings {
   @override
   String get retry => 'Zkusit znovu';
   @override
-  String get noHobs => 'Na serveru nejsou žádní Hobíci.';
+  String get noHobs => 'Založ prvního, dej mu jméno a napiš, s čím má pomáhat.';
+  @override
+  String get noHobsTitle => 'Zatím tu není žádný Hobík';
+  @override
+  String get hobsLoadFailed => 'Hobíky se nepodařilo načíst';
+  @override
+  String get showAllHobs => 'Ukázat všechny Hobíky';
+  @override
+  String get pickHobHint => 'Nového založíš přes + nahoře v seznamu.';
   @override
   String get noMatches => 'Filtru nic neodpovídá.';
   @override
@@ -206,6 +214,15 @@ class StringsCs extends Strings {
   String get modelRequired => 'Vyplňte poskytovatele i model.';
   @override
   String get soulSection => 'SOUL.md';
+  @override
+  String get profileSection => 'Jméno a popis';
+  @override
+  String get editSoul => 'Upravit';
+  @override
+  String get soulEmpty =>
+      'Zatím prázdné. Napiš, kdo Hobík je a jak má pracovat.';
+  @override
+  String get done => 'Hotovo';
   @override
   String get soulHint => 'Persona a trvalé pokyny Hobíka';
   @override
@@ -382,6 +399,13 @@ class StringsCs extends Strings {
   String get modelsUnavailable => 'Seznam modelů se nepodařilo načíst.';
   @override
   String get reasoningLevel => 'Úroveň uvažování';
+  @override
+  String get chatSettings => 'Nastavení konverzace';
+  @override
+  String get approvalHeading => 'Schvalování příkazů';
+  @override
+  String get approvalScope =>
+      'Platí pro celého Hobíka, ne jen pro tuhle konverzaci.';
   @override
   String get reasoning => 'Uvažování';
   @override
