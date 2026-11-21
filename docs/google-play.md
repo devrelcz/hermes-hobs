@@ -55,7 +55,10 @@ README screenshots padded to 600x1200 so they fit Play's 2:1 limit; they show
 the iOS status bar, so replace them with Android captures when there is
 time).
 
-Category: Productivity. Contact email: the developer account's address.
+Category: Productivity.
+
+The demo (*Try the demo* on the sign-in screen, `lib/demo/`) is how
+reviewers and people without a server see the app. Contact email: the developer account's address.
 Privacy policy URL:
 https://github.com/danielrataj/hermes-hobs/blob/master/docs/privacy-policy.md
 
@@ -134,9 +137,12 @@ before submitting; the forms change.
 
 - **Privacy policy**: URL above.
 - **Ads**: No ads.
-- **App access**: All functionality needs a login to the user's own Hermes
-  server. Give reviewers a reachable test server with a username and
-  password, or the app cannot be reviewed.
+- **App access** (Sign in details): All functionality is available without
+  special access, through the built-in demo. Instructions for reviewers:
+  "On the sign-in screen tap *Try the demo* (Czech: *Vyzkoušet demo*). It
+  runs a sample Hermes server inside the app with demo Hobs, chats and a
+  group chat; no account or network server is needed. Real use needs the
+  user's own Hermes Agent server, entered in the Server field."
 - **Content rating** (IARC questionnaire): category "Communication" style
   app; users can exchange content with an AI agent on their own server; no
   violence, sexual content, gambling or purchases. Users interact with
@@ -154,7 +160,8 @@ before submitting; the forms change.
     Photos, Files and docs, Personal info > User IDs. Purpose: App
     functionality. Not shared with third parties. Collection is required to
     use the app.
-  - Encrypted in transit: Yes (release builds only allow HTTPS).
+  - Encrypted in transit: No. The app connects to the address the user
+    enters, which may be `http://`; it is encrypted only on `https://`.
   - Data deletion: users remove an account in Settings > Accounts, which
     deletes its data from the device; messages on the server are deleted by
     the server's operator.

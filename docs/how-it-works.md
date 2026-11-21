@@ -4,6 +4,17 @@ Details behind the features in the [README](../README.md): server accounts,
 the biometric lock, notifications, the calls the app makes to Hermes, and
 attachments.
 
+## Demo mode
+
+*Try the demo* on the sign-in screen signs in to a stand-in Hermes server that
+runs inside the app (`lib/demo/`): the tests' `FakeHermesServer`, bound to
+the loopback interface and filled with the screenshots' demo data. The demo
+is saved as an account like any other, with the server address
+`demo://hermes`; the app maps that to the running demo server, which takes a
+new port on every start. Replies are canned and the demo forgets changes
+when the app restarts. On macOS the release sandbox allows it with the
+`network.server` entitlement.
+
 ## Server accounts
 
 An account is one Hermes server and one user on it, under a name and color

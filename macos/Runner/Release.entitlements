@@ -8,5 +8,8 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!-- Demo mode runs its stand-in Hermes server on the loopback interface. -->
+	<key>com.apple.security.network.server</key>
+	<true/>
 </dict>
 </plist>

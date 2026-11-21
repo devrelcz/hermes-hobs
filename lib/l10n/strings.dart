@@ -100,6 +100,12 @@ abstract class Strings {
   String accountColorName(int i);
   String get signInAndSwitch;
   String get addServerHint;
+
+  /// Demo mode: the button on the login screen, the line under it, and the
+  /// name of the demo account.
+  String get tryDemo;
+  String get tryDemoHint;
+  String get demoAccountName;
   String get otherServer;
   String get savedAccounts;
   String switchedTo(String name);
