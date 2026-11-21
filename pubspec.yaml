@@ -53,6 +53,7 @@ dependencies:
   mime: ^2.1.0
   connectivity_plus: ^7.3.2
   wolt_modal_sheet: ^0.11.0
+  package_info_plus: ^10.2.2
 
 dev_dependencies:
   flutter_test:
@@ -75,6 +76,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # The fonts' license, shown under Settings > About > Licenses.
+  assets:
+    - assets/fonts/OFL.txt
 
   # Geist and Geist Mono (SIL Open Font License, assets/fonts/OFL.txt),
   # bundled so text never waits on a download. One variable file each; the

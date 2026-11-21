@@ -296,3 +296,38 @@ class _AppearInState extends State<AppearIn>
     ),
   );
 }
+
+/// A quiet label between the messages of two days.
+class DaySeparator extends StatelessWidget {
+  const DaySeparator({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Semantics(
+        header: true,
+        child: Row(
+          children: [
+            Expanded(child: Divider(color: cs.outlineVariant)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                label,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Expanded(child: Divider(color: cs.outlineVariant)),
+          ],
+        ),
+      ),
+    );
+  }
+}

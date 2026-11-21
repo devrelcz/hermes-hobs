@@ -729,6 +729,8 @@ class _HobListState extends State<_HobList> {
     working: app.isWorking(b),
     onTap: () => widget.onOpen(b),
     onMenu: (at, mouse) => _hobMenu(app, b, at, mouse: mouse),
+    onSwipePin: () => _change(() => app.setHobPinned(b, !b.pinned)),
+    onSwipeHide: () => _setHidden(app, b, !b.hidden),
   );
 
   /// Hidden hobs in one closed group at the end, the dashboard's way back to
@@ -1147,6 +1149,8 @@ class _HobRow extends StatefulWidget {
     required this.working,
     required this.onTap,
     required this.onMenu,
+    this.onSwipePin,
+    this.onSwipeHide,
   });
 
   final Hob hob;
@@ -1158,6 +1162,10 @@ class _HobRow extends StatefulWidget {
 
   /// Opens the hob's menu at [at] (global). [mouse] for a right-click.
   final void Function(Offset at, bool mouse) onMenu;
+
+  /// Swiping the row right pins (or unpins) it; left hides (or shows) it.
+  final VoidCallback? onSwipePin;
+  final VoidCallback? onSwipeHide;
 
   @override
   State<_HobRow> createState() => _HobRowState();
@@ -1179,7 +1187,7 @@ class _HobRowState extends State<_HobRow> {
     final preview = plainPreview(
       hob.preview.isNotEmpty ? hob.preview : hob.description,
     );
-    return Material(
+    final row = Material(
       color: selected
           ? cs.secondaryContainer.withValues(alpha: 0.6)
           : Colors.transparent,
@@ -1281,6 +1289,92 @@ class _HobRowState extends State<_HobRow> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+    final pin = widget.onSwipePin;
+    final hide = widget.onSwipeHide;
+    if (pin == null || hide == null || _pointerPlatform) return row;
+    // Phones and tablets: a swipe is the quick way to pin or hide. The row
+    // springs back; the list reorders itself after the change.
+    return Dismissible(
+      key: ValueKey('swipe-${hob.name}'),
+      dismissThresholds: const {
+        DismissDirection.startToEnd: 0.3,
+        DismissDirection.endToStart: 0.3,
+      },
+      confirmDismiss: (direction) async {
+        HapticFeedback.selectionClick();
+        direction == DismissDirection.startToEnd ? pin() : hide();
+        return false;
+      },
+      background: _SwipeAction(
+        alignment: Alignment.centerLeft,
+        color: cs.primaryContainer,
+        foreground: cs.onPrimaryContainer,
+        icon: hob.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+        label: hob.pinned ? s.unpinHob : s.pinHob,
+      ),
+      secondaryBackground: _SwipeAction(
+        alignment: Alignment.centerRight,
+        color: cs.surfaceContainerHighest,
+        foreground: cs.onSurface,
+        icon: hob.hidden
+            ? Icons.visibility_outlined
+            : Icons.visibility_off_outlined,
+        label: hob.hidden ? s.unhideHob : s.hideHob,
+      ),
+      child: row,
+    );
+  }
+
+  static bool get _pointerPlatform => switch (defaultTargetPlatform) {
+    TargetPlatform.macOS ||
+    TargetPlatform.windows ||
+    TargetPlatform.linux => true,
+    _ => false,
+  };
+}
+
+/// What a swipe on a Hob row will do, shown under the row as it slides.
+class _SwipeAction extends StatelessWidget {
+  const _SwipeAction({
+    required this.alignment,
+    required this.color,
+    required this.foreground,
+    required this.icon,
+    required this.label,
+  });
+
+  final Alignment alignment;
+  final Color color;
+  final Color foreground;
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final left = alignment == Alignment.centerLeft;
+    return ColoredBox(
+      color: color,
+      child: Align(
+        alignment: alignment,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (left) Icon(icon, color: foreground, size: 20),
+              if (left) const SizedBox(width: 8),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelLarge
+                    ?.copyWith(color: foreground),
+              ),
+              if (!left) const SizedBox(width: 8),
+              if (!left) Icon(icon, color: foreground, size: 20),
+            ],
           ),
         ),
       ),

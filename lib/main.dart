@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -16,6 +17,13 @@ import 'ui/splash_screen.dart';
 import 'ui/theme.dart';
 
 void main() {
+  // The bundled fonts' license, listed with the packages' in Settings.
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks(const [
+      'Geist',
+      'Geist Mono',
+    ], await rootBundle.loadString('assets/fonts/OFL.txt'));
+  });
   final binding = WidgetsFlutterBinding.ensureInitialized();
   Strings.current = Strings.forLocale(
     Strings.resolve(binding.platformDispatcher.locales),

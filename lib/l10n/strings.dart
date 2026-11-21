@@ -354,6 +354,11 @@ abstract class Strings {
 
   // --- settings ------------------------------------------------------------
   String get security;
+  String get about;
+  String get appVersion;
+  String get signedInAs;
+  String get licenses;
+  String get licensesHint;
   String get language;
   String get languageSystem;
   String languageSystemNow(String name);
@@ -393,6 +398,9 @@ abstract class Strings {
   String get today;
   String get tomorrow;
   String get yesterday;
+
+  /// Day name, 1 = Monday … 7 = Sunday, as in [DateTime.weekday].
+  String weekday(int day);
   String shortDate(DateTime t);
 }
 

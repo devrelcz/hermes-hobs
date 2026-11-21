@@ -323,7 +323,16 @@ class _GroupChatViewState extends State<_GroupChatView> {
     final s = Strings.of(context);
     final byId = {for (final m in c.room.members) m.memberId: m};
     final rows = <Widget>[];
+    DateTime? lastDay;
     for (final e in c.log) {
+      final at = e.createdAt;
+      if (at != null &&
+          (e.isUserMessage || e.isMemberMessage) &&
+          e.text.trim().isNotEmpty &&
+          (lastDay == null || !sameDay(lastDay, at))) {
+        rows.add(DaySeparator(label: dayLabel(at)));
+        lastDay = at;
+      }
       if (e.isUserMessage) {
         if (e.text.trim().isEmpty) continue;
         rows.add(_UserBubble(text: e.text, time: e.createdAt));

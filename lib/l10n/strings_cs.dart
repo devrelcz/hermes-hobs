@@ -679,6 +679,16 @@ class StringsCs extends Strings {
   @override
   String get security => 'Zabezpečení';
   @override
+  String get about => 'O aplikaci';
+  @override
+  String get appVersion => 'Verze';
+  @override
+  String get signedInAs => 'Přihlášen jako';
+  @override
+  String get licenses => 'Licence';
+  @override
+  String get licensesHint => 'Písmo Geist a knihovny s otevřeným kódem';
+  @override
   String get language => 'Jazyk';
   @override
   String get languageSystem => 'Podle zařízení';
@@ -723,6 +733,16 @@ class StringsCs extends Strings {
   String get tomorrow => 'zítra';
   @override
   String get yesterday => 'včera';
+  @override
+  String weekday(int day) => const [
+    'pondělí',
+    'úterý',
+    'středa',
+    'čtvrtek',
+    'pátek',
+    'sobota',
+    'neděle',
+  ][day - 1];
   @override
   String shortDate(DateTime t) => '${t.day}. ${t.month}.';
 }

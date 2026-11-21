@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/strings.dart';
@@ -33,42 +34,134 @@ class SettingsScreen extends StatelessWidget {
         title: Text(s.settings),
       ),
       body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
         children: [
           // Shown while it is on even without a biometric, so it can be
           // turned off after the face or finger was removed.
-          if (app.biometricKind != null || app.biometricLock) ...[
-            _Header(s.security),
-            const _BiometricTile(),
-          ],
-          _Header(s.notifications),
-          SwitchListTile(
-            secondary: const Icon(Icons.notifications_outlined),
-            title: Text(s.notificationsSetting),
-            subtitle: Text(
-              app.notificationsEnabled && app.notificationsBlocked
-                  ? s.notificationsBlocked
-                  : s.notificationsHint,
-            ),
-            value: app.notificationsEnabled,
-            onChanged: app.setNotificationsEnabled,
+          if (app.biometricKind != null || app.biometricLock)
+            _Group(title: s.security, children: const [_BiometricTile()]),
+          _Group(
+            title: s.notifications,
+            children: [
+              SwitchListTile(
+                secondary: const Icon(Icons.notifications_outlined),
+                title: Text(s.notificationsSetting),
+                subtitle: Text(
+                  app.notificationsEnabled && app.notificationsBlocked
+                      ? s.notificationsBlocked
+                      : s.notificationsHint,
+                ),
+                value: app.notificationsEnabled,
+                onChanged: app.setNotificationsEnabled,
+              ),
+            ],
           ),
-          _Header(s.language),
-          _LanguageTile(
-            title: s.languageSystem,
-            subtitle: s.languageSystemNow(device.languageName),
-            selected: app.languageCode == null,
-            onTap: () => app.setLanguage(null),
+          _Group(
+            title: s.language,
+            children: [
+              _LanguageTile(
+                title: s.languageSystem,
+                subtitle: s.languageSystemNow(device.languageName),
+                selected: app.languageCode == null,
+                onTap: () => app.setLanguage(null),
+              ),
+              for (final locale in Strings.supportedLocales)
+                _LanguageTile(
+                  // Each language is listed under its own name, so it can be
+                  // found by someone who cannot read the current one.
+                  title: Strings.forLocale(locale).languageName,
+                  selected: app.languageCode == locale.languageCode,
+                  onTap: () => app.setLanguage(locale.languageCode),
+                ),
+            ],
           ),
-          for (final locale in Strings.supportedLocales)
-            _LanguageTile(
-              // Each language is listed under its own name, so it can be
-              // found by someone who cannot read the current one.
-              title: Strings.forLocale(locale).languageName,
-              selected: app.languageCode == locale.languageCode,
-              onTap: () => app.setLanguage(locale.languageCode),
-            ),
+          _Group(
+            title: s.about,
+            children: [_About(app: app)],
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// One part of the settings: a title over a soft card of rows.
+class _Group extends StatelessWidget {
+  const _Group({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _Header(title),
+        Material(
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: Column(children: children),
+        ),
+      ],
+    );
+  }
+}
+
+/// The app's version, where it is signed in, and the licenses.
+class _About extends StatelessWidget {
+  const _About({required this.app});
+
+  final AppState app;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = Strings.of(context);
+    final host = Uri.tryParse(app.serverUrl)?.host ?? '';
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snap) {
+        final info = snap.data;
+        final version = info == null
+            ? ''
+            : info.buildNumber.isEmpty
+            ? info.version
+            : '${info.version} (${info.buildNumber})';
+        return Column(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.info_outline),
+              title: Text(s.appVersion),
+              trailing: Text(version),
+            ),
+            if (host.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.dns_outlined),
+                title: Text(s.serverLabel),
+                subtitle: Text(host),
+              ),
+            if (app.username.isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: Text(s.signedInAs),
+                subtitle: Text(app.username),
+              ),
+            ListTile(
+              leading: const Icon(Icons.description_outlined),
+              title: Text(s.licenses),
+              subtitle: Text(s.licensesHint),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showLicensePage(
+                context: context,
+                applicationName: 'Hermes Hobs',
+                applicationVersion: version,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -82,7 +175,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+      padding: const EdgeInsets.fromLTRB(4, 24, 4, 8),
       child: Text(
         title,
         style: theme.textTheme.titleSmall?.copyWith(
