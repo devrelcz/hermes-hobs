@@ -214,6 +214,18 @@ class StringsEn extends Strings {
       'Lost the connection to the server. Reconnecting…';
   @override
   String get reconnectNow => 'Now';
+
+  // --- offline -------------------------------------------------------------
+  @override
+  String get offlineTitle => 'You are offline';
+  @override
+  String offlineHint({required bool phone}) => phone
+      ? 'Turn on Wi-Fi or mobile data.'
+      : 'Connect to Wi-Fi or a network.';
+  @override
+  String get offlineRetry => 'Try again';
+  @override
+  String get offlineChecking => 'Checking…';
   @override
   String newMessages(int n) => '$n new';
   @override

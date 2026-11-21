@@ -151,6 +151,15 @@ abstract class Strings {
   String get scheduledJobs;
   String get connectionLost;
   String get reconnectNow;
+
+  // --- offline -------------------------------------------------------------
+  String get offlineTitle;
+
+  /// How to get back online: Wi-Fi or mobile data on a phone, a network on
+  /// a desktop.
+  String offlineHint({required bool phone});
+  String get offlineRetry;
+  String get offlineChecking;
   String newMessages(int n);
   String get jumpToEnd;
   String get tryAgain;

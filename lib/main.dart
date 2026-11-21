@@ -6,9 +6,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'l10n/strings.dart';
 import 'state/app_state.dart';
+import 'state/network_status.dart';
 import 'state/share_inbox.dart';
 import 'ui/hobs_screen.dart';
 import 'ui/lock_screen.dart';
+import 'ui/offline_bar.dart';
 import 'ui/login_screen.dart';
 import 'ui/splash_screen.dart';
 import 'ui/theme.dart';
@@ -24,6 +26,17 @@ void main() {
         ChangeNotifierProvider(create: (_) => AppState()..init()),
         // Shares from other apps wait here for the Hob list (see HobsScreen).
         ChangeNotifierProvider(create: (_) => ShareInbox()..start()),
+        // No internet: a bar asks to turn it on (see OfflineGate). When it
+        // comes back, reconnect right away instead of waiting out a backoff.
+        ChangeNotifierProvider(
+          create: (context) {
+            final app = context.read<AppState>();
+            return NetworkStatus(
+              host: () => Uri.tryParse(app.serverUrl)?.host ?? '',
+              onRestored: app.reconnect,
+            )..start();
+          },
+        ),
       ],
       child: const HobsApp(),
     ),
@@ -54,7 +67,11 @@ class _HobsAppState extends State<HobsApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final app = context.read<AppState>();
     if (state == AppLifecycleState.hidden) app.onAppHidden();
-    if (state == AppLifecycleState.resumed) app.onAppResumed();
+    if (state == AppLifecycleState.resumed) {
+      app.onAppResumed();
+      // Network settings may have changed while the app was away.
+      context.read<NetworkStatus>().recheck(quiet: true);
+    }
     // On macOS a window behind other apps is "inactive" but still running:
     // the user isn't looking, so it should notify. On phones "inactive" is
     // a brief overlay (control center, app switcher) and doesn't count.
@@ -86,18 +103,20 @@ class _HobsAppState extends State<HobsApp> with WidgetsBindingObserver {
       darkTheme: HobsTheme.darkTheme(),
       // The lock sits above the navigator, so it also covers pushed routes
       // (an open chat, settings) and they are still there after unlocking.
-      builder: (context, child) => Stack(
-        fit: StackFit.expand,
-        children: [
-          ExcludeFocus(
-            excluding: locked,
-            child: ExcludeSemantics(
+      builder: (context, child) => OfflineGate(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ExcludeFocus(
               excluding: locked,
-              child: child ?? const SizedBox.shrink(),
+              child: ExcludeSemantics(
+                excluding: locked,
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
-          ),
-          if (locked) const LockScreen(),
-        ],
+            if (locked) const LockScreen(),
+          ],
+        ),
       ),
       home: switch (phase) {
         AuthPhase.loading => const SplashScreen(),
