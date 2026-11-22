@@ -86,7 +86,7 @@ the iOS status bar, so replace them with Android captures when there is
 time).
 
 Store settings: app, free, category Productivity. Contact email: the
-developer account's address; website: https://github.com/danielrataj/hermes-hobs.
+developer account's address; website: https://github.com/devrelcz/hermes-hobs.
 
 AI asset declaration: *Don't label assets*. The form covers only images, and
 the icon, graphic and screenshots are not AI-generated.
@@ -95,7 +95,7 @@ The demo (*Try the demo* on the sign-in screen, `lib/demo/`) is how
 reviewers and people without a server see the app.
 
 Privacy policy URL:
-https://github.com/danielrataj/hermes-hobs/blob/master/docs/privacy-policy.md
+https://github.com/devrelcz/hermes-hobs/blob/master/docs/privacy-policy.md
 
 ### English (en-US)
 
