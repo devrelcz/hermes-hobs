@@ -111,12 +111,12 @@ void main() {
     tester.platformDispatcher.localesTestValue = const [Locale('en', 'US')];
     addTearDown(tester.platformDispatcher.clearLocalesTestValue);
     await tester.pumpWidget(_app(AppState(), const LoginScreen()));
-    expect(find.text('Sign in'), findsOneWidget);
-    expect(find.text('Přihlásit'), findsNothing);
+    expect(find.text('Type the details'), findsOneWidget);
+    expect(find.text('Zadat údaje ručně'), findsNothing);
 
     tester.platformDispatcher.localesTestValue = const [Locale('cs', 'CZ')];
     await tester.pumpAndSettle();
-    expect(find.text('Přihlásit'), findsOneWidget);
+    expect(find.text('Zadat údaje ručně'), findsOneWidget);
   });
 
   testWidgets('settings switch the language and remember it', (tester) async {

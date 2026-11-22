@@ -102,16 +102,16 @@ abstract class Strings {
   String get signInAndSwitch;
   String get addServerHint;
 
-  /// Demo mode: the button on the login screen, the line under it, and the
-  /// name of the demo account.
+  /// Demo mode: the button on the login screen and the name of the demo
+  /// account.
   String get tryDemo;
-  String get tryDemoHint;
   String get demoAccountName;
 
-  /// Pairing: the button on the login screen that scans a server's QR code,
-  /// the line under it, and the scanner itself.
+  /// Pairing: the login screen's choice between scanning a server's QR code
+  /// and typing the details, the way back to that choice, and the scanner.
   String get scanQr;
-  String get scanQrHint;
+  String get enterManually;
+  String get back;
   String get scanTitle;
   String get scanInstruction;
   String get scanNotPairing;
