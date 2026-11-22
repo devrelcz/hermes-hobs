@@ -106,13 +106,16 @@ https://github.com/devrelcz/hermes-hobs/blob/master/docs/privacy-policy.md
 App name (30): `Hermes Hobs`
 
 Short description (80):
-`Chat with the Hobs on your Hermes Agent server, one chat per Hob.`
+`Unofficial app: chat with the Hobs on your Hermes Agent server.`
 
 Full description:
 
 ```text
 Hermes Hobs is a chat app for your Hermes Agent server. Each profile on the
 server is a Hob, and every Hob gets its own chat.
+
+Hermes Hobs is an unofficial community app. It is not made, endorsed or
+supported by Nous Research, the makers of Hermes Agent.
 
 • One chat per Hob. Replies stream in as the Hob writes them, with the tools
   it used. Approve a command or answer a question right in the chat.
@@ -140,13 +143,16 @@ nothing to the developer.
 Název (30): `Hermes Hobs`
 
 Krátký popis (80):
-`Chatujte s Hoby na svém serveru Hermes Agent, každý Hob má vlastní chat.`
+`Neoficiální aplikace: chatujte s Hoby na svém serveru Hermes Agent.`
 
 Úplný popis:
 
 ```text
 Hermes Hobs je chatovací aplikace pro váš server Hermes Agent. Každý profil
 na serveru je Hob a každý Hob má vlastní chat.
+
+Hermes Hobs je neoficiální komunitní aplikace. Nevytváří ji, nepodporuje ani
+neschvaluje Nous Research, autoři Hermes Agent.
 
 • Jeden chat na Hoba. Odpovědi přibývají, jak je Hob píše, i s nástroji,
   které použil. Příkaz schválíte nebo na otázku odpovíte přímo v chatu.
