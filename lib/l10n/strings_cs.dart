@@ -126,21 +126,20 @@ class StringsCs extends Strings {
   @override
   String get addServerHint => 'Účet se uloží, až se přihlášení povede.';
   @override
-  String get tryDemo => 'Vyzkoušet demo';
-  @override
-  String get tryDemoHint => 'Bez serveru, s ukázkovými Hoby v telefonu.';
+  String get tryDemo => 'Vyzkoušet demo bez serveru';
   @override
   String get demoAccountName => 'Demo';
   @override
   String get scanQr => 'Naskenovat QR kód serveru';
   @override
-  String get scanQrHint =>
-      'Na serveru hermes-box ukáže ./pair.sh kód, který vás přihlásí.';
+  String get enterManually => 'Zadat údaje ručně';
+  @override
+  String get back => 'Zpět';
   @override
   String get scanTitle => 'Naskenujte QR kód';
   @override
   String get scanInstruction =>
-      'Namiřte fotoaparát na kód, který ukazuje server.';
+      'Na serveru spusťte ./pair.sh a namiřte fotoaparát na kód, který ukáže.';
   @override
   String get scanNotPairing => 'Tohle není párovací kód Hermes.';
   @override

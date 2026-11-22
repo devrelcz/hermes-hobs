@@ -122,21 +122,20 @@ class StringsEn extends Strings {
   @override
   String get addServerHint => 'The account is saved once signing in works.';
   @override
-  String get tryDemo => 'Try the demo';
-  @override
-  String get tryDemoHint => 'No server needed: sample Hobs on your phone.';
+  String get tryDemo => 'Try the demo, no server needed';
   @override
   String get demoAccountName => 'Demo';
   @override
   String get scanQr => 'Scan the server\'s QR code';
   @override
-  String get scanQrHint =>
-      'On a hermes-box server, ./pair.sh shows a code that signs you in.';
+  String get enterManually => 'Type the details';
+  @override
+  String get back => 'Back';
   @override
   String get scanTitle => 'Scan the QR code';
   @override
   String get scanInstruction =>
-      'Point the camera at the code your server shows.';
+      'Run ./pair.sh on your server and point the camera at the code it shows.';
   @override
   String get scanNotPairing => 'This is not a Hermes pairing code.';
   @override

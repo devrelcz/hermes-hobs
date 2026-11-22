@@ -19,6 +19,8 @@ void main() {
     );
     expect(find.text('Hermes Hobs'), findsOneWidget);
     expect(find.text('https://hermes.devrel.cz'), findsNothing);
+    await tester.tap(find.text('Zadat údaje ručně'));
+    await tester.pump();
     await tester.tap(find.text('Přihlásit'));
     await tester.pump();
     expect(find.text('Povinné'), findsNWidgets(3));
@@ -31,6 +33,8 @@ void main() {
         child: const MaterialApp(home: LoginScreen()),
       ),
     );
+    await tester.tap(find.text('Zadat údaje ručně'));
+    await tester.pump();
     EditableText password() => tester.widget<EditableText>(
       find.descendant(
         of: find.widgetWithText(TextFormField, 'Heslo'),
