@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/credentials_store.dart';
+import '../state/pairing.dart';
+import 'pair_scan_screen.dart';
 import 'sheets.dart';
 
 Color accountColor(String hex) {
@@ -240,7 +242,11 @@ class _PasswordFieldState extends State<PasswordField> {
 /// Adds a Hermes server under a name and color, signs in to it and
 /// switches there. Nothing is saved until the sign-in works.
 class AddServerScreen extends StatefulWidget {
-  const AddServerScreen({super.key});
+  const AddServerScreen({super.key, this.scanPairingCode});
+
+  /// Reads a server's pairing QR code; null when the user backs out. The
+  /// camera scanner unless a test supplies its own.
+  final Future<PairingCode?> Function(BuildContext context)? scanPairingCode;
 
   /// A full-screen sheet on phones, a large dialog on wide windows. True
   /// when the new account signed in.
@@ -265,6 +271,13 @@ class _AddServerScreenState extends State<AddServerScreen> {
   bool _remember = true;
   bool _busy = false;
   String? Function()? _error;
+
+  /// Where a camera can read the server's pairing code, the server is
+  /// scanned or typed in; the address fields open for the second, or filled
+  /// by the scan.
+  late bool _choosing = _canScan;
+
+  bool get _canScan => widget.scanPairingCode != null || PairScanScreen.canScan;
 
   bool get _dirty =>
       _name.text.isNotEmpty ||
@@ -304,6 +317,26 @@ class _AddServerScreenState extends State<AddServerScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Scans the server's pairing code and signs in with what it carries,
+  /// under the name and color already chosen.
+  Future<void> _scan() async {
+    final scan = widget.scanPairingCode ?? PairScanScreen.open;
+    final code = await scan(context);
+    if (code == null || !mounted) return;
+    // The filled form, so a refused sign-in says why next to what the code
+    // carried.
+    setState(() {
+      _choosing = false;
+      _error = null;
+      _server.text = code.serverUrl;
+      _user.text = code.username;
+      _pass.text = code.password;
+    });
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    await _submit();
   }
 
   Future<void> _askDiscard() async {
@@ -384,66 +417,106 @@ class _AddServerScreenState extends State<AddServerScreen> {
                       onChanged: (c) => setState(() => _color = c),
                     ),
                     const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _server,
-                      decoration: accountField(
-                        context,
-                        s.serverLabel,
-                        Icons.dns_outlined,
+                    if (_choosing) ...[
+                      FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                        ),
+                        onPressed: _busy ? null : _scan,
+                        icon: const Icon(Icons.qr_code_scanner),
+                        label: Text(s.scanQr),
                       ),
-                      keyboardType: TextInputType.url,
-                      autocorrect: false,
-                      validator: (v) => validateServerUrl(v, s),
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _user,
-                      decoration: accountField(
-                        context,
-                        s.usernameLabel,
-                        Icons.person_outline,
-                      ),
-                      autocorrect: false,
-                      autofillHints: const [AutofillHints.username],
-                      validator: (v) =>
-                          (v ?? '').trim().isEmpty ? s.fieldRequired : null,
-                    ),
-                    const SizedBox(height: 12),
-                    PasswordField(
-                      controller: _pass,
-                      label: s.passwordLabel,
-                      onSubmitted: (_) => _submit(),
-                      validator: (v) =>
-                          (v ?? '').isEmpty ? s.fieldRequired : null,
-                    ),
-                    const SizedBox(height: 4),
-                    CheckboxListTile(
-                      value: _remember,
-                      onChanged: _busy
-                          ? null
-                          : (v) => setState(() => _remember = v ?? true),
-                      title: Text(s.rememberPassword),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                    ),
-                    if (error != null) ...[
                       const SizedBox(height: 12),
-                      FormErrorBox(error),
-                    ],
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(52),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                        ),
+                        onPressed: _busy
+                            ? null
+                            : () => setState(() {
+                                _choosing = false;
+                                _error = null;
+                              }),
+                        icon: const Icon(Icons.keyboard_outlined),
+                        label: Text(s.enterManually),
                       ),
-                      onPressed: _busy ? null : _submit,
-                      child: _busy
-                          ? const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(s.signInAndSwitch),
-                    ),
+                      if (error != null) ...[
+                        const SizedBox(height: 12),
+                        FormErrorBox(error),
+                      ],
+                    ] else ...[
+                      TextFormField(
+                        controller: _server,
+                        decoration: accountField(
+                          context,
+                          s.serverLabel,
+                          Icons.dns_outlined,
+                        ),
+                        keyboardType: TextInputType.url,
+                        autocorrect: false,
+                        validator: (v) => validateServerUrl(v, s),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _user,
+                        decoration: accountField(
+                          context,
+                          s.usernameLabel,
+                          Icons.person_outline,
+                        ),
+                        autocorrect: false,
+                        autofillHints: const [AutofillHints.username],
+                        validator: (v) =>
+                            (v ?? '').trim().isEmpty ? s.fieldRequired : null,
+                      ),
+                      const SizedBox(height: 12),
+                      PasswordField(
+                        controller: _pass,
+                        label: s.passwordLabel,
+                        onSubmitted: (_) => _submit(),
+                        validator: (v) =>
+                            (v ?? '').isEmpty ? s.fieldRequired : null,
+                      ),
+                      const SizedBox(height: 4),
+                      CheckboxListTile(
+                        value: _remember,
+                        onChanged: _busy
+                            ? null
+                            : (v) => setState(() => _remember = v ?? true),
+                        title: Text(s.rememberPassword),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+                      if (error != null) ...[
+                        const SizedBox(height: 12),
+                        FormErrorBox(error),
+                      ],
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                        ),
+                        onPressed: _busy ? null : _submit,
+                        child: _busy
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(s.signInAndSwitch),
+                      ),
+                      // Typing after all: the scan stays one tap away.
+                      if (_canScan) ...[
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: _busy ? null : _scan,
+                          icon: const Icon(Icons.qr_code_scanner),
+                          label: Text(s.scanQr),
+                        ),
+                      ],
+                    ],
                     const SizedBox(height: 10),
                     Text(
                       s.addServerHint,
