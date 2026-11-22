@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../l10n/strings.dart';
 import 'attachments.dart';
 
@@ -335,6 +337,32 @@ class HobSetup {
 
 enum ChatRole { user, assistant, activity, notice, error }
 
+/// A scheduled job's output that the gateway hands to the Hob whose chat
+/// the job delivers to, as a user turn headed like
+///
+///     [Cronjob "Morning briefing" output — scheduled job, not the user. …]
+///
+/// followed by the output itself.
+class ScheduledOutput {
+  ScheduledOutput._();
+
+  static final _header = RegExp(r'^\s*\[Cronjob "(.*?)" output\b[^\n]*\]\s*');
+
+  /// The job's name and its output, or null for anything else.
+  static ({String job, String output})? parse(String text) {
+    final m = _header.firstMatch(text);
+    if (m == null) return null;
+    return (job: m.group(1)!.trim(), output: text.substring(m.end).trim());
+  }
+
+  static final _start = RegExp(r'^\s*\[Cronjob "([^"]*)');
+
+  /// The job's name from the start of such a turn, which may be cut short
+  /// (a session preview), or null.
+  static String? jobOf(String text) =>
+      _start.firstMatch(text)?.group(1)?.trim();
+}
+
 enum ToolState { running, done, failed }
 
 class ToolActivity {
@@ -369,6 +397,10 @@ class ChatMessage {
   bool streaming;
   DateTime time;
   final List<ToolActivity> tools = [];
+
+  /// For a user row that is a scheduled job's output handed to the Hob
+  /// (see [ScheduledOutput]): the job's name. [text] is then the output.
+  String? scheduledJob;
 
   /// Images, files and links sent with a user message.
   final List<ChatAttachment> attachments = [];
@@ -407,7 +439,8 @@ class ClarifyQuestion {
   final bool multiSelect;
 }
 
-/// A scheduled (cron) job as `cron.manage {action: "list"}` reports it.
+/// A scheduled (cron) job, as `GET /api/cron/jobs` reports it (the richer
+/// shape) or `cron.manage {action: "list"}` (older servers).
 class CronJob {
   CronJob({
     required this.id,
@@ -420,9 +453,16 @@ class CronJob {
     this.lastRun,
     this.lastStatus,
     this.lastError,
+    this.deliver,
+    this.repeatTimes,
+    this.repeatCompleted = 0,
+    this.running = false,
   });
 
   final String id;
+
+  /// The name as people read it: without the `[bot:<profile>] ` tag the
+  /// dashboard puts in front of the jobs it creates for a bot.
   final String name;
   final String schedule;
   final String prompt;
@@ -433,22 +473,124 @@ class CronJob {
   final String? lastStatus;
   final String? lastError;
 
+  /// Where a run's output goes: `local` (run history only),
+  /// `bot-chat:<profile>` (that Hob's chat, which answers it), or another
+  /// gateway target.
+  final String? deliver;
+
+  /// How many runs the job makes before it stops; null for no end.
+  final int? repeatTimes;
+  final int repeatCompleted;
+
+  /// A run is going on right now.
+  final bool running;
+
+  bool get paused => !enabled || state == 'paused';
+
+  bool get failed =>
+      lastStatus == 'error' || lastStatus == 'failed' || lastError != null;
+
+  /// The Hob whose chat gets the output, or null.
+  String? get deliverHob => deliver != null && deliver!.startsWith('bot-chat:')
+      ? deliver!.substring('bot-chat:'.length)
+      : null;
+
+  static final _botTag = RegExp(r'^\[bot:[^\]]*\]\s*');
+
+  /// [raw] without its `[bot:<profile>] ` tag.
+  static String displayName(String raw) => raw.replaceFirst(_botTag, '');
+
   static DateTime? _date(Object? v) {
     if (v is num) return epochToDate(v);
     if (v is String && v.isNotEmpty) return DateTime.tryParse(v)?.toLocal();
     return null;
   }
 
-  factory CronJob.fromJson(Map<String, dynamic> j) => CronJob(
-    id: j['job_id']?.toString() ?? j['id']?.toString() ?? '',
-    name: j['name']?.toString() ?? Strings.current.jobFallback,
-    schedule: j['schedule']?.toString() ?? '?',
-    prompt: j['prompt_preview']?.toString() ?? '',
-    enabled: j['enabled'] != false,
-    state: j['state']?.toString(),
-    nextRun: _date(j['next_run_at']),
-    lastRun: _date(j['last_run_at']),
-    lastStatus: j['last_status']?.toString(),
-    lastError: j['last_error']?.toString(),
+  /// A JSON object the server may also send as a JSON string.
+  static Map? _object(Object? v) {
+    if (v is Map) return v;
+    if (v is String && v.startsWith('{')) {
+      try {
+        final d = jsonDecode(v);
+        if (d is Map) return d;
+      } on FormatException {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  static String _schedule(Map<String, dynamic> j) {
+    final display = j['schedule_display'];
+    if (display is String && display.isNotEmpty) return display;
+    final raw = j['schedule'];
+    final o = _object(raw);
+    if (o != null) {
+      return (o['display'] ?? o['expr'] ?? o['value'] ?? '?').toString();
+    }
+    return raw?.toString() ?? '?';
+  }
+
+  factory CronJob.fromJson(Map<String, dynamic> j) {
+    final repeat = _object(j['repeat']);
+    final times = repeat?['times'] ?? (j['repeat'] is num ? j['repeat'] : null);
+    final raw = j['name']?.toString() ?? '';
+    final name = displayName(raw).trim();
+    return CronJob(
+      id: j['job_id']?.toString() ?? j['id']?.toString() ?? '',
+      name: name.isEmpty ? Strings.current.jobFallback : name,
+      schedule: _schedule(j),
+      prompt: (j['prompt'] ?? j['prompt_preview'])?.toString() ?? '',
+      enabled: j['enabled'] != false,
+      state: j['state']?.toString(),
+      nextRun: _date(j['next_run_at']),
+      lastRun: _date(j['last_run_at']),
+      lastStatus: j['last_status']?.toString(),
+      lastError: j['last_error']?.toString(),
+      deliver: j['deliver']?.toString(),
+      repeatTimes: times is num ? times.toInt() : null,
+      repeatCompleted: (repeat?['completed'] as num?)?.toInt() ?? 0,
+      running: j['live_execution'] != null,
+    );
+  }
+}
+
+/// One run of a [CronJob]: the session it ran in, as
+/// `GET /api/cron/jobs/<id>/runs` lists it.
+class CronRun {
+  CronRun({
+    required this.id,
+    this.startedAt,
+    this.endedAt,
+    this.endReason,
+    this.toolCalls = 0,
+    this.active = false,
+  });
+
+  final String id;
+  final DateTime? startedAt;
+  final DateTime? endedAt;
+  final String? endReason;
+  final int toolCalls;
+  final bool active;
+
+  Duration? get duration => startedAt != null && endedAt != null
+      ? endedAt!.difference(startedAt!)
+      : null;
+
+  /// Ended some other way than finishing its work.
+  bool get failed =>
+      !active &&
+      endReason != null &&
+      endReason != 'cron_complete' &&
+      endReason != 'completed';
+
+  factory CronRun.fromJson(Map<String, dynamic> j) => CronRun(
+    id: j['id']?.toString() ?? '',
+    startedAt: CronJob._date(j['started_at']),
+    endedAt: CronJob._date(j['ended_at']),
+    endReason: j['end_reason']?.toString(),
+    toolCalls: (j['tool_call_count'] as num?)?.toInt() ?? 0,
+    active: j['is_active'] == true || (j['ended_at'] == null),
   );
 }
