@@ -2,9 +2,9 @@
 
 Talk to your Hobs from wherever you are.
 
-Hermes Hobs is a chat app for Hermes Agent. Sign in to your Hermes Agent
-dashboard and every **profile** shows up as a Hob with its own chat. It runs
-on Android, iPhone, iPad and Mac.
+Hermes Hobs is a chat app for Hermes Agent. Every bot from your dashboard's
+Bot Mode shows up here as a **Hob**, with its own chat. Same bots, a friendlier
+name. It runs on Android, iPhone, iPad and Mac.
 
 Hermes Hobs is an unofficial community app. It is not made, endorsed or
 supported by Nous Research, the makers of Hermes Agent.
@@ -29,8 +29,9 @@ No server yet? [Try the demo](#try-it-without-a-server).
   thread.
 - **Your list, your way.** Folders, pins, hidden Hobs, and filters for unread,
   pinned, active and recent.
+- **New Hobs.** Create a bot from the app. It shows up on the dashboard too.
 - **Hob profiles.** Change a Hob's face, color, title, description, model and
-  SOUL.md.
+  SOUL.md. Edits go straight to the bot on your server.
 - **Per-chat settings.** Switch the model, reasoning level and approval mode
   from the composer.
 - **Attachments.** Send photos, files up to 16 MB and links, or share them
@@ -48,7 +49,8 @@ No server yet? [Try the demo](#try-it-without-a-server).
 
 1. Install the app from [Google Play](https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs).
 2. Enter your Hermes Agent dashboard's address.
-3. Sign in with the dashboard's username and password.
+3. Sign in with the dashboard's username and password. Your bots appear as
+   Hobs.
 
 To add another server, tap your avatar and pick *Add server*. Only the
 account you are in stays connected and sends notifications.
