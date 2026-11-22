@@ -2,20 +2,16 @@
 
 Talk to your Hobs from wherever you are.
 
-Hermes Hobs is a Flutter app. It ships for iOS, Android and macOS, and the same
-code can be built for Windows and Linux too. It signs in to a
-Hermes Agent dashboard at the address you enter, where each
-**profile** is a Hob, and gives every Hob its own chat.
+Hermes Hobs is a chat app for Hermes Agent. Sign in to your Hermes Agent
+dashboard and every **profile** shows up as a Hob with its own chat. It runs
+on Android, iPhone, iPad and Mac.
 
 Hermes Hobs is an unofficial community app. It is not made, endorsed or
 supported by Nous Research, the makers of Hermes Agent.
 
 <a href="https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80" alt="Get it on Google Play"></a>
 
-The Android app is on [Google Play](https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs).
-No server yet? [Try the demo](#try-it-without-a-server). The
-[privacy policy](docs/privacy-policy.md) explains what the app does with your
-data.
+No server yet? [Try the demo](#try-it-without-a-server).
 
 <p>
   <img src="docs/screenshots/hobs.png" width="200" alt="Hob list with folders, pinned Hobs and a group chat">
@@ -41,98 +37,49 @@ data.
   into a Hob from any other app.
 - **Notifications.** Hear about it when a Hob finishes a reply or waits for
   you, in a Hob chat or a group chat.
+- **Several servers.** Add each Hermes server as its own account with a name
+  and color, and switch between them from your avatar.
 - **Offline bar.** Without internet, a bar asks you to turn on Wi-Fi or
   mobile data, and the chats reconnect as soon as it is back.
 - **Face ID, Touch ID or fingerprint** lock the app when you leave it.
 - Czech and English.
 
-## Run
+## Get started
 
-```bash
-flutter pub get
-flutter run -d macos   # or an iOS simulator / Android device
-```
+1. Install the app from [Google Play](https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs).
+2. Enter your Hermes Agent dashboard's address.
+3. Sign in with the dashboard's username and password.
 
-Enter the dashboard's address, then sign in with its username and password
-(provider `basic`).
-
-More than one Hermes server? Tap your avatar and pick *Add server*: each
-server is an account with its own name and color, and the avatar menu
-switches between them. Only the account you are in is connected and sends
-notifications.
-
-To put a numbered release build on an Android phone over adb:
-
-```bash
-tool/install_android.sh
-```
-
-The build number is the commit count, and Settings > About shows it with
-the commit and the build time, so you can tell which build is installed.
-
-For Google Play, `tool/build_play.sh` builds the signed App Bundle; signing,
-the store listing and the App content answers are in
-[docs/google-play.md](docs/google-play.md).
+To add another server, tap your avatar and pick *Add server*. Only the
+account you are in stays connected and sends notifications.
 
 ## Try it without a server
 
-Tap *Try the demo* on the sign-in screen. The app runs a stand-in Hermes
-server with the demo data from the screenshots on the phone itself and signs
-in to it as an account called Demo. Replies are canned, and the demo starts
-fresh each time the app starts. Google Play's reviewers use it too.
+Tap *Try the demo* on the sign-in screen. The app signs in to a demo account
+with the Hobs and chats from the screenshots. Everything stays on your device,
+replies are canned, and the demo starts fresh each time you open the app.
 
-To use the same data from another device, `tool/demo_server.dart` serves it
-on your machine:
+## Good to know
 
-```bash
-dart run tool/demo_server.dart
-```
+- Notifications come from the app itself, not from a push service. On iPhone
+  and iPad, a Hob that answers more than about 30 seconds after you leave the
+  app notifies you only when you open it again.
+- Unread marks, collapsed folders and folder order stay on each device. A
+  chat you read elsewhere still shows as unread here; *Mark all as read* in
+  the account menu clears it.
+- Not supported yet: the SESSIONS tab, group chats with Hobs from another
+  gateway, routing settings, and attachments in group chats.
+- There is no web version.
 
-Sign in to `http://127.0.0.1:8765` as `u` / `p`. Pass a port as the first
-argument to use another one.
+## Privacy
 
-## Test
+The [privacy policy](docs/privacy-policy.md) explains what the app does with
+your data.
 
-```bash
-flutter test
-```
+## For developers
 
-The tests run the whole flow against a fake Hermes server
-(`test/fake_hermes_server.dart`).
-
-## Limits
-
-- Notifications are local; there is no push. iOS suspends the app about 30
-  seconds after you leave it, so a Hob that answers later notifies you only
-  when you open the app again.
-- The SESSIONS tab, group chats with Hobs of another gateway (peers), routing
-  settings and attachments in group chats are out of scope.
-- Unread state, collapsed folders and folder order stay on the device. A
-  chat read on another device still shows as unread here, and its
-  notification stays; *Mark all as read* in the account menu clears both.
-- Web is not a target: browser CORS and cookie rules block cross-origin access
-  to the dashboard.
-
-## How it works
-
-[docs/how-it-works.md](docs/how-it-works.md) covers server accounts, the biometric lock, how
-notifications reach the app, every call the app makes to Hermes, and
-attachments.
-
-## Layout
-
-- `lib/api/hermes_http.dart`: cookie-aware REST client (dart:io)
-- `lib/api/hermes_rpc.dart`: `/api/ws` JSON-RPC client (ticket, heartbeat, reconnect, server requests)
-- `lib/state/chat_controller.dart`: one conversation, event → message model
-- `lib/state/group_chat_controller.dart`: one group chat (room state, log, sending, member status)
-- `lib/state/app_state.dart`: login, biometric lock, Hob list, chats per Hob
-- `lib/state/credentials_store.dart`: saved accounts; per-account cookies and password in secure storage
-- `lib/state/biometrics.dart`: `local_auth` wrapper (which biometric, prompt)
-- `lib/state/notifications.dart`: local notifications, iOS background time
-- `lib/api/attachments.dart`: attachment model, `@image:`/`@file:`/`@url:` refs, turn preparation
-- `lib/state/composer_draft.dart`: uploads per Hob (progress, cancel, retry); `image_prep.dart` downscales photos
-- `lib/state/share_inbox.dart`: shares from other apps waiting for a Hob
-- `lib/ui/accounts_ui.dart`: account switcher pieces, Add server, Settings > Accounts
-- `lib/ui/`: login, Hob list (split view on wide screens), chat
-- `test/`: fake Hermes server covering the whole flow
-- `tool/demo_server.dart`: demo data for screenshots and manual testing
+- [Development](docs/development.md): build, run, test and release
+- [How it works](docs/how-it-works.md): accounts, biometric lock,
+  notifications, every call the app makes to Hermes, attachments
+- [Google Play release](docs/google-play.md): signing, store listing, release
+  history
