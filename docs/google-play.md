@@ -11,9 +11,10 @@ Store page: https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs
 
 | | |
 |---|---|
-| Published version | 1.0.0 (versionCode 101), first release, November 2026 |
-| Production | Full rollout, 177 countries / regions plus "rest of world" |
-| Internal testing | Same build, tester list *Internal - Home* |
+| Published version | 1.0.2 (versionCode 117), live November 22, 2026, full rollout; first release was 1.0.0 (versionCode 101), November 2026 |
+| In review | Store listing: short and full descriptions in en-US and cs-CZ (Hobs as Hermes bots), sent November 22, 2026 |
+| Production | Full rollout, 178 countries / regions |
+| Internal testing | 1.0.0 (versionCode 101), tester list *Internal - Home* |
 | Managed publishing | Off: an approved release goes live on its own |
 | Listing languages | English (en-US, default) and Czech (cs-CZ) |
 
@@ -77,6 +78,31 @@ release users will see.
 This account already had production access, so no closed test with 12
 testers was needed.
 
+Production can also take a new bundle directly (Production > Create new
+release, upload there), skipping internal testing; 1.0.2 went that way.
+
+## Release history
+
+| Version | versionCode | Track | What changed |
+|---|---|---|---|
+| 1.0.0 | 101 | Production, internal testing | First release |
+| 1.0.1 | 109 | Never uploaded | Built locally only |
+| 1.0.2 | 117 | Production (in review) | Sign in by scanning the server's QR code; the sign-in screen starts with the choice of scanning or typing the details |
+
+Release notes for 1.0.2:
+
+```text
+<en-US>
+Sign in by scanning your server's QR code: run ./pair.sh on a hermes-box server and point the camera at it. No more typing long passwords on your phone. The sign-in screen is simpler too.
+</en-US>
+<cs-CZ>
+Přihlášení naskenováním QR kódu serveru: na serveru hermes-box spusťte ./pair.sh a namiřte na kód fotoaparát. Dlouhé heslo už v telefonu psát nemusíte. Přihlašovací obrazovka je navíc přehlednější.
+</cs-CZ>
+```
+
+1.0.2 adds the camera (CAMERA permission, the bundled ML Kit barcode reader).
+Play warned that the download grows noticeably; no device lost support.
+
 ## Store listing
 
 Assets are in `docs/play/`: `icon-512.png`, `feature-graphic.png`
@@ -95,8 +121,8 @@ developer account's address; website: https://github.com/devrelcz/hermes-hobs.
 AI asset declaration: *Don't label assets*. The form covers only images, and
 the icon, graphic and screenshots are not AI-generated.
 
-The demo (*Try the demo* on the sign-in screen, `lib/demo/`) is how
-reviewers and people without a server see the app.
+The demo (*Try the demo, no server needed* on the sign-in screen,
+`lib/demo/`) is how reviewers and people without a server see the app.
 
 Privacy policy URL:
 https://github.com/devrelcz/hermes-hobs/blob/master/docs/privacy-policy.md
@@ -106,13 +132,14 @@ https://github.com/devrelcz/hermes-hobs/blob/master/docs/privacy-policy.md
 App name (30): `Hermes Hobs`
 
 Short description (80):
-`Unofficial app: chat with the Hobs on your Hermes Agent server.`
+`Unofficial app for your Hermes Agent bots, here called Hobs. One chat each.`
 
 Full description:
 
 ```text
-Hermes Hobs is a chat app for your Hermes Agent server. Each profile on the
-server is a Hob, and every Hob gets its own chat.
+Hermes Hobs is a chat app for your Hermes Agent server. Each bot in Hermes
+Bot Mode (a profile on the server) is a Hob here, and every Hob gets its own
+chat.
 
 Hermes Hobs is an unofficial community app. It is not made, endorsed or
 supported by Nous Research, the makers of Hermes Agent.
@@ -143,30 +170,32 @@ nothing to the developer.
 Název (30): `Hermes Hobs`
 
 Krátký popis (80):
-`Neoficiální aplikace: chatujte s Hoby na svém serveru Hermes Agent.`
+`Neoficiální aplikace pro boty z Hermes Agent. Zde Hobíci, každý má svůj chat.`
 
 Úplný popis:
 
 ```text
-Hermes Hobs je chatovací aplikace pro váš server Hermes Agent. Každý profil
-na serveru je Hob a každý Hob má vlastní chat.
+Hermes Hobs je chatovací aplikace pro váš server Hermes Agent. Každý bot
+z Hermes Bot Mode (profil na serveru) je tu Hobík a každý Hobík má vlastní
+chat.
 
 Hermes Hobs je neoficiální komunitní aplikace. Nevytváří ji, nepodporuje ani
 neschvaluje Nous Research, autoři Hermes Agent.
 
-• Jeden chat na Hoba. Odpovědi přibývají, jak je Hob píše, i s nástroji,
+• Jeden chat na Hobíka. Odpovědi přibývají, jak je Hobík píše, i s nástroji,
   které použil. Příkaz schválíte nebo na otázku odpovíte přímo v chatu.
-• Označte další Hoby. Napište @ a přizvěte do konverzace dalšího Hoba.
-• Skupinové chaty. Zeptejte se 2 až 6 Hobů najednou a čtěte jejich odpovědi
-  v jednom vlákně.
-• Seznam podle vás. Složky, připnutí, skrytí Hobové a filtry nepřečtené,
+• Označte další Hobíky. Napište @ a přizvěte do konverzace dalšího Hobíka.
+• Skupinové chaty. Zeptejte se 2 až 6 Hobíků najednou a čtěte jejich
+  odpovědi v jednom vlákně.
+• Seznam podle vás. Složky, připnutí, skrytí Hobíci a filtry nepřečtené,
   připnuté, aktivní a nedávné.
-• Profily Hobů. Změňte Hobovi obličej, barvu, titul, popis, model a SOUL.md.
+• Profily Hobíků. Změňte Hobíkovi obličej, barvu, titul, popis, model
+  a SOUL.md.
 • Nastavení chatu. Model, úroveň uvažování a režim schvalování přepnete
   přímo v poli pro psaní.
-• Přílohy. Posílejte fotky, soubory do 16 MB a odkazy, nebo je do Hoba
+• Přílohy. Posílejte fotky, soubory do 16 MB a odkazy, nebo je do Hobíka
   sdílejte z jiné aplikace.
-• Oznámení, když Hob dopíše odpověď nebo na vás čeká.
+• Oznámení, když Hobík dopíše odpověď nebo na vás čeká.
 • Víc serverů. Každý server Hermes je účet, mezi kterými přepínáte.
 • Otisk prstu nebo odemknutí obličejem zamkne aplikaci, když ji opustíte.
 
@@ -191,6 +220,9 @@ means updating the form and sending it for review.
   app with demo Hobs, chats and a group chat; no account or network server is
   needed, and every feature can be reviewed there. Real use needs the user's
   own Hermes Agent server, entered in the Server field."
+  Since 1.0.2 the button reads "Try the demo, no server needed" ("Vyzkoušet
+  demo bez serveru") and the server details are behind "Type the details";
+  the filed text still matches closely enough, so it was left as it is.
 - **Content rating** (IARC): category *All Other App Types*. Online content
   (AI-generated content from the user's server): Yes. Everything else No:
   ratings-relevant content in the package, sharing content with other users,
@@ -212,6 +244,8 @@ means updating the form and sending it for review.
     | Files and docs | No, users choose | App functionality |
 
     None is processed ephemerally: the Hermes server keeps it.
+    The QR scanner (1.0.2) reads camera frames on the device and keeps none,
+    so it adds nothing here.
   - Encrypted in transit: No. The app connects to the address the user
     enters, which may be `http://` (Dart's HTTP client ignores Android's
     cleartext block); it is encrypted only on `https://`.
