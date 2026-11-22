@@ -80,10 +80,14 @@ testers was needed.
 ## Store listing
 
 Assets are in `docs/play/`: `icon-512.png`, `feature-graphic.png`
-(source `feature-graphic.svg`), and phone screenshots `phone-*.png` (the
-README screenshots padded to 600x1200 so they fit Play's 2:1 limit; they show
-the iOS status bar, so replace them with Android captures when there is
-time).
+(source `feature-graphic.svg`), and phone screenshots: `phone-*.png` for the
+English listing and `cs/phone-*.png` for the Czech one. They are captures of
+the demo (*Try the demo*) on an Android phone in dark mode, with the app
+language set in Settings. To redo them: `adb exec-out screencap -p`, then cut
+the status and navigation bars to 1080x2160, then widen to 1215x2160 by
+repeating the edge pixels (Play wants 9:16). On Samsung phones, also paint
+over the Edge panel handle on the right.
+The demo Hobs and chats are in English in both sets.
 
 Store settings: app, free, category Productivity. Contact email: the
 developer account's address; website: https://github.com/devrelcz/hermes-hobs.
