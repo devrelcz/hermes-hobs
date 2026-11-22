@@ -1,6 +1,6 @@
 # Hermes Hobs privacy policy
 
-Last updated: 21 November 2026
+Last updated: 22 November 2026
 
 Hermes Hobs is a chat app for a Hermes Agent server that you run or have
 access to. This policy explains what the app does with your data.
@@ -48,6 +48,10 @@ stored on the device.
   fingerprint prompt. The app never sees your biometric data.
 - **Photos and files**: only the items you pick or share into the app, and
   only to send them to your Hermes server.
+- **Camera**: to scan the QR code your Hermes server shows for signing in, and
+  to take a photo you send to a Hob. The picture is read on the device while
+  you scan; it is not stored or sent anywhere. The address, user name and
+  password from the code are kept like the ones you type.
 
 ## Children
 

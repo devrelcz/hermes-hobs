@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,12 +6,24 @@ import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/biometrics.dart';
 import '../state/credentials_store.dart';
+import '../state/pairing.dart';
 import 'accounts_ui.dart';
 import 'lock_screen.dart';
+import 'pair_scan_screen.dart';
 import 'splash_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.scanPairingCode});
+
+  /// Reads a server's pairing QR code; null when the user backs out. The
+  /// camera scanner unless a test supplies its own.
+  final Future<PairingCode?> Function(BuildContext context)? scanPairingCode;
+
+  /// The scanner is offered where the device has a camera to point at a
+  /// screen: on phones and tablets.
+  static bool get canScan =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -130,6 +143,17 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Scans the server's pairing code and signs in with what it carries.
+  Future<void> _scan() async {
+    final scan = widget.scanPairingCode ?? PairScanScreen.open;
+    final code = await scan(context);
+    if (code == null || !mounted) return;
+    _server.text = code.serverUrl;
+    _user.text = code.username;
+    _pass.text = code.password;
+    await _submit();
   }
 
   Future<void> _tryDemo() async {
@@ -407,6 +431,26 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: _busy ? null : _biometricSignIn,
                           icon: Icon(biometricIcon(biometric)),
                           label: Text(s.signInWith(biometric)),
+                        ),
+                      ],
+                      if (widget.scanPairingCode != null ||
+                          LoginScreen.canScan) ...[
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(52),
+                          ),
+                          onPressed: _busy ? null : _scan,
+                          icon: const Icon(Icons.qr_code_scanner),
+                          label: Text(s.scanQr),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          s.scanQrHint,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                       ],
                       const SizedBox(height: 24),
