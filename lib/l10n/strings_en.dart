@@ -97,6 +97,8 @@ class StringsEn extends Strings {
   @override
   String get settings => 'Settings';
   @override
+  String get markAllRead => 'Mark all as read';
+  @override
   String get signOut => 'Sign out';
   @override
   String get accounts => 'Accounts';
