@@ -139,13 +139,31 @@ void main() {
       await tester.pump();
       expect(app.phase, AuthPhase.signedOut);
       expect(find.byType(FormErrorBox), findsNothing);
-      expect(
-        tester
-            .widget<TextFormField>(find.byType(TextFormField).last)
-            .controller!
-            .text,
-        isEmpty,
-      );
+      // Still the choice, with no form filled behind it.
+      expect(find.byIcon(Icons.qr_code_scanner), findsOneWidget);
+      expect(find.byType(TextFormField), findsNothing);
+      app.dispose();
+    });
+
+    testWidgets('a new server is scanned or typed, and back again', (
+      tester,
+    ) async {
+      final app = newApp();
+      await tester.runAsync(app.init);
+      await tester.pumpWidget(screen(app, () async => null));
+      expect(find.byType(TextFormField), findsNothing);
+      expect(find.byIcon(Icons.play_circle_outline), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.keyboard_outlined));
+      await tester.pump();
+      expect(find.byType(TextFormField), findsNWidgets(3));
+      expect(find.byIcon(Icons.qr_code_scanner), findsNothing);
+      expect(find.byIcon(Icons.play_circle_outline), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.arrow_back));
+      await tester.pump();
+      expect(find.byType(TextFormField), findsNothing);
+      expect(find.byIcon(Icons.qr_code_scanner), findsOneWidget);
       app.dispose();
     });
   });

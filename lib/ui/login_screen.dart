@@ -42,6 +42,13 @@ class _LoginScreenState extends State<LoginScreen> {
   /// cannot sign in on its own, or for another server.
   bool _picking = false;
 
+  /// Where a camera can read the server's pairing code, a new server starts
+  /// with the choice between scanning it and typing the details; the form
+  /// opens for the second.
+  bool _choosing = false;
+
+  bool get _canScan => widget.scanPairingCode != null || LoginScreen.canScan;
+
   /// The account being signed in from the list.
   String? _opening;
 
@@ -56,6 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (app.authError != null) _error = () => app.authError;
     // A failed sign-in says why next to the form it came from.
     _picking = app.accounts.isNotEmpty && app.authError == null;
+    _choosing = !_picking && app.authError == null && _canScan;
   }
 
   void _fillFrom(AppState app) {
@@ -110,6 +118,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _otherServer() {
     setState(() {
       _picking = false;
+      _choosing = _canScan;
       _error = null;
       _server.text = 'https://';
       _user.clear();
@@ -150,9 +159,16 @@ class _LoginScreenState extends State<LoginScreen> {
     final scan = widget.scanPairingCode ?? PairScanScreen.open;
     final code = await scan(context);
     if (code == null || !mounted) return;
-    _server.text = code.serverUrl;
-    _user.text = code.username;
-    _pass.text = code.password;
+    // The filled form, so a refused sign-in says why next to what the code
+    // carried.
+    setState(() {
+      _choosing = false;
+      _server.text = code.serverUrl;
+      _user.text = code.username;
+      _pass.text = code.password;
+    });
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
     await _submit();
   }
 
@@ -249,6 +265,58 @@ class _LoginScreenState extends State<LoginScreen> {
     ];
   }
 
+  /// A new server: scan its pairing code, or type the details.
+  List<Widget> _chooser(BuildContext context, AppState app) {
+    final s = Strings.of(context);
+    final error = _error?.call();
+    return [
+      if (app.accounts.isNotEmpty)
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TextButton.icon(
+            onPressed: _busy
+                ? null
+                : () => setState(() {
+                    _choosing = false;
+                    _picking = true;
+                    _error = null;
+                  }),
+            icon: const Icon(Icons.arrow_back),
+            label: Text(s.savedAccounts),
+          ),
+        ),
+      FilledButton.icon(
+        style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+        onPressed: _busy ? null : _scan,
+        icon: const Icon(Icons.qr_code_scanner),
+        label: Text(s.scanQr),
+      ),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+        onPressed: _busy
+            ? null
+            : () => setState(() {
+                _choosing = false;
+                _error = null;
+              }),
+        icon: const Icon(Icons.keyboard_outlined),
+        label: Text(s.enterManually),
+      ),
+      if (error != null) ...[const SizedBox(height: 12), FormErrorBox(error)],
+      const SizedBox(height: 24),
+      _demoButton(s),
+    ];
+  }
+
+  /// No server yet (or reviewing the app): the demo server built into the
+  /// app.
+  Widget _demoButton(Strings s) => TextButton.icon(
+    onPressed: _busy ? null : _tryDemo,
+    icon: const Icon(Icons.play_circle_outline),
+    label: Text(s.tryDemo),
+  );
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -332,19 +400,27 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 32),
                     if (_picking)
                       ..._picker(context, app)
+                    else if (_choosing)
+                      ..._chooser(context, app)
                     else ...[
-                      if (app.accounts.isNotEmpty)
+                      // Back to the choice of scanning, or to the saved
+                      // accounts where there is no scanner.
+                      if (_canScan || app.accounts.isNotEmpty)
                         Align(
                           alignment: AlignmentDirectional.centerStart,
                           child: TextButton.icon(
                             onPressed: _busy
                                 ? null
                                 : () => setState(() {
-                                    _picking = true;
+                                    if (_canScan) {
+                                      _choosing = true;
+                                    } else {
+                                      _picking = true;
+                                    }
                                     _error = null;
                                   }),
                             icon: const Icon(Icons.arrow_back),
-                            label: Text(s.savedAccounts),
+                            label: Text(_canScan ? s.back : s.savedAccounts),
                           ),
                         ),
                       TextFormField(
@@ -433,41 +509,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           label: Text(s.signInWith(biometric)),
                         ),
                       ],
-                      if (widget.scanPairingCode != null ||
-                          LoginScreen.canScan) ...[
-                        const SizedBox(height: 12),
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(52),
-                          ),
-                          onPressed: _busy ? null : _scan,
-                          icon: const Icon(Icons.qr_code_scanner),
-                          label: Text(s.scanQr),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          s.scanQrHint,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
+                      // With a scanner the demo is offered on the choice
+                      // before the form.
+                      if (!_canScan) ...[
+                        const SizedBox(height: 24),
+                        _demoButton(s),
                       ],
-                      const SizedBox(height: 24),
-                      // No server yet (or reviewing the app): the demo
-                      // server built into the app.
-                      TextButton.icon(
-                        onPressed: _busy ? null : _tryDemo,
-                        icon: const Icon(Icons.play_circle_outline),
-                        label: Text(s.tryDemo),
-                      ),
-                      Text(
-                        s.tryDemoHint,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
                     ],
                   ],
                 ),
