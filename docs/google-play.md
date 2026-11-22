@@ -132,13 +132,14 @@ https://github.com/devrelcz/hermes-hobs/blob/master/docs/privacy-policy.md
 App name (30): `Hermes Hobs`
 
 Short description (80):
-`Chat with the Hobs on your Hermes Agent server, one chat per Hob.`
+`Chat with your Hermes Agent bots, here called Hobs. Each one gets its own chat.`
 
 Full description:
 
 ```text
-Hermes Hobs is a chat app for your Hermes Agent server. Each profile on the
-server is a Hob, and every Hob gets its own chat.
+Hermes Hobs is a chat app for your Hermes Agent server. Each bot in Hermes
+Bot Mode (a profile on the server) is a Hob here, and every Hob gets its own
+chat.
 
 • One chat per Hob. Replies stream in as the Hob writes them, with the tools
   it used. Approve a command or answer a question right in the chat.
@@ -166,27 +167,29 @@ nothing to the developer.
 Název (30): `Hermes Hobs`
 
 Krátký popis (80):
-`Chatujte s Hoby na svém serveru Hermes Agent, každý Hob má vlastní chat.`
+`Chatujte s boty ze serveru Hermes Agent. Zde jsou to Hobíci, každý má svůj chat.`
 
 Úplný popis:
 
 ```text
-Hermes Hobs je chatovací aplikace pro váš server Hermes Agent. Každý profil
-na serveru je Hob a každý Hob má vlastní chat.
+Hermes Hobs je chatovací aplikace pro váš server Hermes Agent. Každý bot
+z Hermes Bot Mode (profil na serveru) je tu Hobík a každý Hobík má vlastní
+chat.
 
-• Jeden chat na Hoba. Odpovědi přibývají, jak je Hob píše, i s nástroji,
+• Jeden chat na Hobíka. Odpovědi přibývají, jak je Hobík píše, i s nástroji,
   které použil. Příkaz schválíte nebo na otázku odpovíte přímo v chatu.
-• Označte další Hoby. Napište @ a přizvěte do konverzace dalšího Hoba.
-• Skupinové chaty. Zeptejte se 2 až 6 Hobů najednou a čtěte jejich odpovědi
-  v jednom vlákně.
-• Seznam podle vás. Složky, připnutí, skrytí Hobové a filtry nepřečtené,
+• Označte další Hobíky. Napište @ a přizvěte do konverzace dalšího Hobíka.
+• Skupinové chaty. Zeptejte se 2 až 6 Hobíků najednou a čtěte jejich
+  odpovědi v jednom vlákně.
+• Seznam podle vás. Složky, připnutí, skrytí Hobíci a filtry nepřečtené,
   připnuté, aktivní a nedávné.
-• Profily Hobů. Změňte Hobovi obličej, barvu, titul, popis, model a SOUL.md.
+• Profily Hobíků. Změňte Hobíkovi obličej, barvu, titul, popis, model
+  a SOUL.md.
 • Nastavení chatu. Model, úroveň uvažování a režim schvalování přepnete
   přímo v poli pro psaní.
-• Přílohy. Posílejte fotky, soubory do 16 MB a odkazy, nebo je do Hoba
+• Přílohy. Posílejte fotky, soubory do 16 MB a odkazy, nebo je do Hobíka
   sdílejte z jiné aplikace.
-• Oznámení, když Hob dopíše odpověď nebo na vás čeká.
+• Oznámení, když Hobík dopíše odpověď nebo na vás čeká.
 • Víc serverů. Každý server Hermes je účet, mezi kterými přepínáte.
 • Otisk prstu nebo odemknutí obličejem zamkne aplikaci, když ji opustíte.
 
