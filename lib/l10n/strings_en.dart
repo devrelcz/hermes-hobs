@@ -128,6 +128,31 @@ class StringsEn extends Strings {
   @override
   String get demoAccountName => 'Demo';
   @override
+  String get scanQr => 'Scan the server\'s QR code';
+  @override
+  String get scanQrHint =>
+      'On a hermes-box server, ./pair.sh shows a code that signs you in.';
+  @override
+  String get scanTitle => 'Scan the QR code';
+  @override
+  String get scanInstruction =>
+      'Point the camera at the code your server shows.';
+  @override
+  String get scanNotPairing => 'This is not a Hermes pairing code.';
+  @override
+  String get scanNewerVersion =>
+      'This code is for a newer version of the app. Update Hermes Hobs.';
+  @override
+  String get scanNoPermission =>
+      'The camera is not allowed. Allow it for Hermes Hobs in the system settings, or type the sign-in details.';
+  @override
+  String get scanNoCamera =>
+      'The camera cannot be used here. Type the sign-in details instead.';
+  @override
+  String get scanTorchOn => 'Turn the light on';
+  @override
+  String get scanTorchOff => 'Turn the light off';
+  @override
   String get otherServer => 'Another server';
   @override
   String get savedAccounts => 'Saved accounts';
