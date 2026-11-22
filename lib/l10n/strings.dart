@@ -89,6 +89,7 @@ abstract class Strings {
   String get filterOlder;
   String get account;
   String get settings;
+  String get markAllRead;
   String get signOut;
   String get accounts;
   String get addServer;

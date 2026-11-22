@@ -559,6 +559,39 @@ void main() {
       app.dispose();
     });
 
+    test('mark all as read clears unread chats and the notifications, and '
+        'stays after a restart', () async {
+      addRoom('r1');
+      final app = await signedIn();
+      await waitFor(() => app.groups.isNotEmpty);
+      expect(app.hasUnread, isFalse, reason: 'first sight counts as read');
+
+      server.postMemberMessage('r1', 'cto', 'Mám hotovo.');
+      await waitFor(() => notifier.shown.isNotEmpty);
+      await app.refreshGroups();
+      await waitFor(() => app.hasUnread);
+      expect(app.isGroupUnread(app.groupById('r1')!), isTrue);
+
+      app.markAllRead();
+      expect(app.hasUnread, isFalse);
+      expect(app.isGroupUnread(app.groupById('r1')!), isFalse);
+      expect(notifier.clearedAll, 1);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      app.dispose();
+
+      // The markers are saved: a fresh start still sees the room as read.
+      final again = AppState(
+        biometrics: FakeBiometrics(),
+        notifier: notifier,
+        backgroundTime: background,
+      );
+      await again.init();
+      await settle(again);
+      await waitFor(() => again.groups.isNotEmpty);
+      expect(again.isGroupUnread(again.groupById('r1')!), isFalse);
+      again.dispose();
+    });
+
     test('a pending approval in a group notifies once', () async {
       addRoom('r1');
       final app = await signedIn();

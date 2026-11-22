@@ -109,6 +109,12 @@ or `group:<room id>` (a bare name from an older version is a Hob). With the
 biometric lock on, the lock screen comes first and the chat opens after
 unlocking.
 
+Read markers and notifications are per device: reading a chat on the phone
+does not clear it on the desktop, because Hermes keeps no read state to share.
+*Mark all as read* in the account menu (shown while anything is unread) marks
+every Hob, hidden ones included, and every group chat as read and clears the
+app's notifications.
+
 The system permission is asked for when you send your first prompt or your
 first group message, not at first launch. Settings → Notifications turns them
 off (stored in `shared_preferences`, key `notifications`); turning the switch
