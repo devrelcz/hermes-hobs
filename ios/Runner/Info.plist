@@ -43,7 +43,7 @@
 		</dict>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Hobs uses the camera to take a photo you send to a Hob.</string>
+	<string>Hobs uses the camera to take a photo you send to a Hob and to scan your server's sign-in QR code.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Hobs opens your photo library so you can send photos to a Hob.</string>
 	<key>NSFaceIDUsageDescription</key>
