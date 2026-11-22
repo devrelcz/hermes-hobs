@@ -84,8 +84,9 @@ Assets are in `docs/play/`: `icon-512.png`, `feature-graphic.png`
 English listing and `cs/phone-*.png` for the Czech one. They are captures of
 the demo (*Try the demo*) on an Android phone in dark mode, with the app
 language set in Settings. To redo them: `adb exec-out screencap -p`, then cut
-the status and navigation bars so the image is 1080x2160 (Play allows at most
-2:1). On Samsung phones, also paint over the Edge panel handle on the right.
+the status and navigation bars to 1080x2160, then widen to 1215x2160 by
+repeating the edge pixels (Play wants 9:16). On Samsung phones, also paint
+over the Edge panel handle on the right.
 The demo Hobs and chats are in English in both sets.
 
 Store settings: app, free, category Productivity. Contact email: the
