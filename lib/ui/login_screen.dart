@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,9 +20,7 @@ class LoginScreen extends StatefulWidget {
 
   /// The scanner is offered where the device has a camera to point at a
   /// screen: on phones and tablets.
-  static bool get canScan =>
-      defaultTargetPlatform == TargetPlatform.android ||
-      defaultTargetPlatform == TargetPlatform.iOS;
+  static bool get canScan => PairScanScreen.canScan;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
