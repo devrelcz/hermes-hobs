@@ -455,6 +455,14 @@ abstract class Strings {
   String get scheduledRun;
   String scheduledRunPrompt(String job);
 
+  /// Turns the gateway writes in the user's place: another Hob's message
+  /// (with the Hob's folded answer) and finished background work.
+  String messageFromHob(String? sender);
+  String replyTo(String? sender);
+  String get withReply;
+  String get delegationDone;
+  String get processDone;
+
   // --- biometric lock ------------------------------------------------------
   /// Lock screen button, e.g. "Unlock with Face ID".
   String unlockWith(BiometricKind kind);

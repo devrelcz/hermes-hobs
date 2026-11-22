@@ -201,7 +201,10 @@ class ChatController extends ChangeNotifier {
     for (final m in messages.reversed) {
       if (m.role != ChatRole.user) continue;
       final job = m.scheduledJob;
-      return job != null ? Strings.current.scheduledRunPrompt(job) : m.text;
+      if (job != null) return Strings.current.scheduledRunPrompt(job);
+      final system = m.system;
+      if (system != null) return system.title(Strings.current);
+      return m.text;
     }
     return null;
   }
@@ -417,16 +420,58 @@ class ChatController extends ChangeNotifier {
   }
 
   /// Maps `session.resume` / `session.history` rows to transcript rows.
-  /// Consecutive tool rows fold into one activity line.
+  /// Consecutive tool rows fold into one activity line. A message from
+  /// another Hob takes the Hob's answer to it (until the next user turn)
+  /// into its own row, the way the dashboard folds it.
   static List<ChatMessage> historyToMessages(Object? rows) {
     final out = <ChatMessage>[];
     if (rows is! List) return out;
+    // The message from another Hob that the rows now answer.
+    ChatMessage? answering;
     for (final r in rows.whereType<Map>()) {
       final role = r['role']?.toString();
       final time = epochToDate(r['timestamp']);
       final text = (r['text'] ?? r['content'])?.toString() ?? '';
+      if (role == 'user') answering = null;
+      // Model scaffolding the dashboard keeps out of sight (a compaction
+      // summary).
+      if (r['display_kind'] == 'hidden') continue;
       switch (role) {
+        case 'assistant' when answering != null:
+          if (text.trim().isEmpty) continue;
+          final before = answering.reply;
+          answering.reply = before == null || before.isEmpty
+              ? text
+              : '$before\n\n$text';
+        case 'tool' when answering != null:
+          answering.replyTools.add(
+            ToolActivity(
+              id:
+                  r['tool_call_id']?.toString() ??
+                  '${answering.replyTools.length}',
+              name: r['name']?.toString() ?? 'tool',
+              preview: r['context']?.toString(),
+              state: ToolState.done,
+            ),
+          );
         case 'user':
+          final system = SystemTurn.parse(
+            text,
+            kind: r['display_kind']?.toString(),
+            meta: r['display_metadata'],
+          );
+          if (system != null) {
+            final row = ChatMessage(
+              role: ChatRole.user,
+              text: system.body,
+              time: time,
+            )..system = system.turn;
+            out.add(row);
+            if (system.turn.kind == SystemTurnKind.agentMessage) {
+              answering = row;
+            }
+            continue;
+          }
           final scheduled = ScheduledOutput.parse(text);
           if (scheduled != null) {
             out.add(
