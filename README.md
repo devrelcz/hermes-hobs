@@ -7,6 +7,9 @@ code can be built for Windows and Linux too. It signs in to a
 Hermes Agent dashboard at the address you enter, where each
 **profile** is a Hob, and gives every Hob its own chat.
 
+Hermes Hobs is an unofficial community app. It is not made, endorsed or
+supported by Nous Research, the makers of Hermes Agent.
+
 <a href="https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80" alt="Get it on Google Play"></a>
 
 The Android app is on [Google Play](https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs).
