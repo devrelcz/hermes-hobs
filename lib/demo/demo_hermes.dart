@@ -140,6 +140,23 @@ FakeHermesServer seedDemo(FakeHermesServer server) {
   server.history = [
     {
       'role': 'user',
+      'text':
+          '[Cronjob "Morning briefing" output — scheduled job, not the user. '
+          'Review it, act on anything that needs action, and summarize for '
+          'the chat.]\n\n'
+          'Two new finance reports are out: the Q3 investor letter and the '
+          'board summary. No meetings before 10:00.',
+      'timestamp': now - 3600,
+    },
+    {
+      'role': 'assistant',
+      'text':
+          'Morning briefing is in. The Q3 investor letter is out, so I can '
+          'compare the quarters whenever you like.',
+      'timestamp': now - 3540,
+    },
+    {
+      'role': 'user',
       'text': 'How did Q3 revenue compare with Q2? Check at least two sources.',
       'timestamp': now - 600,
     },
@@ -168,6 +185,77 @@ FakeHermesServer seedDemo(FakeHermesServer server) {
       'timestamp': now - 120,
     },
   ];
+
+  final today = DateTime.now();
+  String at(int days, int hour) => DateTime(
+    today.year,
+    today.month,
+    today.day + days,
+    hour,
+  ).toIso8601String();
+  Map<String, dynamic> job(
+    String id,
+    String profile,
+    String name,
+    String schedule, {
+    required String prompt,
+    bool enabled = true,
+    String? deliver,
+  }) => {
+    'id': id,
+    'name': name,
+    'prompt': prompt,
+    'schedule': {'kind': 'cron', 'expr': schedule, 'display': schedule},
+    'schedule_display': schedule,
+    'repeat': {'times': null, 'completed': 0},
+    'enabled': enabled,
+    'state': enabled ? 'scheduled' : 'paused',
+    'next_run_at': enabled ? at(1, 8) : null,
+    'last_run_at': at(0, 8),
+    'last_status': 'ok',
+    'deliver': deliver ?? 'bot-chat:$profile',
+    'live_execution': null,
+    'profile': profile,
+  };
+  server.cronJobs = [
+    job(
+      'demo-briefing',
+      'research',
+      'Morning briefing',
+      '0 8 * * *',
+      prompt: 'Check the finance news and my calendar, and brief me.',
+    ),
+    job(
+      'demo-sources',
+      'research',
+      'Weekly source check',
+      '0 9 * * 1',
+      prompt: 'Make sure every source in the Q3 notes still opens.',
+      enabled: false,
+      deliver: 'local',
+    ),
+    job(
+      'demo-inbox',
+      'mail',
+      'Hourly inbox sweep',
+      '0 * * * *',
+      prompt: 'Sort new mail and draft replies to anything urgent.',
+    ),
+  ];
+  final secs = today.millisecondsSinceEpoch / 1000;
+  server.cronRuns = {
+    'demo-briefing': [
+      for (var d = 0; d < 4; d++)
+        {
+          'id': 'demo-run-$d',
+          'started_at': secs - d * 86400 - 3600,
+          'ended_at': secs - d * 86400 - 3600 + 75 + d * 10,
+          'end_reason': 'cron_complete',
+          'tool_call_count': 4 + d,
+          'is_active': false,
+        },
+    ],
+  };
 
   const room = 'room-launch';
   server.rooms[room] = {

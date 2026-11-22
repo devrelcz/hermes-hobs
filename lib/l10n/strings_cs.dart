@@ -743,6 +743,144 @@ class StringsCs extends Strings {
   String get failedTag => 'chyba';
   @override
   String get jobFallback => 'Úloha';
+  @override
+  String get newJob => 'Nová úloha';
+  @override
+  String get jobName => 'Název';
+  @override
+  String get jobNameHint => 'Ranní přehled';
+  @override
+  String get jobPrompt => 'Co má Hobík udělat';
+  @override
+  String get jobPromptHint =>
+      'Projdi nepřečtené e-maily a pošli mi pět nejdůležitějších.';
+  @override
+  String get whenToRun => 'Kdy spouštět';
+  @override
+  String get freqOnce => 'Jednou, za…';
+  @override
+  String get freqHourly => 'Každou hodinu';
+  @override
+  String get freqDaily => 'Každý den';
+  @override
+  String get freqWeekdays => 'Ve všední dny';
+  @override
+  String get freqWeekly => 'Každý týden';
+  @override
+  String get freqMonthly => 'Každý měsíc';
+  @override
+  String get freqInterval => 'Opakovaně po…';
+  @override
+  String get freqAdvanced => 'Vlastní (cron)';
+  @override
+  String get atTime => 'V čase';
+  @override
+  String get onDay => 'Den';
+  @override
+  String get dayOfMonth => 'Den v měsíci';
+  @override
+  String get inHowLong => 'Za';
+  @override
+  String get everyHowOften => 'Každých';
+  @override
+  String get unitMinutes => 'minut';
+  @override
+  String get unitHours => 'hodin';
+  @override
+  String get unitDays => 'dní';
+  @override
+  List<String> get weekdaysShort => const [
+    'po',
+    'út',
+    'st',
+    'čt',
+    'pá',
+    'so',
+    'ne',
+  ];
+  @override
+  String get cronExpression => 'Cron výraz';
+  @override
+  String get cronInvalid => 'Zadej pět polí, třeba 0 9 * * 1-5.';
+  @override
+  String get numberInvalid => 'Zadej celé číslo od 1.';
+  @override
+  String get stopAfter => 'Skončit po počtu běhů';
+  @override
+  String get stopAfterHelper => 'Prázdné pole znamená bez konce.';
+  @override
+  String get deliverTo => 'Kam poslat výsledek';
+  @override
+  String get deliverHistory => 'Jen do historie běhů';
+  @override
+  String deliverChat(String hob) =>
+      'Do chatu Hobíka $hob, který na výsledek odpoví';
+  @override
+  String get continuity => 'Navazovat na předchozí běh';
+  @override
+  String get continuityHelper =>
+      'Každý běh uvidí výstup toho minulého, takže nehlásí nic dvakrát.';
+  @override
+  String get createJob => 'Vytvořit úlohu';
+  @override
+  String jobCreated(String name) => 'Úloha $name je naplánovaná';
+  @override
+  String get jobCreateFailed => 'Úlohu se nepodařilo vytvořit.';
+  @override
+  String get runNow => 'Spustit teď';
+  @override
+  String get runStarted => 'Úloha běží';
+  @override
+  String get runningNow => 'Právě běží';
+  @override
+  String get jobOn => 'Zapnuto';
+  @override
+  String jobUpdateFailed(Object? e) => 'Úlohu se nepodařilo změnit: $e';
+  @override
+  String get deleteJob => 'Smazat úlohu';
+  @override
+  String deleteJobTitle(String name) => 'Smazat úlohu $name?';
+  @override
+  String get deleteJobMessage =>
+      'Úloha zmizí ze serveru a už se nespustí. Vrátit to nepůjde.';
+  @override
+  String get jobDeleted => 'Úloha je smazaná';
+  @override
+  String get scheduleLabel => 'Plán';
+  @override
+  String get resultLabel => 'Výsledek';
+  @override
+  String chatWith(String hob) => 'Chat Hobíka $hob';
+  @override
+  String repeatProgress(int done, int times) => 'Proběhlo $done z $times';
+  @override
+  String get promptLabel => 'Zadání';
+  @override
+  String get lastErrorLabel => 'Poslední chyba';
+  @override
+  String get lastRunLabel => 'Poslední běh';
+  @override
+  String get showMore => 'Zobrazit vše';
+  @override
+  String get showLess => 'Zobrazit méně';
+  @override
+  String get runHistory => 'Historie běhů';
+  @override
+  String get noRuns => 'Úloha ještě neběžela.';
+  @override
+  String runsLoadFailed(Object? e) => 'Historii se nepodařilo načíst: $e';
+  @override
+  String runDuration(String d) => 'trvalo $d';
+  @override
+  String toolCallCount(int n) => switch (n) {
+    1 => '1 nástroj',
+    >= 2 && <= 4 => '$n nástroje',
+    _ => '$n nástrojů',
+  };
+  @override
+  String get scheduledRun => 'Naplánovaná úloha';
+  @override
+  String scheduledRunPrompt(String job) => 'Naplánovaná úloha: $job';
 
   // --- biometric lock ------------------------------------------------------
   @override
