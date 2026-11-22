@@ -243,6 +243,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Licence'), 200);
     expect(find.text('O aplikaci'), findsOneWidget);
+    expect(find.text('Neoficiální komunitní aplikace'), findsOneWidget);
+    expect(find.textContaining('Nous Research'), findsOneWidget);
     expect(find.text('Přihlášen jako'), findsOneWidget);
     expect(find.text('daniel'), findsOneWidget);
   });
