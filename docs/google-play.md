@@ -56,8 +56,8 @@ release users will see.
    after `+` is ignored, the script sets it), commit, merge to master.
 2. On master run `tool/build_play.sh`.
 3. The bundle is about 70 MB, over the 10 MB browser automation can upload,
-   so drag it into Play Console by hand: Test and release > Testing > Internal testing >
-   Create new release. Release notes in both languages:
+   so drag it into Play Console by hand: Test and release > Testing >
+   Internal testing > Create new release. Release notes in both languages:
 
    ```text
    <en-US>
