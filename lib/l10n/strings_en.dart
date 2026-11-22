@@ -772,6 +772,12 @@ class StringsEn extends Strings {
   @override
   String get licensesHint => 'The Geist typeface and open-source libraries';
   @override
+  String get unofficialApp => 'Unofficial community app';
+  @override
+  String get unofficialAppHint =>
+      'Not made, endorsed or supported by Nous Research, the makers of '
+      'Hermes Agent.';
+  @override
   String get language => 'Language';
   @override
   String get languageSystem => 'Same as device';

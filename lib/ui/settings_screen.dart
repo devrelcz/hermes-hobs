@@ -140,7 +140,7 @@ class _Group extends StatelessWidget {
 const _gitSha = String.fromEnvironment('GIT_SHA');
 const _buildTime = String.fromEnvironment('BUILD_TIME');
 
-/// The app's version, where it is signed in, and the licenses.
+/// Who makes the app, its version, where it is signed in, and the licenses.
 class _About extends StatelessWidget {
   const _About({required this.app});
 
@@ -172,6 +172,11 @@ class _About extends StatelessWidget {
         return Column(
           children: [
             ListTile(
+              leading: const Icon(Icons.groups_outlined),
+              title: Text(s.unofficialApp),
+              subtitle: Text(s.unofficialAppHint),
+            ),
+            ListTile(
               leading: const Icon(Icons.info_outline),
               title: Text(s.appVersion),
               subtitle: _buildLine() == null ? null : Text(_buildLine()!),
@@ -198,6 +203,8 @@ class _About extends StatelessWidget {
                 context: context,
                 applicationName: 'Hermes Hobs',
                 applicationVersion: version,
+                applicationLegalese:
+                    '${s.unofficialApp}. ${s.unofficialAppHint}',
               ),
             ),
           ],
