@@ -85,3 +85,8 @@ your data.
   notifications, every call the app makes to Hermes, attachments
 - [Google Play release](docs/google-play.md): signing, store listing, release
   history
+
+## License
+
+Hermes Hobs is released under the [MIT License](LICENSE). The bundled Geist
+fonts keep their own [SIL Open Font License](assets/fonts/OFL.txt).
