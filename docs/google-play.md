@@ -90,6 +90,18 @@ release, upload there), skipping internal testing; 1.0.2 went that way.
 | 1.0.1 | 109 | Never uploaded | Built locally only |
 | 1.0.2 | 117 | Production | Sign in by scanning the server's QR code; the sign-in screen starts with the choice of scanning or typing the details |
 | 1.0.3 | 129 | Production (in review) | Settings > About and the licenses page say the app is an unofficial community app, not from Nous Research |
+| 1.0.4 | 145 | Production (prepared) | Manage a Hob's scheduled jobs (switch, run now, history, delete, new job) and show their output as cards in the chat; add another server by scanning its QR code |
+
+Release notes for 1.0.4:
+
+```text
+<en-US>
+Manage each Hob's scheduled jobs from the chat menu: switch them on and off, run one now, see its run history, delete it or schedule a new one. A job's output now shows up in the chat as a card of its own. You can also add another server by scanning its QR code.
+</en-US>
+<cs-CZ>
+Naplánované úlohy Hobíků teď spravujete z menu chatu: zapnete je nebo vypnete, spustíte hned, prohlédnete si historii běhů, smažete je nebo založíte novou. Výstup úlohy se v chatu ukáže jako samostatná karta. Další server navíc přidáte naskenováním jeho QR kódu.
+</cs-CZ>
+```
 
 Release notes for 1.0.3:
 
