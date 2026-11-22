@@ -167,4 +167,91 @@ void main() {
       app.dispose();
     });
   });
+
+  group('add server screen', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+      FlutterSecureStorage.setMockInitialValues({});
+      Strings.current = const StringsCs();
+    });
+
+    AppState newApp() => AppState(
+      store: CredentialsStore(),
+      biometrics: FakeBiometrics(kind: null),
+      notifier: FakeNotifier(),
+      backgroundTime: FakeBackgroundTime(),
+    );
+
+    Widget screen(AppState app, Future<PairingCode?> Function() scan) =>
+        ChangeNotifierProvider.value(
+          value: app,
+          child: MaterialApp(
+            home: AddServerScreen(scanPairingCode: (_) => scan()),
+          ),
+        );
+
+    testWidgets('a scanned code fills the form and signs in with it', (
+      tester,
+    ) async {
+      // Tall enough for the whole form: a list builds only what shows.
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final app = newApp();
+      await tester.runAsync(app.init);
+      const code = PairingCode(
+        serverUrl: 'http://127.0.0.1:1',
+        username: 'admin',
+        password: 'from the code',
+      );
+      await tester.pumpWidget(screen(app, () async => code));
+      await tester.enterText(find.byType(TextFormField), 'Práce');
+      await tester.ensureVisible(find.byIcon(Icons.qr_code_scanner));
+      await tester.tap(find.byIcon(Icons.qr_code_scanner));
+      for (
+        var i = 0;
+        i < 100 && find.byType(FormErrorBox).evaluate().isEmpty;
+        i++
+      ) {
+        await tester.pump();
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+      }
+      expect(find.byType(FormErrorBox), findsOneWidget);
+      final fields = tester
+          .widgetList<TextFormField>(find.byType(TextFormField))
+          .map((f) => f.controller!.text)
+          .toList();
+      // The chosen name stays; the rest comes from the code.
+      expect(fields, ['Práce', 'http://127.0.0.1:1', 'admin', 'from the code']);
+      expect(app.accounts, isEmpty);
+      app.dispose();
+    });
+
+    testWidgets('a new server is scanned or typed', (tester) async {
+      // Tall enough for the whole form: a list builds only what shows.
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final app = newApp();
+      await tester.runAsync(app.init);
+      await tester.pumpWidget(screen(app, () async => null));
+      // Only the name until the choice is made.
+      expect(find.byType(TextFormField), findsOneWidget);
+      await tester.ensureVisible(find.byIcon(Icons.qr_code_scanner));
+      await tester.tap(find.byIcon(Icons.qr_code_scanner));
+      await tester.pump();
+      // Backing out of the scanner leaves the choice.
+      expect(find.byType(TextFormField), findsOneWidget);
+
+      await tester.ensureVisible(find.byIcon(Icons.keyboard_outlined));
+      await tester.tap(find.byIcon(Icons.keyboard_outlined));
+      await tester.pump();
+      expect(find.byType(TextFormField), findsNWidgets(4));
+      // The scan stays on offer under the typed details.
+      expect(find.byIcon(Icons.qr_code_scanner), findsOneWidget);
+      app.dispose();
+    });
+  });
 }
