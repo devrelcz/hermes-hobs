@@ -12,8 +12,9 @@ Store page: https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs
 | | |
 |---|---|
 | Published version | 1.0.0 (versionCode 101), first release, November 2026 |
-| Production | Full rollout, 177 countries / regions plus "rest of world" |
-| Internal testing | Same build, tester list *Internal - Home* |
+| In review | 1.0.2 (versionCode 117), sent November 22, 2026, full rollout to production |
+| Production | Full rollout, 178 countries / regions |
+| Internal testing | 1.0.0 (versionCode 101), tester list *Internal - Home* |
 | Managed publishing | Off: an approved release goes live on its own |
 | Listing languages | English (en-US, default) and Czech (cs-CZ) |
 
@@ -77,6 +78,31 @@ release users will see.
 This account already had production access, so no closed test with 12
 testers was needed.
 
+Production can also take a new bundle directly (Production > Create new
+release, upload there), skipping internal testing; 1.0.2 went that way.
+
+## Release history
+
+| Version | versionCode | Track | What changed |
+|---|---|---|---|
+| 1.0.0 | 101 | Production, internal testing | First release |
+| 1.0.1 | 109 | Never uploaded | Built locally only |
+| 1.0.2 | 117 | Production (in review) | Sign in by scanning the server's QR code; the sign-in screen starts with the choice of scanning or typing the details |
+
+Release notes for 1.0.2:
+
+```text
+<en-US>
+Sign in by scanning your server's QR code: run ./pair.sh on a hermes-box server and point the camera at it. No more typing long passwords on your phone. The sign-in screen is simpler too.
+</en-US>
+<cs-CZ>
+Přihlášení naskenováním QR kódu serveru: na serveru hermes-box spusťte ./pair.sh a namiřte na kód fotoaparát. Dlouhé heslo už v telefonu psát nemusíte. Přihlašovací obrazovka je navíc přehlednější.
+</cs-CZ>
+```
+
+1.0.2 adds the camera (CAMERA permission, the bundled ML Kit barcode reader).
+Play warned that the download grows noticeably; no device lost support.
+
 ## Store listing
 
 Assets are in `docs/play/`: `icon-512.png`, `feature-graphic.png`
@@ -95,8 +121,8 @@ developer account's address; website: https://github.com/devrelcz/hermes-hobs.
 AI asset declaration: *Don't label assets*. The form covers only images, and
 the icon, graphic and screenshots are not AI-generated.
 
-The demo (*Try the demo* on the sign-in screen, `lib/demo/`) is how
-reviewers and people without a server see the app.
+The demo (*Try the demo, no server needed* on the sign-in screen,
+`lib/demo/`) is how reviewers and people without a server see the app.
 
 Privacy policy URL:
 https://github.com/devrelcz/hermes-hobs/blob/master/docs/privacy-policy.md
@@ -185,6 +211,9 @@ means updating the form and sending it for review.
   app with demo Hobs, chats and a group chat; no account or network server is
   needed, and every feature can be reviewed there. Real use needs the user's
   own Hermes Agent server, entered in the Server field."
+  Since 1.0.2 the button reads "Try the demo, no server needed" ("Vyzkoušet
+  demo bez serveru") and the server details are behind "Type the details";
+  the filed text still matches closely enough, so it was left as it is.
 - **Content rating** (IARC): category *All Other App Types*. Online content
   (AI-generated content from the user's server): Yes. Everything else No:
   ratings-relevant content in the package, sharing content with other users,
@@ -206,6 +235,8 @@ means updating the form and sending it for review.
     | Files and docs | No, users choose | App functionality |
 
     None is processed ephemerally: the Hermes server keeps it.
+    The QR scanner (1.0.2) reads camera frames on the device and keeps none,
+    so it adds nothing here.
   - Encrypted in transit: No. The app connects to the address the user
     enters, which may be `http://` (Dart's HTTP client ignores Android's
     cleartext block); it is encrypted only on `https://`.
