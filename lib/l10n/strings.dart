@@ -413,6 +413,10 @@ abstract class Strings {
   String get signedInAs;
   String get licenses;
   String get licensesHint;
+
+  /// Says the app is a community app, not one from Nous Research.
+  String get unofficialApp;
+  String get unofficialAppHint;
   String get language;
   String get languageSystem;
   String languageSystemNow(String name);

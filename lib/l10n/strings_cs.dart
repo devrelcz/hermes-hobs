@@ -798,6 +798,12 @@ class StringsCs extends Strings {
   @override
   String get licensesHint => 'Písmo Geist a knihovny s otevřeným kódem';
   @override
+  String get unofficialApp => 'Neoficiální komunitní aplikace';
+  @override
+  String get unofficialAppHint =>
+      'Nevytváří ji, nepodporuje ani neschvaluje Nous Research, autoři '
+      'Hermes Agent.';
+  @override
   String get language => 'Jazyk';
   @override
   String get languageSystem => 'Podle zařízení';
