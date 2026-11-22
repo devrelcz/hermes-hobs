@@ -107,6 +107,19 @@ abstract class Strings {
   String get tryDemo;
   String get tryDemoHint;
   String get demoAccountName;
+
+  /// Pairing: the button on the login screen that scans a server's QR code,
+  /// the line under it, and the scanner itself.
+  String get scanQr;
+  String get scanQrHint;
+  String get scanTitle;
+  String get scanInstruction;
+  String get scanNotPairing;
+  String get scanNewerVersion;
+  String get scanNoPermission;
+  String get scanNoCamera;
+  String get scanTorchOn;
+  String get scanTorchOff;
   String get otherServer;
   String get savedAccounts;
   String switchedTo(String name);

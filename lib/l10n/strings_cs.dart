@@ -132,6 +132,31 @@ class StringsCs extends Strings {
   @override
   String get demoAccountName => 'Demo';
   @override
+  String get scanQr => 'Naskenovat QR kód serveru';
+  @override
+  String get scanQrHint =>
+      'Na serveru hermes-box ukáže ./pair.sh kód, který vás přihlásí.';
+  @override
+  String get scanTitle => 'Naskenujte QR kód';
+  @override
+  String get scanInstruction =>
+      'Namiřte fotoaparát na kód, který ukazuje server.';
+  @override
+  String get scanNotPairing => 'Tohle není párovací kód Hermes.';
+  @override
+  String get scanNewerVersion =>
+      'Kód je pro novější verzi aplikace. Aktualizujte Hermes Hobs.';
+  @override
+  String get scanNoPermission =>
+      'Fotoaparát není povolený. Povolte ho pro Hermes Hobs v nastavení systému, nebo údaje zadejte ručně.';
+  @override
+  String get scanNoCamera =>
+      'Fotoaparát tu nejde použít. Zadejte přihlašovací údaje ručně.';
+  @override
+  String get scanTorchOn => 'Zapnout světlo';
+  @override
+  String get scanTorchOff => 'Vypnout světlo';
+  @override
   String get otherServer => 'Jiný server';
   @override
   String get savedAccounts => 'Uložené účty';
