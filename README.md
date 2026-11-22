@@ -35,6 +35,9 @@ No server yet? [Try the demo](#try-it-without-a-server).
 - **Scheduled jobs.** See a Hob's jobs, switch them on and off, run one
   now, read its run history, delete it or schedule a new one. A job's output
   shows up in the Hob's chat as a card of its own.
+- **Messages between Hobs.** When one Hob writes to another, the message and
+  the answer fold into one line in the chat, and so do notes that background
+  work finished. Tap the line to read them.
 - **Per-chat settings.** Switch the model, reasoning level and approval mode
   from the composer.
 - **Attachments.** Send photos, files up to 16 MB and links, or share them
