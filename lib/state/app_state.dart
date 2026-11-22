@@ -1442,6 +1442,29 @@ class AppState extends ChangeNotifier {
     unawaited(_saveSeen());
   }
 
+  /// Some Hob (hidden ones too) or group chat has something unread.
+  bool get hasUnread =>
+      hobs.any(isUnread) ||
+      _hiddenHobs.any(isUnread) ||
+      groups.any(isGroupUnread);
+
+  /// Every Hob (hidden ones too) and every group chat counts as read, and
+  /// the app's notifications go away. Read markers stay on this device, so
+  /// this is how chats read on another device stop showing as unread here.
+  void markAllRead() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    for (final b in [...hobs, ..._hiddenHobs]) {
+      _seen[b.name] = now;
+    }
+    for (final r in groups) {
+      _groupSeen[r.roomId] = _latestSeq(r);
+    }
+    unawaited(_saveSeen());
+    unawaited(_saveGroupSeen());
+    unawaited(_notifier.clearAll());
+    notifyListeners();
+  }
+
   // --- group chats ---------------------------------------------------------
 
   /// The profile whose gateway holds the group chats: the default one, like
