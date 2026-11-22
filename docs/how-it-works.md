@@ -2,7 +2,8 @@
 
 Details behind the features in the [README](../README.md): server accounts,
 the biometric lock, notifications, the calls the app makes to Hermes, and
-attachments.
+attachments. Building, running and testing are in
+[development.md](development.md).
 
 ## Demo mode
 
