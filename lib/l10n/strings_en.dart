@@ -726,6 +726,139 @@ class StringsEn extends Strings {
   String get failedTag => 'failed';
   @override
   String get jobFallback => 'Job';
+  @override
+  String get newJob => 'New job';
+  @override
+  String get jobName => 'Name';
+  @override
+  String get jobNameHint => 'Morning briefing';
+  @override
+  String get jobPrompt => 'What the Hob should do';
+  @override
+  String get jobPromptHint =>
+      'Go through my unread email and send me the five that matter most.';
+  @override
+  String get whenToRun => 'When to run';
+  @override
+  String get freqOnce => 'Once, in…';
+  @override
+  String get freqHourly => 'Every hour';
+  @override
+  String get freqDaily => 'Every day';
+  @override
+  String get freqWeekdays => 'Weekdays';
+  @override
+  String get freqWeekly => 'Every week';
+  @override
+  String get freqMonthly => 'Every month';
+  @override
+  String get freqInterval => 'Repeat every…';
+  @override
+  String get freqAdvanced => 'Custom (cron)';
+  @override
+  String get atTime => 'At';
+  @override
+  String get onDay => 'Day';
+  @override
+  String get dayOfMonth => 'Day of the month';
+  @override
+  String get inHowLong => 'In';
+  @override
+  String get everyHowOften => 'Every';
+  @override
+  String get unitMinutes => 'minutes';
+  @override
+  String get unitHours => 'hours';
+  @override
+  String get unitDays => 'days';
+  @override
+  List<String> get weekdaysShort => const [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
+  ];
+  @override
+  String get cronExpression => 'Cron expression';
+  @override
+  String get cronInvalid => 'Enter five fields, like 0 9 * * 1-5.';
+  @override
+  String get numberInvalid => 'Enter a whole number from 1.';
+  @override
+  String get stopAfter => 'Stop after this many runs';
+  @override
+  String get stopAfterHelper => 'Leave it empty to run with no end.';
+  @override
+  String get deliverTo => 'Send the result to';
+  @override
+  String get deliverHistory => 'Run history only';
+  @override
+  String deliverChat(String hob) => 'The chat with $hob, which answers it';
+  @override
+  String get continuity => 'Continue from the previous run';
+  @override
+  String get continuityHelper =>
+      'Each run sees the last one\'s output, so nothing is reported twice.';
+  @override
+  String get createJob => 'Create job';
+  @override
+  String jobCreated(String name) => '$name is scheduled';
+  @override
+  String get jobCreateFailed => 'Couldn\'t create the job.';
+  @override
+  String get runNow => 'Run now';
+  @override
+  String get runStarted => 'The job is running';
+  @override
+  String get runningNow => 'Running now';
+  @override
+  String get jobOn => 'On';
+  @override
+  String jobUpdateFailed(Object? e) => 'Couldn\'t change the job: $e';
+  @override
+  String get deleteJob => 'Delete job';
+  @override
+  String deleteJobTitle(String name) => 'Delete $name?';
+  @override
+  String get deleteJobMessage =>
+      'The job leaves the server and won\'t run again. This can\'t be undone.';
+  @override
+  String get jobDeleted => 'Job deleted';
+  @override
+  String get scheduleLabel => 'Schedule';
+  @override
+  String get resultLabel => 'Result';
+  @override
+  String chatWith(String hob) => 'Chat with $hob';
+  @override
+  String repeatProgress(int done, int times) => '$done of $times runs done';
+  @override
+  String get promptLabel => 'Prompt';
+  @override
+  String get lastErrorLabel => 'Last error';
+  @override
+  String get lastRunLabel => 'Last run';
+  @override
+  String get showMore => 'Show all';
+  @override
+  String get showLess => 'Show less';
+  @override
+  String get runHistory => 'Run history';
+  @override
+  String get noRuns => 'This job hasn\'t run yet.';
+  @override
+  String runsLoadFailed(Object? e) => 'Couldn\'t load the history: $e';
+  @override
+  String runDuration(String d) => 'took $d';
+  @override
+  String toolCallCount(int n) => n == 1 ? '1 tool' : '$n tools';
+  @override
+  String get scheduledRun => 'Scheduled job';
+  @override
+  String scheduledRunPrompt(String job) => 'Scheduled job: $job';
 
   // --- biometric lock ------------------------------------------------------
   @override

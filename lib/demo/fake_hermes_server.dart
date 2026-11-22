@@ -258,6 +258,41 @@ class FakeHermesServer {
   /// Answers profile deletes with an error, leaving the roster as it is.
   bool refuseDelete = false;
 
+  /// Scheduled jobs in the REST shape of `GET /api/cron/jobs`, each with
+  /// the `profile` that runs it. `cron.manage list` serves them too.
+  List<Map<String, dynamic>> cronJobs = [
+    {
+      'id': 'j1',
+      'name': 'Vibee poptavky',
+      'prompt': 'Find new web project requests from the last 30 days.',
+      'schedule': {
+        'kind': 'cron',
+        'expr': '0 9 * * 1-5',
+        'display': '0 9 * * 1-5',
+      },
+      'schedule_display': '0 9 * * 1-5',
+      'repeat': {'times': 10, 'completed': 0},
+      'enabled': true,
+      'state': 'scheduled',
+      'next_run_at': '2026-11-23T09:00:00+01:00',
+      'last_run_at': null,
+      'last_status': null,
+      'last_error': null,
+      'deliver': 'bot-chat:cto',
+      'live_execution': null,
+      'profile': 'cto',
+    },
+  ];
+
+  /// Runs listed by `GET /api/cron/jobs/<id>/runs`, by job id.
+  Map<String, List<Map<String, dynamic>>> cronRuns = {};
+
+  /// `cron.manage add` params, in order.
+  final List<Map<String, dynamic>> cronAdds = [];
+
+  /// REST calls that changed a job: "pause j1", "trigger j1", "delete j1".
+  final List<String> cronActions = [];
+
   /// Rows returned by `profiles.list` (RPC) and `/api/profiles` (REST).
   List<Map<String, dynamic>> roster = [
     {
@@ -508,6 +543,9 @@ class FakeHermesServer {
       }
       return _json(r, 200, {'ok': true, 'path': '/profiles/$name'});
     }
+    if (path == '/api/cron/jobs' || path.startsWith('/api/cron/jobs/')) {
+      return _cron(r, path);
+    }
     if (path == '/api/fs/download' && r.method == 'GET') {
       final p = r.uri.queryParameters['path'] ?? '';
       downloads.add(p);
@@ -529,6 +567,58 @@ class FakeHermesServer {
         return _json(r, 200, {'profiles': roster});
     }
     return _json(r, 404, {'detail': 'not found'});
+  }
+
+  /// The dashboard's cron routes: list, pause, resume, trigger, delete and
+  /// a job's runs.
+  Future<void> _cron(HttpRequest r, String path) async {
+    if (path == '/api/cron/jobs' && r.method == 'GET') {
+      final profile = r.uri.queryParameters['profile'];
+      return _json(r, 200, [
+        for (final j in cronJobs)
+          if (profile == null || j['profile'] == profile) j,
+      ]);
+    }
+    final rest = path.substring('/api/cron/jobs/'.length).split('/');
+    final id = Uri.decodeComponent(rest.first);
+    final action = rest.length > 1 ? rest[1] : '';
+    final job = cronJobs.where((j) => j['id'] == id).firstOrNull;
+    if (job == null) return _json(r, 404, {'detail': 'Job not found'});
+    switch ((r.method, action)) {
+      case ('GET', 'runs'):
+        return _json(r, 200, {'runs': cronRuns[id] ?? const []});
+      case ('POST', 'pause'):
+        job['enabled'] = false;
+        job['state'] = 'paused';
+      case ('POST', 'resume'):
+        job['enabled'] = true;
+        job['state'] = 'scheduled';
+        job['next_run_at'] ??= DateTime.now()
+            .add(const Duration(days: 1))
+            .toIso8601String();
+      case ('POST', 'trigger'):
+        final now = DateTime.now();
+        job['last_run_at'] = now.toIso8601String();
+        job['last_status'] = 'ok';
+        final secs = now.millisecondsSinceEpoch / 1000;
+        cronRuns[id] = [
+          {
+            'id': 'run-${cronActions.length}',
+            'started_at': secs,
+            'ended_at': secs + 42,
+            'end_reason': 'cron_complete',
+            'tool_call_count': 3,
+            'is_active': false,
+          },
+          ...?cronRuns[id],
+        ];
+      case ('DELETE', ''):
+        cronJobs.remove(job);
+      default:
+        return _json(r, 405, {'detail': 'Method not allowed'});
+    }
+    cronActions.add('${action.isEmpty ? 'delete' : action} $id');
+    return _json(r, 200, {'ok': true, 'job': job});
   }
 
   void _serveWs(WebSocket ws) {
@@ -917,19 +1007,53 @@ class FakeHermesServer {
             'result': {'key': params['key'], 'value': params['value']},
           });
         case 'cron.manage':
+          final profile = params['profile']?.toString();
+          if (params['action'] == 'add') {
+            cronAdds.add(Map<String, dynamic>.from(params));
+            final jobId = 'j${cronJobs.length + cronAdds.length + 1}';
+            final schedule = params['schedule'].toString();
+            cronJobs.add({
+              'id': jobId,
+              'name': params['name'],
+              'prompt': params['prompt'],
+              'schedule': {
+                'kind': 'cron',
+                'expr': schedule,
+                'display': schedule,
+              },
+              'schedule_display': schedule,
+              'repeat': {'times': params['repeat'], 'completed': 0},
+              'enabled': true,
+              'state': 'scheduled',
+              'next_run_at': null,
+              'deliver': params['deliver'] == 'bot-chat'
+                  ? 'bot-chat:$profile'
+                  : 'local',
+              'live_execution': null,
+              'profile': profile,
+            });
+            send({
+              'id': id,
+              'result': {'success': true, 'job_id': jobId},
+            });
+            return;
+          }
           send({
             'id': id,
             'result': {
               'success': true,
               'jobs': [
-                {
-                  'job_id': 'j1',
-                  'name': 'Vibee poptavky',
-                  'schedule': '0 9 * * 1-5',
-                  'enabled': true,
-                  'state': 'scheduled',
-                  'next_run_at': '2026-11-23T09:00:00+01:00',
-                },
+                for (final j in cronJobs)
+                  if (profile == null || j['profile'] == profile)
+                    {
+                      'job_id': j['id'],
+                      'name': j['name'],
+                      'schedule': j['schedule_display'],
+                      'prompt_preview': j['prompt'],
+                      'enabled': j['enabled'],
+                      'state': j['state'],
+                      'next_run_at': j['next_run_at'],
+                    },
               ],
             },
           });

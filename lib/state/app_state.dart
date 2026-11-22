@@ -1724,7 +1724,35 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- scheduled jobs ---------------------------------------------------
+  // The dashboard's REST routes (`/api/cron/...`) read and change jobs; a new
+  // job is created over the socket with `cron.manage add`, the way the
+  // dashboard's bot rail does it.
+
+  /// The Hob's jobs, paused ones included. Servers without the REST routes
+  /// answer through `cron.manage list`.
   Future<List<CronJob>> cronJobs(Hob hob) async {
+    final http = _http;
+    if (http == null) return [];
+    try {
+      final res = await http.getJson(
+        '/api/cron/jobs',
+        query: {'profile': hob.name},
+      );
+      final rows = res is List ? res : (res is Map ? res['jobs'] : null);
+      if (rows is List) {
+        return rows
+            .whereType<Map>()
+            .map((j) => CronJob.fromJson(Map<String, dynamic>.from(j)))
+            .toList();
+      }
+    } on HermesHttpException catch (e) {
+      if (e.statusCode != 404 && e.statusCode != 405) rethrow;
+    }
+    return _cronJobsOverRpc(hob);
+  }
+
+  Future<List<CronJob>> _cronJobsOverRpc(Hob hob) async {
     final rpc = _rpc;
     if (rpc == null) return [];
     await rpc.connect();
@@ -1743,6 +1771,102 @@ class AppState extends ChangeNotifier {
         .whereType<Map>()
         .map((j) => CronJob.fromJson(Map<String, dynamic>.from(j)))
         .toList();
+  }
+
+  String _cronPath(CronJob job, [String action = '']) =>
+      '/api/cron/jobs/${Uri.encodeComponent(job.id)}$action';
+
+  /// Pauses a job or lets it run on its schedule again.
+  Future<void> setCronEnabled(CronJob job, bool enabled) async {
+    final http = _http;
+    if (http == null) throw StateError(Strings.current.chatNotReady);
+    await http.postJson(_cronPath(job, enabled ? '/resume' : '/pause'), null);
+  }
+
+  /// Runs a job now, besides its schedule. The server answers only once the
+  /// run is over, which can take minutes: this returns as soon as the run
+  /// is under way and leaves the request to finish on its own. Errors that
+  /// come back at once (an unknown job) are thrown.
+  Future<void> triggerCron(CronJob job) async {
+    final http = _http;
+    if (http == null) throw StateError(Strings.current.chatNotReady);
+    final run = http.postJson(
+      _cronPath(job, '/trigger'),
+      null,
+      timeout: const Duration(hours: 24),
+    );
+    final quick = await Future.any<Object?>([
+      run.then<Object?>((_) => null),
+      Future<Object?>.delayed(const Duration(seconds: 3), () => _stillRunning),
+    ]);
+    if (identical(quick, _stillRunning)) {
+      // A late failure has no one to tell; the run history shows it.
+      unawaited(run.then<void>((_) {}, onError: (_) {}));
+    }
+  }
+
+  static const _stillRunning = Object();
+
+  Future<void> deleteCron(CronJob job) async {
+    final http = _http;
+    if (http == null) throw StateError(Strings.current.chatNotReady);
+    await http.deleteJson(_cronPath(job));
+  }
+
+  /// The job's latest runs, newest first.
+  Future<List<CronRun>> cronRuns(CronJob job, {int limit = 20}) async {
+    final http = _http;
+    if (http == null) return [];
+    final res = await http.getJson(
+      _cronPath(job, '/runs'),
+      query: {'limit': '$limit'},
+    );
+    final rows = res is Map ? res['runs'] : res;
+    if (rows is! List) return [];
+    final runs = rows
+        .whereType<Map>()
+        .map((r) => CronRun.fromJson(Map<String, dynamic>.from(r)))
+        .toList();
+    runs.sort(
+      (a, b) =>
+          (b.startedAt ?? DateTime(0)).compareTo(a.startedAt ?? DateTime(0)),
+    );
+    return runs;
+  }
+
+  /// Schedules a new job for [hob] the way the dashboard's bot rail does:
+  /// tagged `[bot:<profile>]`, run by that profile, its output kept in the
+  /// run history or sent to the Hob's chat ([toChat]), which answers it.
+  /// [repeat] stops it after that many runs; [continuity] shows each run
+  /// the previous one's output.
+  Future<void> createCron(
+    Hob hob, {
+    required String name,
+    required String schedule,
+    required String prompt,
+    int? repeat,
+    bool continuity = false,
+    bool toChat = false,
+  }) async {
+    final rpc = _rpc;
+    if (rpc == null) throw StateError(Strings.current.chatNotReady);
+    await rpc.connect();
+    final res = await rpc.requestWith('cron.manage', {
+      'action': 'add',
+      'name': '[bot:${hob.name}] ${name.trim()}',
+      'schedule': schedule.trim(),
+      'prompt': prompt.trim(),
+      'profile': hob.name,
+      'repeat': ?repeat,
+      if (continuity) 'continuity': true,
+      if (toChat) 'deliver': 'bot-chat',
+    }, timeout: const Duration(seconds: 30));
+    if (res is Map && res['success'] == false) {
+      throw Exception(
+        (res['error'] ?? res['message'] ?? Strings.current.jobCreateFailed)
+            .toString(),
+      );
+    }
   }
 
   void onAppResumed() {

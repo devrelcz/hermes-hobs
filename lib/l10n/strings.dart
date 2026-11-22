@@ -388,6 +388,73 @@ abstract class Strings {
   String get failedTag;
   String get jobFallback;
 
+  /// The job editor and a job's detail.
+  String get newJob;
+  String get jobName;
+  String get jobNameHint;
+  String get jobPrompt;
+  String get jobPromptHint;
+  String get whenToRun;
+  String get freqOnce;
+  String get freqHourly;
+  String get freqDaily;
+  String get freqWeekdays;
+  String get freqWeekly;
+  String get freqMonthly;
+  String get freqInterval;
+  String get freqAdvanced;
+  String get atTime;
+  String get onDay;
+  String get dayOfMonth;
+  String get inHowLong;
+  String get everyHowOften;
+  String get unitMinutes;
+  String get unitHours;
+  String get unitDays;
+
+  /// Short weekday names, Monday first.
+  List<String> get weekdaysShort;
+  String get cronExpression;
+  String get cronInvalid;
+  String get numberInvalid;
+  String get stopAfter;
+  String get stopAfterHelper;
+  String get deliverTo;
+  String get deliverHistory;
+  String deliverChat(String hob);
+  String get continuity;
+  String get continuityHelper;
+  String get createJob;
+  String jobCreated(String name);
+  String get jobCreateFailed;
+  String get runNow;
+  String get runStarted;
+  String get runningNow;
+  String get jobOn;
+  String jobUpdateFailed(Object? e);
+  String get deleteJob;
+  String deleteJobTitle(String name);
+  String get deleteJobMessage;
+  String get jobDeleted;
+  String get scheduleLabel;
+  String get resultLabel;
+  String chatWith(String hob);
+  String repeatProgress(int done, int times);
+  String get promptLabel;
+  String get lastErrorLabel;
+  String get lastRunLabel;
+  String get showMore;
+  String get showLess;
+  String get runHistory;
+  String get noRuns;
+  String runsLoadFailed(Object? e);
+  String runDuration(String d);
+  String toolCallCount(int n);
+
+  /// A scheduled job's output in a Hob's chat.
+  String get scheduledRun;
+  String scheduledRunPrompt(String job);
+
   // --- biometric lock ------------------------------------------------------
   /// Lock screen button, e.g. "Unlock with Face ID".
   String unlockWith(BiometricKind kind);

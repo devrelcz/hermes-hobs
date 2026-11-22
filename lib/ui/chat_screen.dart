@@ -898,6 +898,12 @@ class _MessageRowState extends State<_MessageRow> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     switch (message.role) {
+      case ChatRole.user when message.scheduledJob != null:
+        return _spoken(
+          context,
+          Strings.of(context).scheduledRun,
+          _ScheduledOutputCard(message: message),
+        );
       case ChatRole.user:
         // Your side of the conversation: on the right, never full width,
         // the corner nearest the composer a little sharper. A screen
@@ -1075,6 +1081,98 @@ class _MessageRowState extends State<_MessageRow> {
 }
 
 /// A quiet chip summarizing consecutive tool calls; tap to expand.
+/// A scheduled job's output handed to the Hob: not something the user
+/// wrote, so not a bubble on their side. A card across the chat, headed by
+/// the job's name; a long output folds until it is opened.
+class _ScheduledOutputCard extends StatefulWidget {
+  const _ScheduledOutputCard({required this.message});
+
+  final ChatMessage message;
+
+  @override
+  State<_ScheduledOutputCard> createState() => _ScheduledOutputCardState();
+}
+
+class _ScheduledOutputCardState extends State<_ScheduledOutputCard> {
+  static const _foldAt = 600;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final s = Strings.of(context);
+    final m = widget.message;
+    final long = m.text.length > _foldAt;
+    final folded = long && !m.expanded;
+    final text = folded
+        ? '${m.text.substring(0, _foldAt).trimRight()}…'
+        : m.text;
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.schedule, size: 16, color: cs.primary),
+                const SizedBox(width: 6),
+                Text(
+                  s.scheduledRun,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: cs.primary,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    m.scheduledJob!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Text(
+                  clockTime(m.time),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: cs.outline,
+                  ),
+                ),
+              ],
+            ),
+            if (text.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              MarkdownBody(
+                data: text,
+                styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                  p: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+                ),
+              ),
+            ],
+            if (long)
+              TextButton(
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () => setState(() => m.expanded = !m.expanded),
+                child: Text(m.expanded ? s.showLess : s.showMore),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ActivityRow extends StatelessWidget {
   const _ActivityRow({required this.message, required this.onToggle});
 
