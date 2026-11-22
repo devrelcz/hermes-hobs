@@ -11,8 +11,8 @@ Store page: https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs
 
 | | |
 |---|---|
-| Published version | 1.0.0 (versionCode 101), first release, November 2026 |
-| In review | 1.0.2 (versionCode 117), sent November 22, 2026, full rollout to production |
+| Published version | 1.0.2 (versionCode 117), live November 22, 2026, full rollout; first release was 1.0.0 (versionCode 101), November 2026 |
+| In review | Store listing: short and full descriptions in en-US and cs-CZ (Hobs as Hermes bots), sent November 22, 2026 |
 | Production | Full rollout, 178 countries / regions |
 | Internal testing | 1.0.0 (versionCode 101), tester list *Internal - Home* |
 | Managed publishing | Off: an approved release goes live on its own |
