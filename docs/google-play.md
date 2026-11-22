@@ -12,7 +12,8 @@ Store page: https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs
 | | |
 |---|---|
 | Published version | 1.0.2 (versionCode 117), live November 22, 2026, full rollout; first release was 1.0.0 (versionCode 101), November 2026 |
-| In review | Store listing: short and full descriptions in en-US and cs-CZ (Hobs as Hermes bots), sent November 22, 2026 |
+| In review | 1.0.3 (versionCode 129), production, full rollout, sent November 22, 2026 |
+| Store listing | Says the app is unofficial and not from Nous Research (short and full descriptions, en-US and cs-CZ), live November 22, 2026 |
 | Production | Full rollout, 178 countries / regions |
 | Internal testing | 1.0.0 (versionCode 101), tester list *Internal - Home* |
 | Managed publishing | Off: an approved release goes live on its own |
@@ -54,8 +55,8 @@ release users will see.
 1. Bump `version:` in `pubspec.yaml` (for example `1.0.1+1`; the build number
    after `+` is ignored, the script sets it), commit, merge to master.
 2. On master run `tool/build_play.sh`.
-3. The bundle is about 60 MB, too big for browser automation, so drag it
-   into Play Console by hand: Test and release > Testing > Internal testing >
+3. The bundle is about 70 MB, over the 10 MB browser automation can upload,
+   so drag it into Play Console by hand: Test and release > Testing > Internal testing >
    Create new release. Release notes in both languages:
 
    ```text
@@ -87,7 +88,19 @@ release, upload there), skipping internal testing; 1.0.2 went that way.
 |---|---|---|---|
 | 1.0.0 | 101 | Production, internal testing | First release |
 | 1.0.1 | 109 | Never uploaded | Built locally only |
-| 1.0.2 | 117 | Production (in review) | Sign in by scanning the server's QR code; the sign-in screen starts with the choice of scanning or typing the details |
+| 1.0.2 | 117 | Production | Sign in by scanning the server's QR code; the sign-in screen starts with the choice of scanning or typing the details |
+| 1.0.3 | 129 | Production (in review) | Settings > About and the licenses page say the app is an unofficial community app, not from Nous Research |
+
+Release notes for 1.0.3:
+
+```text
+<en-US>
+Settings > About now says that Hermes Hobs is an unofficial community app, not made, endorsed or supported by Nous Research.
+</en-US>
+<cs-CZ>
+V Nastavení > O aplikaci teď uvidíte, že Hermes Hobs je neoficiální komunitní aplikace, kterou nevytváří, nepodporuje ani neschvaluje Nous Research.
+</cs-CZ>
+```
 
 Release notes for 1.0.2:
 
