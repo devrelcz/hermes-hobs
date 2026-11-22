@@ -97,11 +97,14 @@ class HermesHttp {
   Future<dynamic> getJson(String path, {Map<String, String>? query}) =>
       _send('GET', path, query: query);
 
+  /// [timeout] covers the wait for the reply; some calls answer only once
+  /// their work is done (a cron job's manual run).
   Future<dynamic> postJson(
     String path,
     Object? body, {
     Map<String, String>? query,
-  }) => _send('POST', path, body: body, query: query);
+    Duration timeout = const Duration(seconds: 30),
+  }) => _send('POST', path, body: body, query: query, timeout: timeout);
 
   Future<dynamic> deleteJson(String path) => _send('DELETE', path);
 
@@ -110,6 +113,7 @@ class HermesHttp {
     String path, {
     Object? body,
     Map<String, String>? query,
+    Duration timeout = const Duration(seconds: 30),
   }) async {
     final uri = resolve(path, query);
     final req = await _client.openUrl(method, uri);
@@ -120,7 +124,7 @@ class HermesHttp {
       req.contentLength = bytes.length;
       req.add(bytes);
     }
-    final resp = await req.close().timeout(const Duration(seconds: 30));
+    final resp = await req.close().timeout(timeout);
     return _decode(resp);
   }
 

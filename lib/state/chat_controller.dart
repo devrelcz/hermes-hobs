@@ -199,7 +199,9 @@ class ChatController extends ChangeNotifier {
   /// Text of the newest user prompt (pinned at the top of the chat).
   String? get lastPrompt {
     for (final m in messages.reversed) {
-      if (m.role == ChatRole.user) return m.text;
+      if (m.role != ChatRole.user) continue;
+      final job = m.scheduledJob;
+      return job != null ? Strings.current.scheduledRunPrompt(job) : m.text;
     }
     return null;
   }
@@ -425,6 +427,17 @@ class ChatController extends ChangeNotifier {
       final text = (r['text'] ?? r['content'])?.toString() ?? '';
       switch (role) {
         case 'user':
+          final scheduled = ScheduledOutput.parse(text);
+          if (scheduled != null) {
+            out.add(
+              ChatMessage(
+                role: ChatRole.user,
+                text: scheduled.output,
+                time: time,
+              )..scheduledJob = scheduled.job,
+            );
+            continue;
+          }
           // Images are appended after the text, the mention note sits at
           // its end: take the references out first.
           final parsed = parseAttachmentRefs(text);
