@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -10,6 +11,12 @@ import '../state/pairing.dart';
 /// Frames are read on the device and never stored or sent anywhere.
 class PairScanScreen extends StatefulWidget {
   const PairScanScreen({super.key});
+
+  /// The scanner is offered where the device has a camera to point at a
+  /// screen: on phones and tablets.
+  static bool get canScan =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
 
   /// Opens the scanner over [context].
   static Future<PairingCode?> open(BuildContext context) =>
