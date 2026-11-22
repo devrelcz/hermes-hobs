@@ -95,6 +95,8 @@ class StringsCs extends Strings {
   @override
   String get settings => 'Nastavení';
   @override
+  String get markAllRead => 'Označit vše jako přečtené';
+  @override
   String get signOut => 'Odhlásit';
   @override
   String get accounts => 'Účty';

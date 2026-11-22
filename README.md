@@ -104,7 +104,9 @@ The tests run the whole flow against a fake Hermes server
   when you open the app again.
 - The SESSIONS tab, group chats with Hobs of another gateway (peers), routing
   settings and attachments in group chats are out of scope.
-- Unread state, collapsed folders and folder order stay on the device.
+- Unread state, collapsed folders and folder order stay on the device. A
+  chat read on another device still shows as unread here, and its
+  notification stays; *Mark all as read* in the account menu clears both.
 - Web is not a target: browser CORS and cookie rules block cross-origin access
   to the dashboard.
 

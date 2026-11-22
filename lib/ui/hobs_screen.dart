@@ -1787,6 +1787,7 @@ class _AccountButton extends StatelessWidget {
       for (final a in app.accounts)
         if (a.id != active.id) a,
     ];
+    final unread = app.hasUnread;
     // The connection's state as a dot on the avatar, always there: green
     // when connected, lantern while connecting, red when cut off.
     final hobs = HobsColors.of(context);
@@ -1802,6 +1803,7 @@ class _AccountButton extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 260, maxWidth: 320),
       onSelected: (v) {
         if (v == 'logout') app.logout();
+        if (v == 'read') app.markAllRead();
         if (v == 'settings') SettingsScreen.open(context);
         if (v == 'add') AddServerScreen.open(context);
         if (v == 'manage') AccountsScreen.open(context);
@@ -1890,6 +1892,11 @@ class _AccountButton extends StatelessWidget {
             ),
           ),
         const PopupMenuDivider(),
+        if (unread)
+          PopupMenuItem(
+            value: 'read',
+            child: _MenuRow(icon: Icons.done_all, label: s.markAllRead),
+          ),
         PopupMenuItem(
           value: 'add',
           child: _MenuRow(icon: Icons.add, label: s.addServer),
