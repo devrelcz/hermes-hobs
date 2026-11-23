@@ -780,6 +780,9 @@ class _HobListState extends State<_HobList> {
         hob.hidden ? s.unhideHob : s.hideHob,
       ),
       (_HobAction.move, Icons.drive_file_move_outlined, s.moveToFolder),
+      (_HobAction.duplicate, Icons.content_copy_outlined, s.duplicateHob),
+      if (app.groupsSupported == true)
+        (_HobAction.groups, Icons.forum_outlined, s.hobGroupsMenu),
     ];
     final action = await showMenu<_HobAction>(
       context: context,
@@ -810,8 +813,120 @@ class _HobListState extends State<_HobList> {
         await _setHidden(app, hob, !hob.hidden);
       case _HobAction.move:
         await _moveToFolder(app, hob, at);
+      case _HobAction.duplicate:
+        await _duplicate(app, hob);
+      case _HobAction.groups:
+        await _groupsOf(app, hob);
       case _HobAction.delete:
         await _delete(app, hob);
+    }
+  }
+
+  /// Copies the hob on the server; the copy shows up in the list.
+  Future<void> _duplicate(AppState app, Hob hob) async {
+    final s = Strings.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    showToast(
+      context,
+      s.hobDuplicating(hob.displayName),
+      icon: Icons.content_copy,
+    );
+    try {
+      final copy = await app.duplicateHob(hob);
+      if (mounted) showToast(context, s.hobDuplicated(copy.displayName));
+    } catch (e) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(s.hobDuplicateFailed(AppState.describeError(e))),
+          ),
+        );
+    }
+  }
+
+  /// The group chats the hob sits in, to open one, and a new group that
+  /// starts with it. Members of an existing group cannot change.
+  Future<void> _groupsOf(AppState app, Hob hob) async {
+    final s = Strings.of(context);
+    final picked = await showContentSheet<Object>(
+      context,
+      kind: SheetKind.bottom,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final cs = theme.colorScheme;
+        final rooms = app.groupsOf(hob);
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            isWideWindow(context) ? 20 : sheetHandleGap,
+            16,
+            20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  s.hobGroupsTitle(hob.displayName),
+                  style: theme.textTheme.titleLarge,
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (rooms.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Text(
+                    s.hobNoGroups,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              else
+                for (final r in rooms)
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    leading: GroupAvatars(
+                      hobs: [for (final m in r.members) app.memberHob(m)],
+                    ),
+                    title: Text(r.name, overflow: TextOverflow.ellipsis),
+                    subtitle: Text(
+                      r.members.map(app.memberName).join(', '),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.pop(context, r),
+                  ),
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                onPressed: () => Navigator.pop(context, hob),
+                icon: const Icon(Icons.group_add_outlined),
+                label: Text(s.newGroupWith(hob.displayName)),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                s.hobGroupsHint,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (!mounted) return;
+    if (picked is GroupRoom) widget.onOpenGroup(picked);
+    if (picked is Hob) {
+      final room = await showNewGroupDialog(context, withHob: picked);
+      if (room != null && mounted) widget.onOpenGroup(room);
     }
   }
 
@@ -986,7 +1101,7 @@ class _HobListState extends State<_HobList> {
   }
 }
 
-enum _HobAction { pin, hide, move, delete }
+enum _HobAction { pin, hide, move, duplicate, groups, delete }
 
 /// A target of "Move to folder": folder [id] (null takes the hob out of its
 /// folder), or a new folder the user names next.

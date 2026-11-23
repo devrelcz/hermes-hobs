@@ -181,6 +181,19 @@ abstract class Strings {
   String hobDeleted(String hob);
   String hobDeleteFailed(String reason);
 
+  /// Duplicating a Hob and the group chats it sits in, from its menu.
+  String get duplicateHob;
+  String hobCopyTitle(String hob);
+  String hobDuplicating(String hob);
+  String hobDuplicated(String copy);
+  String hobDuplicateFailed(String reason);
+  String get hobDuplicateNoName;
+  String get hobGroupsMenu;
+  String hobGroupsTitle(String hob);
+  String get hobNoGroups;
+  String newGroupWith(String hob);
+  String get hobGroupsHint;
+
   // --- hob profile ---------------------------------------------------------
   String get hobProfile;
   String editHob(String hob);
