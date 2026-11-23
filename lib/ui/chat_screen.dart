@@ -898,6 +898,11 @@ class _MessageRowState extends State<_MessageRow> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     switch (message.role) {
+      case ChatRole.user when message.system != null:
+        return _SystemTurnRow(
+          message: message,
+          onToggle: () => controller.toggleActivity(message),
+        );
       case ChatRole.user when message.scheduledJob != null:
         return _spoken(
           context,
@@ -1166,6 +1171,153 @@ class _ScheduledOutputCardState extends State<_ScheduledOutputCard> {
                 onPressed: () => setState(() => m.expanded = !m.expanded),
                 child: Text(m.expanded ? s.showLess : s.showMore),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A turn the gateway wrote in the user's place, as one quiet line that
+/// opens on tap: another Hob's message with this Hob's answer to it, or a
+/// note that background work finished. Neither is the user's to read
+/// first, so neither is a bubble on their side.
+class _SystemTurnRow extends StatelessWidget {
+  const _SystemTurnRow({required this.message, required this.onToggle});
+
+  final ChatMessage message;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final s = Strings.of(context);
+    final turn = message.system!;
+    final handle = turn.handle;
+    final name = handle == null
+        ? null
+        : context.read<AppState>().hobNamed(handle)?.displayName;
+    final sender = name ?? turn.sender;
+    final title = turn.title(s, name: name);
+    final reply = message.reply;
+    final line = [
+      title,
+      if (turn.kind == SystemTurnKind.agentMessage && reply != null)
+        s.withReply
+      else if (turn.summary.isNotEmpty)
+        turn.summary,
+    ].join(' · ');
+    final icon = switch (turn.kind) {
+      SystemTurnKind.agentMessage => Icons.smart_toy_outlined,
+      SystemTurnKind.delegationDone => Icons.task_alt,
+      SystemTurnKind.processDone => Icons.terminal,
+    };
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: cs.onSurfaceVariant,
+    );
+    final sheet = MarkdownStyleSheet.fromTheme(theme).copyWith(
+      p: theme.textTheme.bodySmall?.copyWith(height: 1.45),
+      code: theme.textTheme.bodySmall?.copyWith(
+        fontFamily: HobsTheme.monoFamily,
+        backgroundColor: cs.surfaceContainerHighest,
+      ),
+    );
+
+    Widget block(IconData icon, String heading, String body) => Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: cs.outline),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  heading,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (body.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            MarkdownBody(data: body, styleSheet: sheet),
+          ],
+        ],
+      ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: AnimatedSize(
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topLeft,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Semantics(
+              button: true,
+              expanded: message.expanded,
+              child: InkWell(
+                onTap: onToggle,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainer,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 14, color: cs.outline),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          line,
+                          style: muted,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(
+                        message.expanded
+                            ? Icons.expand_less
+                            : Icons.chevron_right,
+                        size: 16,
+                        color: cs.outline,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            if (message.expanded) ...[
+              block(icon, title, message.text),
+              if (reply != null && reply.isNotEmpty)
+                block(
+                  Icons.reply,
+                  [
+                    s.replyTo(sender),
+                    if (message.replyTools.isNotEmpty)
+                      s.toolCallCount(message.replyTools.length),
+                  ].join(' · '),
+                  reply,
+                ),
+            ],
           ],
         ),
       ),
