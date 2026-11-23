@@ -883,6 +883,18 @@ class StringsEn extends Strings {
   String get scheduledRun => 'Scheduled job';
   @override
   String scheduledRunPrompt(String job) => 'Scheduled job: $job';
+  @override
+  String messageFromHob(String? sender) =>
+      sender == null ? 'Message from another Hob' : 'Message from $sender';
+  @override
+  String replyTo(String? sender) =>
+      sender == null ? 'Reply' : 'Reply to $sender';
+  @override
+  String get withReply => 'answered';
+  @override
+  String get delegationDone => 'Background task done';
+  @override
+  String get processDone => 'Background process ended';
 
   // --- biometric lock ------------------------------------------------------
   @override

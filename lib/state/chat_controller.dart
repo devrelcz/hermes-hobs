@@ -31,6 +31,7 @@ class ChatController extends ChangeNotifier {
     this.onTurnSettled,
     this.onAlert,
     this.onPromptSent,
+    this.answersHob,
     this.roster,
     this._watchOnly = false,
     this.queue,
@@ -105,6 +106,15 @@ class ChatController extends ChangeNotifier {
 
   /// The user sent a prompt (a good moment to ask for notifications).
   final void Function()? onPromptSent;
+
+  /// Whether the turn that just ended answered another Hob's message: the
+  /// newest user turn of the stored session [storedId]. Such a reply is
+  /// for the other Hob, not the user, so it does not notify. Null alerts
+  /// on every reply.
+  final Future<bool> Function(Hob hob, String storedId)? answersHob;
+
+  /// This chat sent the running turn's prompt itself.
+  bool _ownTurn = false;
 
   /// The Hobs this one can @-mention (the visible roster).
   final List<Hob> Function()? roster;
@@ -201,7 +211,10 @@ class ChatController extends ChangeNotifier {
     for (final m in messages.reversed) {
       if (m.role != ChatRole.user) continue;
       final job = m.scheduledJob;
-      return job != null ? Strings.current.scheduledRunPrompt(job) : m.text;
+      if (job != null) return Strings.current.scheduledRunPrompt(job);
+      final system = m.system;
+      if (system != null) return system.title(Strings.current);
+      return m.text;
     }
     return null;
   }
@@ -417,16 +430,58 @@ class ChatController extends ChangeNotifier {
   }
 
   /// Maps `session.resume` / `session.history` rows to transcript rows.
-  /// Consecutive tool rows fold into one activity line.
+  /// Consecutive tool rows fold into one activity line. A message from
+  /// another Hob takes the Hob's answer to it (until the next user turn)
+  /// into its own row, the way the dashboard folds it.
   static List<ChatMessage> historyToMessages(Object? rows) {
     final out = <ChatMessage>[];
     if (rows is! List) return out;
+    // The message from another Hob that the rows now answer.
+    ChatMessage? answering;
     for (final r in rows.whereType<Map>()) {
       final role = r['role']?.toString();
       final time = epochToDate(r['timestamp']);
       final text = (r['text'] ?? r['content'])?.toString() ?? '';
+      if (role == 'user') answering = null;
+      // Model scaffolding the dashboard keeps out of sight (a compaction
+      // summary).
+      if (r['display_kind'] == 'hidden') continue;
       switch (role) {
+        case 'assistant' when answering != null:
+          if (text.trim().isEmpty) continue;
+          final before = answering.reply;
+          answering.reply = before == null || before.isEmpty
+              ? text
+              : '$before\n\n$text';
+        case 'tool' when answering != null:
+          answering.replyTools.add(
+            ToolActivity(
+              id:
+                  r['tool_call_id']?.toString() ??
+                  '${answering.replyTools.length}',
+              name: r['name']?.toString() ?? 'tool',
+              preview: r['context']?.toString(),
+              state: ToolState.done,
+            ),
+          );
         case 'user':
+          final system = SystemTurn.parse(
+            text,
+            kind: r['display_kind']?.toString(),
+            meta: r['display_metadata'],
+          );
+          if (system != null) {
+            final row = ChatMessage(
+              role: ChatRole.user,
+              text: system.body,
+              time: time,
+            )..system = system.turn;
+            out.add(row);
+            if (system.turn.kind == SystemTurnKind.agentMessage) {
+              answering = row;
+            }
+            continue;
+          }
           final scheduled = ScheduledOutput.parse(text);
           if (scheduled != null) {
             out.add(
@@ -499,6 +554,7 @@ class ChatController extends ChangeNotifier {
       _hob.name,
     );
     phase = ChatPhase.running;
+    _ownTurn = true;
     error = null;
     statusText = null;
     _notify();
@@ -1117,11 +1173,18 @@ class ChatController extends ChangeNotifier {
         // chat never saw start): render it, but don't alert.
         final live = phase == ChatPhase.running;
         _completeTurn(p);
+        final own = _ownTurn;
+        _ownTurn = false;
         if (live && p['status'] != 'interrupted') {
-          _alertReply(
-            _lastAssistantText(),
-            key: gen != null ? 'turn:$gen' : null,
-          );
+          final reply = _lastAssistantText();
+          final key = gen != null ? 'turn:$gen' : null;
+          final check = answersHob;
+          final stored = _storedId;
+          if (own || check == null || stored == null) {
+            _alertReply(reply, key: key);
+          } else {
+            unawaited(_alertUnlessForHob(check, stored, reply, key));
+          }
         }
       case 'request.cancel':
         final id = p['id'];
@@ -1224,6 +1287,20 @@ class ChatController extends ChangeNotifier {
       }
     }
     return '';
+  }
+
+  /// Alerts a reply that nobody in this chat asked for, unless it answers
+  /// another Hob. When the check fails, the alert goes out as usual.
+  Future<void> _alertUnlessForHob(
+    Future<bool> Function(Hob hob, String storedId) check,
+    String stored,
+    String reply,
+    String? key,
+  ) async {
+    try {
+      if (await check(_hob, stored)) return;
+    } catch (_) {}
+    if (!_disposed) _alertReply(reply, key: key);
   }
 
   void _alertReply(String text, {required String? key}) {

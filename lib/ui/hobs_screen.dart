@@ -1307,8 +1307,11 @@ class _HobRowState extends State<_HobRow> {
     final cs = theme.colorScheme;
     final s = Strings.of(context);
     final job = ScheduledOutput.jobOf(hob.preview);
+    final fromHob = SystemTurn.ofPreview(hob.preview);
     final preview = job != null
         ? s.scheduledRunPrompt(job)
+        : fromHob != null
+        ? '${s.messageFromHob(fromHob.sender)}: ${plainPreview(fromHob.text)}'
         : plainPreview(hob.preview.isNotEmpty ? hob.preview : hob.description);
     final row = Material(
       color: selected

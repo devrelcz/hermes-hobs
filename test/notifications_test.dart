@@ -438,6 +438,35 @@ void main() {
   }
 
   test(
+    'a reply to another Hob stays quiet, a reply to the user does not',
+    () async {
+      server.history = [
+        ...server.history,
+        {
+          'role': 'user',
+          'display_kind': 'internal_notification',
+          'text': 'Message from 🤖 Analytik (@analytik): Hotovo?',
+        },
+      ];
+      final app = await signedIn();
+      await waitFor(() => server.resumed.contains('botchat-tip'));
+      app.onAppHidden();
+      await server.externalTurn('botchat-tip', text: 'Ano, hotovo.');
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(notifier.shown, isEmpty, reason: 'the answer is for Analytik');
+
+      server.history = [
+        ...server.history,
+        {'role': 'user', 'text': 'Jak to vypadá?'},
+      ];
+      await server.externalTurn('botchat-tip', text: 'Dobře.');
+      await waitFor(() => notifier.shown.isNotEmpty);
+      expect(notifier.shown.single.body, 'Dobře.');
+      app.dispose();
+    },
+  );
+
+  test(
     'opening a watched Hob loads its history and does not alert again',
     () async {
       final app = await signedIn();

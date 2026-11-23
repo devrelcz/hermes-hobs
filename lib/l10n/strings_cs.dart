@@ -906,6 +906,18 @@ class StringsCs extends Strings {
   String get scheduledRun => 'Naplánovaná úloha';
   @override
   String scheduledRunPrompt(String job) => 'Naplánovaná úloha: $job';
+  @override
+  String messageFromHob(String? sender) =>
+      sender == null ? 'Zpráva od jiného Hobíka' : 'Zpráva od $sender';
+  @override
+  String replyTo(String? sender) =>
+      sender == null ? 'Odpověď' : 'Odpověď pro $sender';
+  @override
+  String get withReply => 's odpovědí';
+  @override
+  String get delegationDone => 'Úloha na pozadí je hotová';
+  @override
+  String get processDone => 'Proces na pozadí skončil';
 
   // --- biometric lock ------------------------------------------------------
   @override
