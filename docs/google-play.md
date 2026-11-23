@@ -91,6 +91,18 @@ release, upload there), skipping internal testing; 1.0.2 went that way.
 | 1.0.2 | 117 | Production | Sign in by scanning the server's QR code; the sign-in screen starts with the choice of scanning or typing the details |
 | 1.0.3 | 129 | Production | Settings > About and the licenses page say the app is an unofficial community app, not from Nous Research |
 | 1.0.4 | 145 | Production (in review) | Manage a Hob's scheduled jobs (switch, run now, history, delete, new job) and show their output as cards in the chat; add another server by scanning its QR code |
+| 1.0.5 | 158 | Production (prepared) | Marketplace with ready-made teams of Hobs (dev, personal, marketing, editorial, startup) added in one tap; duplicate a Hob and see its group chats from the Hob menu; messages between Hobs fold into quiet lines and no longer notify |
+
+Release notes for 1.0.5:
+
+```text
+<en-US>
+New Marketplace: add a ready-made team of Hobs in one tap, such as a dev team, a personal team or a marketing team. Each Hob gets its role and instructions, and the team gets its own folder and group chat. You can also duplicate a Hob and see its group chats from the Hob menu. Messages between Hobs now show as quiet lines and no longer notify you.
+</en-US>
+<cs-CZ>
+Nový Marketplace: hotový tým Hobíků přidáte jedním klepnutím, třeba vývojový, osobní nebo marketingový. Každý Hobík dostane svou roli a pokyny, tým vlastní složku a skupinový chat. Hobíka teď také zduplikujete a jeho skupinové chaty uvidíte z menu Hobíka. Zprávy mezi Hobíky se zobrazují jako nenápadné řádky a už vás neupozorňují.
+</cs-CZ>
+```
 
 Release notes for 1.0.4:
 
