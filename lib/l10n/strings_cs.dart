@@ -998,4 +998,80 @@ class StringsCs extends Strings {
   ][day - 1];
   @override
   String shortDate(DateTime t) => '${t.day}. ${t.month}.';
+
+  // --- ready-made teams ----------------------------------------------------
+  @override
+  String get newTeam => 'Marketplace';
+  @override
+  String get marketplaceIntro =>
+      'Hotové věci pro tvé Hobíky, připravené na jedno klepnutí.';
+  @override
+  String get teamsSection => 'Týmy';
+  @override
+  String get teamsTitle => 'Marketplace';
+  @override
+  String get teamsIntro =>
+      'Celý tým Hobíků na jedno klepnutí: každý má svou roli a pokyny, '
+      'všichni jsou v jedné složce a spolu ve skupinovém chatu.';
+  @override
+  String get teamsEmpty => 'Katalog je zatím prázdný.';
+  @override
+  String teamsLoadFailed(String reason) =>
+      'Katalog týmů se nepodařilo načíst: $reason';
+  @override
+  String teamMemberCount(int n) => switch (n) {
+    1 => '1 Hobík',
+    >= 2 && <= 4 => '$n Hobíci',
+    _ => '$n Hobíků',
+  };
+  @override
+  String get addTeam => 'Přidat tým';
+  @override
+  String teamFolder(String name) => 'Složka $name';
+  @override
+  String teamGroup(String name) => 'Skupinový chat $name';
+  @override
+  String get teamMembersHeading => 'Kdo v týmu bude';
+  @override
+  String get teamInstructions => 'Pokyny (SOUL.md)';
+  @override
+  String get teamJobsHeading => 'Naplánované úlohy';
+  @override
+  String get teamJobsOff =>
+      'Úlohy se založí vypnuté. Zapneš je v profilu Hobíka.';
+  @override
+  String get teamReviewNote =>
+      'Hobíci se budou řídit těmito pokyny a mohou používat nástroje na tvém '
+      'serveru. Než tým přidáš, projdi si je.';
+  @override
+  String teamModel(String model) => 'Model $model';
+  @override
+  String teamHandleTaken(String wanted) =>
+      '@$wanted už existuje, proto dostane jiný identifikátor.';
+  @override
+  String get teamImporting => 'Zakládám tým…';
+  @override
+  String get teamStepLookRefused =>
+      'Vzhled a složku se nepodařilo uložit. Uprav je v profilu Hobíka.';
+  @override
+  String get teamStepJobNotPaused =>
+      'Úlohu se nepodařilo vypnout, poběží podle plánu.';
+  @override
+  String teamImportFailed(String reason) =>
+      'Tým se nepodařilo dokončit: $reason';
+  @override
+  String get teamFinish => 'Dokončit';
+  @override
+  String get teamDeleteCreated => 'Smazat založené';
+  @override
+  String get teamDeletedCreated => 'Založení Hobíci jsou smazaní';
+  @override
+  String teamReady(String name) => 'Tým $name je připravený';
+  @override
+  String get pickTeam => 'Otevřít marketplace';
+  @override
+  String get teamLeave => 'Odejít';
+  @override
+  String get teamLeaveTitle =>
+      'Tým není hotový. Založení Hobíci zůstanou na serveru.';
 }

@@ -972,4 +972,76 @@ class StringsEn extends Strings {
 
   @override
   String shortDate(DateTime t) => '${t.day} ${_months[t.month - 1]}';
+
+  // --- ready-made teams ----------------------------------------------------
+  @override
+  String get newTeam => 'Marketplace';
+  @override
+  String get marketplaceIntro =>
+      'Ready-made things for your Hobs, set up in one tap.';
+  @override
+  String get teamsSection => 'Teams';
+  @override
+  String get teamsTitle => 'Marketplace';
+  @override
+  String get teamsIntro =>
+      'A whole team of Hobs in one tap: each with its own role and '
+      'instructions, all in one folder and together in a group chat.';
+  @override
+  String get teamsEmpty => 'The catalog is empty for now.';
+  @override
+  String teamsLoadFailed(String reason) =>
+      'Could not load the team catalog: $reason';
+  @override
+  String teamMemberCount(int n) => n == 1 ? '1 Hob' : '$n Hobs';
+  @override
+  String get addTeam => 'Add team';
+  @override
+  String teamFolder(String name) => 'Folder $name';
+  @override
+  String teamGroup(String name) => 'Group chat $name';
+  @override
+  String get teamMembersHeading => 'Who joins';
+  @override
+  String get teamInstructions => 'Instructions (SOUL.md)';
+  @override
+  String get teamJobsHeading => 'Scheduled jobs';
+  @override
+  String get teamJobsOff =>
+      'Jobs are created switched off. Turn them on in the Hob\'s profile.';
+  @override
+  String get teamReviewNote =>
+      'The Hobs will follow these instructions and can use tools on your '
+      'server. Read them before you add the team.';
+  @override
+  String teamModel(String model) => 'Model $model';
+  @override
+  String teamHandleTaken(String wanted) =>
+      '@$wanted already exists, so it gets another handle.';
+  @override
+  String get teamImporting => 'Setting up the team…';
+  @override
+  String get teamStepLookRefused =>
+      'Could not save the look and folder. Fix them in the Hob\'s profile.';
+  @override
+  String get teamStepJobNotPaused =>
+      'Could not switch the job off; it runs on its schedule.';
+  @override
+  String teamImportFailed(String reason) =>
+      'Could not finish the team: $reason';
+  @override
+  String get teamFinish => 'Finish';
+  @override
+  String get teamDeleteCreated => 'Delete what was created';
+  @override
+  String get teamDeletedCreated => 'The new Hobs are deleted';
+  @override
+  String teamReady(String name) => '$name is ready';
+  @override
+  String get pickTeam => 'Open the marketplace';
+  @override
+  String get teamLeave => 'Leave';
+  @override
+  String get teamLeaveTitle =>
+      'The team is not finished. The Hobs created so far stay on the server.';
 }
