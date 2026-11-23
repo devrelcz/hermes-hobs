@@ -548,6 +548,37 @@ abstract class Strings {
   /// Day name, 1 = Monday … 7 = Sunday, as in [DateTime.weekday].
   String weekday(int day);
   String shortDate(DateTime t);
+
+  // --- ready-made teams ----------------------------------------------------
+  String get newTeam;
+  String get marketplaceIntro;
+  String get teamsSection;
+  String get teamsTitle;
+  String get teamsIntro;
+  String get teamsEmpty;
+  String teamsLoadFailed(String reason);
+  String teamMemberCount(int n);
+  String get addTeam;
+  String teamFolder(String name);
+  String teamGroup(String name);
+  String get teamMembersHeading;
+  String get teamInstructions;
+  String get teamJobsHeading;
+  String get teamJobsOff;
+  String get teamReviewNote;
+  String teamModel(String model);
+  String teamHandleTaken(String wanted);
+  String get teamImporting;
+  String get teamStepLookRefused;
+  String get teamStepJobNotPaused;
+  String teamImportFailed(String reason);
+  String get teamFinish;
+  String get teamDeleteCreated;
+  String get teamDeletedCreated;
+  String teamReady(String name);
+  String get pickTeam;
+  String get teamLeave;
+  String get teamLeaveTitle;
 }
 
 class _StringsDelegate extends LocalizationsDelegate<Strings> {
