@@ -546,6 +546,27 @@ class FakeHermesServer {
     if (path == '/api/cron/jobs' || path.startsWith('/api/cron/jobs/')) {
       return _cron(r, path);
     }
+    final messages = RegExp(r'^/api/sessions/([^/]+)/messages$')
+        .firstMatch(path);
+    if (messages != null && r.method == 'GET') {
+      // Every Bot Chat here shares [history]; the newest rows last.
+      final limit = int.tryParse(r.uri.queryParameters['limit'] ?? '') ?? 50;
+      final rows = history.length <= limit
+          ? history
+          : history.sublist(history.length - limit);
+      return _json(r, 200, {
+        'session_id': Uri.decodeComponent(messages.group(1)!),
+        'profile': profile,
+        'messages': [
+          for (final row in rows)
+            {
+              'role': row['role'],
+              'content': row['text'] ?? row['content'] ?? '',
+              'display_kind': row['display_kind'],
+            },
+        ],
+      });
+    }
     if (path == '/api/fs/download' && r.method == 'GET') {
       final p = r.uri.queryParameters['path'] ?? '';
       downloads.add(p);
