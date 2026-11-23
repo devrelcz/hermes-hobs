@@ -30,6 +30,10 @@ No server yet? [Try the demo](#try-it-without-a-server).
 - **Your list, your way.** Folders, pins, hidden Hobs, and filters for unread,
   pinned, active and recent.
 - **New Hobs.** Create a bot from the app. It shows up on the dashboard too.
+- **Ready-made teams.** Add a whole team in one tap, such as a dev team
+  with a head of IT, analyst, developer, tester and DevOps. Each Hob gets its
+  role and instructions, the team gets its own folder and group chat. Teams
+  come from the [Hobs Marketplace](https://github.com/devrelcz/hobs-marketplace).
 - **Hob profiles.** Change a Hob's face, color, title, description, model and
   SOUL.md. Edits go straight to the bot on your server.
 - **Scheduled jobs.** See a Hob's jobs, switch them on and off, run one

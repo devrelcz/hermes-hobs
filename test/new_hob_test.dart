@@ -117,6 +117,14 @@ void main() {
 
     final cto = Hob(name: 'cto', displayName: 'CTO');
 
+    /// The list's "+" menu, then its New Hob item.
+    Future<void> openFromMenu(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('Vytvořit'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Nový Hobík').last);
+      await tester.pumpAndSettle();
+    }
+
     Future<void> openPage(WidgetTester tester) async {
       await tester.pumpWidget(
         ChangeNotifierProvider.value(
@@ -124,8 +132,7 @@ void main() {
           child: const MaterialApp(home: HobsScreen()),
         ),
       );
-      await tester.tap(find.byTooltip('Nový Hobík'));
-      await tester.pumpAndSettle();
+      await openFromMenu(tester);
     }
 
     FilledButton create(WidgetTester tester) =>
@@ -140,7 +147,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Zatím tu není žádný Hobík'), findsOneWidget);
-      await tester.tap(find.widgetWithText(FilledButton, 'Nový Hobík'));
+      expect(
+        find.widgetWithText(FilledButton, 'Otevřít marketplace'),
+        findsOne,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Nový Hobík'));
       await tester.pumpAndSettle();
       expect(find.byType(NewHobScreen), findsOneWidget);
     });
@@ -210,8 +221,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(NewHobScreen), findsNothing);
 
-      await tester.tap(find.byTooltip('Nový Hobík'));
-      await tester.pumpAndSettle();
+      await openFromMenu(tester);
       await tester.enterText(find.widgetWithText(TextField, 'Jméno'), 'Péťa');
       await tester.pump();
       await tester.tap(find.byType(CloseButton));
