@@ -12,15 +12,18 @@ import 'sheets.dart';
 /// Picks two to six Hobs and seats them in a new group chat: a full-screen
 /// sheet on phones, a large dialog on wide windows. Returns the new room,
 /// or null when the user backed out.
-Future<GroupRoom?> showNewGroupDialog(BuildContext context) =>
+/// [withHob] starts the pick with that Hob.
+Future<GroupRoom?> showNewGroupDialog(BuildContext context, {Hob? withHob}) =>
     showScreenSheet<GroupRoom>(
       context,
       kind: SheetKind.fullscreen,
-      builder: (_) => const _NewGroupDialog(),
+      builder: (_) => _NewGroupDialog(withHob: withHob),
     );
 
 class _NewGroupDialog extends StatefulWidget {
-  const _NewGroupDialog();
+  const _NewGroupDialog({this.withHob});
+
+  final Hob? withHob;
 
   @override
   State<_NewGroupDialog> createState() => _NewGroupDialogState();
@@ -30,8 +33,12 @@ class _NewGroupDialogState extends State<_NewGroupDialog> {
   static const _min = 2;
   static const _max = 6;
 
-  final _picked = <String>[];
-  final _name = TextEditingController();
+  late final _picked = <String>[?widget.withHob?.name];
+  late final _name = TextEditingController(
+    text: widget.withHob == null
+        ? ''
+        : context.read<AppState>().groupNameFor([widget.withHob!]),
+  );
   bool _nameEdited = false;
   bool _creating = false;
   String? _error;
