@@ -26,6 +26,7 @@ import 'placeholders.dart';
 import 'settings_screen.dart';
 import 'share_target_sheet.dart';
 import 'sheets.dart';
+import 'team_catalog_screen.dart';
 import 'theme.dart';
 import 'welcome_sheet.dart';
 
@@ -222,6 +223,28 @@ class _HobsScreenState extends State<HobsScreen> {
     await _openGroup(room, wide);
   }
 
+  /// Picks a ready-made team; once it is set up, opens its group chat (or
+  /// its first Hob when the server has no group chats).
+  Future<void> _newTeam(bool wide) async {
+    final s = Strings.of(context);
+    final app = context.read<AppState>();
+    final import = await TeamCatalogScreen.open(context);
+    if (import == null || !mounted) return;
+    showToast(
+      context,
+      s.teamReady(import.plan.team.name.pick(import.plan.lang)),
+    );
+    final room = import.room;
+    if (room != null) {
+      await _openGroup(room, wide);
+      return;
+    }
+    final first = import.created.isEmpty
+        ? null
+        : app.hobNamed(import.created.first);
+    if (first != null) await _open(first, wide);
+  }
+
   Future<void> _newHob(bool wide) async {
     final s = Strings.of(context);
     final hob = await NewHobScreen.open(context);
@@ -257,6 +280,7 @@ class _HobsScreenState extends State<HobsScreen> {
           onOpenGroup: (r) => _openGroup(r, wide),
           onNewGroup: () => _newGroup(wide),
           onNewHob: () => _newHob(wide),
+          onNewTeam: () => _newTeam(wide),
           onDeleted: (hob) {
             if (_selected == hob.name) setState(() => _selected = null);
           },
@@ -394,6 +418,7 @@ class _HobList extends StatefulWidget {
     required this.onOpenGroup,
     required this.onNewGroup,
     required this.onNewHob,
+    required this.onNewTeam,
     this.onDeleted,
     this.selected,
     this.selectedGroup,
@@ -415,6 +440,7 @@ class _HobList extends StatefulWidget {
   final void Function(GroupRoom room) onOpenGroup;
   final VoidCallback onNewGroup;
   final VoidCallback onNewHob;
+  final VoidCallback onNewTeam;
   final String? selected;
   final String? selectedGroup;
 
@@ -485,6 +511,7 @@ class _HobListState extends State<_HobList> {
             groups: app.groupsSupported == true,
             onNewHob: widget.onNewHob,
             onNewGroup: widget.onNewGroup,
+            onNewTeam: widget.onNewTeam,
           ),
           const SizedBox(width: 8),
           _AccountButton(app: app),
@@ -613,10 +640,21 @@ class _HobListState extends State<_HobList> {
           ),
           title: s.noHobsTitle,
           body: s.noHobs,
-          action: FilledButton.icon(
-            onPressed: widget.onNewHob,
-            icon: const Icon(Icons.add),
-            label: Text(s.newHob),
+          action: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FilledButton.icon(
+                onPressed: widget.onNewTeam,
+                icon: const Icon(Icons.storefront_outlined),
+                label: Text(s.pickTeam),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: widget.onNewHob,
+                icon: const Icon(Icons.add),
+                label: Text(s.newHob),
+              ),
+            ],
           ),
         );
       }
@@ -1693,18 +1731,20 @@ class _ConnectionLine extends StatelessWidget {
   }
 }
 
-/// One "+" for everything that can be created from the list. Without group
-/// chats on the server it goes straight to a new Hob.
+/// One "+" for everything that can be created from the list: a Hob, a
+/// ready-made team and, when the server has them, a group chat.
 class _NewButton extends StatelessWidget {
   const _NewButton({
     required this.groups,
     required this.onNewHob,
     required this.onNewGroup,
+    required this.onNewTeam,
   });
 
   final bool groups;
   final VoidCallback onNewHob;
   final VoidCallback onNewGroup;
+  final VoidCallback onNewTeam;
 
   @override
   Widget build(BuildContext context) {
@@ -1715,30 +1755,31 @@ class _NewButton extends StatelessWidget {
       foregroundColor: cs.onPrimary,
       fixedSize: const Size.square(40),
     );
-    if (!groups) {
-      return IconButton(
-        tooltip: s.newHob,
-        onPressed: onNewHob,
-        style: style,
-        icon: const Icon(Icons.add),
-      );
-    }
     return PopupMenuButton<String>(
       tooltip: s.create,
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       style: style,
       icon: const Icon(Icons.add),
-      onSelected: (v) => v == 'group' ? onNewGroup() : onNewHob(),
+      onSelected: (v) => switch (v) {
+        'group' => onNewGroup(),
+        'team' => onNewTeam(),
+        _ => onNewHob(),
+      },
       itemBuilder: (_) => [
         PopupMenuItem(
           value: 'hob',
           child: _MenuRow(icon: Icons.person_add_alt_outlined, label: s.newHob),
         ),
         PopupMenuItem(
-          value: 'group',
-          child: _MenuRow(icon: Icons.forum_outlined, label: s.newGroupChat),
+          value: 'team',
+          child: _MenuRow(icon: Icons.storefront_outlined, label: s.newTeam),
         ),
+        if (groups)
+          PopupMenuItem(
+            value: 'group',
+            child: _MenuRow(icon: Icons.forum_outlined, label: s.newGroupChat),
+          ),
       ],
     );
   }

@@ -12,6 +12,7 @@ import '../api/group_models.dart';
 import '../api/hermes_http.dart';
 import '../api/hermes_rpc.dart';
 import '../api/models.dart';
+import '../api/team_catalog.dart';
 import '../demo/demo_hermes.dart';
 import '../l10n/strings.dart';
 import 'biometrics.dart';
@@ -1249,17 +1250,19 @@ class AppState extends ChangeNotifier {
   /// A handle for a new Hob called [title] that no Hob has yet: the title
   /// without accents, `-2`, `-3`… added when taken. A title with nothing
   /// usable in it ("🙂") falls back to `hob`. Empty only for an empty title.
-  String freeHobNameFor(String title) {
+  /// Names in [reserved] count as taken too (Hobs about to be created).
+  String freeHobNameFor(String title, {Set<String> reserved = const {}}) {
     if (title.trim().isEmpty) return '';
+    bool taken(String name) => hobNameTaken(name) || reserved.contains(name);
     final base = hobNameFor(title);
     final stem = base.isEmpty ? 'hob' : base;
-    if (!hobNameTaken(stem)) return stem;
+    if (!taken(stem)) return stem;
     for (var i = 2; ; i++) {
       final suffix = '-$i';
       final room = 64 - suffix.length;
       final cut = stem.length <= room ? stem : stem.substring(0, room);
       final name = '${cut.replaceAll(RegExp(r'[-_]+$'), '')}$suffix';
-      if (!hobNameTaken(name)) return name;
+      if (!taken(name)) return name;
     }
   }
 
@@ -1312,6 +1315,112 @@ class AppState extends ChangeNotifier {
     await refreshHobs(silent: true);
     return hobNamed(name) ??
         Hob(name: name, displayName: shown, description: mission, shape: shape);
+  }
+
+  // --- teams from the marketplace -----------------------------------------
+
+  /// Where ready-made teams come from. Tests swap in their own.
+  TeamCatalogClient teamCatalog = TeamCatalogClient();
+
+  /// The `ui_meta` key a team member's origin is kept under: its own key, so
+  /// the dashboard's writes to `hermes-bots` never drop it.
+  static const teamMetaKey = 'hobs-team';
+
+  /// Creates one member of a team: a profile cloned from the default one
+  /// with [soul] (and [provider]/[model] when given), then its title, face,
+  /// folder and origin in `ui_meta`. Throws when the profile cannot be
+  /// created. Returns false when only the look was refused: the Hob exists,
+  /// its profile screen can still fix it.
+  Future<bool> createTeamHob({
+    required String name,
+    required String title,
+    required String description,
+    required String soul,
+    required String? shape,
+    required String? color,
+    required String folderId,
+    required String folderName,
+    required Map<String, dynamic> origin,
+    String? provider,
+    String? model,
+  }) async {
+    final rpc = _connected;
+    await rpc.requestWith('profiles.create', {
+      'name': name,
+      'description': ?(description.trim().isEmpty ? null : description.trim()),
+      'clone_from': 'default',
+      'share_auth': true,
+      'soul': soul,
+      if (provider != null && model != null) ...{
+        'provider': provider,
+        'model': model,
+      },
+    }, timeout: const Duration(seconds: 60));
+    try {
+      final res = await rpc.request('profiles.configure', {
+        'name': name,
+        'ui_meta': {
+          Hob.metaKey: {
+            'shape': shape ?? 'blobatar',
+            'imageKind': 'shape',
+            'color': ?color,
+            'title': title,
+            'sectionId': folderId,
+            'sectionName': folderName,
+            'created': DateTime.now().millisecondsSinceEpoch,
+          },
+          teamMetaKey: origin,
+        },
+      });
+      final applied = res is Map ? res['applied'] : null;
+      return applied is Map && applied['ui_meta'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Adds a scheduled job for Hob [profile] the way [createCron] does, then
+  /// pauses it: a team's jobs wait until the user switches them on. Throws
+  /// when the job cannot be added. Returns false when it was added but
+  /// could not be paused, so it runs on its schedule.
+  Future<bool> addPausedTeamJob(
+    String profile, {
+    required String name,
+    required String schedule,
+    required String prompt,
+    int? repeat,
+    bool continuity = false,
+    bool toChat = true,
+  }) async {
+    final rpc = _connected;
+    final res = await rpc.requestWith('cron.manage', {
+      'action': 'add',
+      'name': '[bot:$profile] ${name.trim()}',
+      'schedule': schedule.trim(),
+      'prompt': prompt.trim(),
+      'profile': profile,
+      'repeat': ?repeat,
+      if (continuity) 'continuity': true,
+      if (toChat) 'deliver': 'bot-chat',
+    }, timeout: const Duration(seconds: 30));
+    if (res is! Map || res['success'] == false) {
+      throw Exception(
+        (res is Map ? res['error'] ?? res['message'] : null)?.toString() ??
+            Strings.current.jobCreateFailed,
+      );
+    }
+    final jobId = res['job_id']?.toString() ?? '';
+    if (jobId.isEmpty) return false;
+    try {
+      final paused = await rpc.requestWith('cron.manage', {
+        'action': 'pause',
+        'name': jobId,
+        'profile': profile,
+      }, timeout: const Duration(seconds: 30));
+      return paused is! Map || paused['success'] != false;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Copies [source] into a new Hob, like the dashboard's Duplicate: the

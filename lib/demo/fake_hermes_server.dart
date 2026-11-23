@@ -287,6 +287,9 @@ class FakeHermesServer {
   /// Runs listed by `GET /api/cron/jobs/<id>/runs`, by job id.
   Map<String, List<Map<String, dynamic>>> cronRuns = {};
 
+  /// Profile names whose next `profiles.create` fails (once each).
+  final Set<String> refuseCreate = {};
+
   /// `cron.manage add` params, in order.
   final List<Map<String, dynamic>> cronAdds = [];
 
@@ -851,6 +854,13 @@ class FakeHermesServer {
         case 'profiles.create':
           profileCreates.add(params);
           final name = params['name'] as String;
+          if (refuseCreate.remove(name)) {
+            send({
+              'id': id,
+              'error': {'code': 5062, 'message': 'Disk full.'},
+            });
+            return;
+          }
           if (roster.any((r) => r['name'] == name)) {
             send({
               'id': id,
@@ -1056,6 +1066,21 @@ class FakeHermesServer {
             send({
               'id': id,
               'result': {'success': true, 'job_id': jobId},
+            });
+            return;
+          }
+          if (params['action'] == 'pause' || params['action'] == 'resume') {
+            final job = cronJobs.where((j) => j['id'] == params['name']);
+            for (final j in job) {
+              j['enabled'] = params['action'] == 'resume';
+              j['state'] = params['action'] == 'pause' ? 'paused' : 'scheduled';
+            }
+            cronActions.add('${params['action']} ${params['name']}');
+            send({
+              'id': id,
+              'result': job.isEmpty
+                  ? {'success': false, 'error': 'Job not found'}
+                  : {'success': true},
             });
             return;
           }
