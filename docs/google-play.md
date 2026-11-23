@@ -11,8 +11,8 @@ Store page: https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs
 
 | | |
 |---|---|
-| Published version | 1.0.3 (versionCode 129), live November 22, 2026, full rollout; first release was 1.0.0 (versionCode 101), November 2026 |
-| In review | 1.0.4 (versionCode 145), production, full rollout, sent November 22, 2026 |
+| Published version | 1.0.4 (versionCode 145), live November 22, 2026, full rollout; first release was 1.0.0 (versionCode 101), November 2026 |
+| Draft | 1.0.5 (versionCode 158), production, saved November 23, 2026 with its release notes; not sent for review yet |
 | Store listing | Says the app is unofficial and not from Nous Research (short and full descriptions, en-US and cs-CZ), live November 22, 2026 |
 | Production | Full rollout, 178 countries / regions |
 | Internal testing | 1.0.0 (versionCode 101), tester list *Internal - Home* |
@@ -90,8 +90,8 @@ release, upload there), skipping internal testing; 1.0.2 went that way.
 | 1.0.1 | 109 | Never uploaded | Built locally only |
 | 1.0.2 | 117 | Production | Sign in by scanning the server's QR code; the sign-in screen starts with the choice of scanning or typing the details |
 | 1.0.3 | 129 | Production | Settings > About and the licenses page say the app is an unofficial community app, not from Nous Research |
-| 1.0.4 | 145 | Production (in review) | Manage a Hob's scheduled jobs (switch, run now, history, delete, new job) and show their output as cards in the chat; add another server by scanning its QR code |
-| 1.0.5 | 158 | Production (prepared) | Marketplace with ready-made teams of Hobs (dev, personal, marketing, editorial, startup) added in one tap; duplicate a Hob and see its group chats from the Hob menu; messages between Hobs fold into quiet lines and no longer notify |
+| 1.0.4 | 145 | Production | Manage a Hob's scheduled jobs (switch, run now, history, delete, new job) and show their output as cards in the chat; add another server by scanning its QR code |
+| 1.0.5 | 158 | Production (draft) | Marketplace with ready-made teams of Hobs (dev, personal, marketing, editorial, startup) added in one tap; duplicate a Hob and see its group chats from the Hob menu; messages between Hobs fold into quiet lines and no longer notify |
 
 Release notes for 1.0.5:
 
