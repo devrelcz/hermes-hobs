@@ -157,6 +157,22 @@ FakeHermesServer seedDemo(FakeHermesServer server) {
     },
     {
       'role': 'user',
+      'display_kind': 'internal_notification',
+      'text':
+          'Message from 🤖 Analyst (@analyst): Which Q2 total should the '
+          'chart use, the preliminary 11.3 M EUR or the audited one?',
+      'timestamp': now - 2400,
+    },
+    {'role': 'tool', 'name': 'read_file', 'context': 'finance/q2-audit.pdf'},
+    {
+      'role': 'assistant',
+      'text':
+          'Use the audited **11.5 M EUR**. The preliminary figure missed two '
+          'late invoices.',
+      'timestamp': now - 2340,
+    },
+    {
+      'role': 'user',
       'text': 'How did Q3 revenue compare with Q2? Check at least two sources.',
       'timestamp': now - 600,
     },
