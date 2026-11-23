@@ -181,6 +181,19 @@ abstract class Strings {
   String hobDeleted(String hob);
   String hobDeleteFailed(String reason);
 
+  /// Duplicating a Hob and the group chats it sits in, from its menu.
+  String get duplicateHob;
+  String hobCopyTitle(String hob);
+  String hobDuplicating(String hob);
+  String hobDuplicated(String copy);
+  String hobDuplicateFailed(String reason);
+  String get hobDuplicateNoName;
+  String get hobGroupsMenu;
+  String hobGroupsTitle(String hob);
+  String get hobNoGroups;
+  String newGroupWith(String hob);
+  String get hobGroupsHint;
+
   // --- hob profile ---------------------------------------------------------
   String get hobProfile;
   String editHob(String hob);
@@ -454,6 +467,14 @@ abstract class Strings {
   /// A scheduled job's output in a Hob's chat.
   String get scheduledRun;
   String scheduledRunPrompt(String job);
+
+  /// Turns the gateway writes in the user's place: another Hob's message
+  /// (with the Hob's folded answer) and finished background work.
+  String messageFromHob(String? sender);
+  String replyTo(String? sender);
+  String get withReply;
+  String get delegationDone;
+  String get processDone;
 
   // --- biometric lock ------------------------------------------------------
   /// Lock screen button, e.g. "Unlock with Face ID".
