@@ -272,6 +272,30 @@ class StringsEn extends Strings {
   @override
   String hobDeleted(String hob) => '$hob was deleted';
   @override
+  String get duplicateHob => 'Duplicate';
+  @override
+  String hobCopyTitle(String hob) => '$hob (copy)';
+  @override
+  String hobDuplicating(String hob) => 'Copying $hob…';
+  @override
+  String hobDuplicated(String copy) => '$copy was created';
+  @override
+  String hobDuplicateFailed(String reason) => 'Could not copy the Hob: $reason';
+  @override
+  String get hobDuplicateNoName => 'There is no free name for the copy.';
+  @override
+  String get hobGroupsMenu => 'Group chats…';
+  @override
+  String hobGroupsTitle(String hob) => '$hob\'s group chats';
+  @override
+  String get hobNoGroups => 'This Hob is not in any group chat yet.';
+  @override
+  String newGroupWith(String hob) => 'New group with $hob';
+  @override
+  String get hobGroupsHint =>
+      'The server does not let a group change its members. Start a new '
+      'group for a different line-up.';
+  @override
   String hobDeleteFailed(String reason) => 'Could not delete the Hob: $reason';
 
   // --- hob profile ---------------------------------------------------------
