@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hobs/api/group_models.dart';
 import 'package:hobs/api/models.dart';
 import 'package:hobs/state/app_state.dart';
 import 'package:hobs/ui/hobs_screen.dart';
@@ -40,6 +41,29 @@ void main() {
       final long = app.freeHobNameFor('a' * 80);
       expect(long.length, 64);
       expect(AppState.hobNamePattern.hasMatch(long), isTrue);
+    });
+
+    test("a Hob's group chats are the rooms it sits in", () {
+      GroupMember seat(String p) =>
+          GroupMember(memberId: p, handle: p, profile: p);
+      final app = AppState()
+        ..groups = [
+          GroupRoom(
+            roomId: 'a',
+            name: 'Launch',
+            members: [seat('cto'), seat('qa')],
+          ),
+          GroupRoom(
+            roomId: 'b',
+            name: 'Ops',
+            members: [seat('ops'), seat('qa')],
+          ),
+        ];
+      final cto = Hob(name: 'cto', displayName: 'CTO');
+      final qa = Hob(name: 'qa', displayName: 'QA');
+      expect(app.groupsOf(cto).map((r) => r.roomId), ['a']);
+      expect(app.groupsOf(qa).map((r) => r.roomId), ['a', 'b']);
+      expect(app.groupsOf(Hob(name: 'x', displayName: 'X')), isEmpty);
     });
 
     test('is checked against the server rule', () {
@@ -98,6 +122,25 @@ void main() {
       expect(hob.displayName, 'Účetní Péťa');
       expect(app.hobNamed('ucetni-peta'), isNotNull);
       expect(app.hobNameTaken('ucetni-peta'), isTrue);
+    });
+
+    test('a duplicate clones the Hob under the next free name', () async {
+      final cto = app.hobNamed('cto')!;
+      final copy = await app.duplicateHob(cto);
+      final create = server.profileCreates.single;
+      expect(create['name'], 'cto-2');
+      expect(create['clone_from'], 'cto');
+      final row = server.roster.firstWhere((r) => r['name'] == 'cto-2');
+      final meta = (row['ui_meta'] as Map)['hermes-bots'] as Map;
+      expect(meta['title'], 'CTO (kopie)');
+      expect(meta['color'], cto.meta['color']);
+      expect(meta['sectionId'], cto.meta['sectionId']);
+      expect(copy.name, 'cto-2');
+      expect(copy.displayName, 'CTO (kopie)');
+
+      // The next copy takes the next free name.
+      await app.duplicateHob(cto);
+      expect(server.profileCreates.last['name'], 'cto-3');
     });
 
     test('a taken name fails with the server message', () async {

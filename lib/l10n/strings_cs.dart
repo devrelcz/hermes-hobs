@@ -276,6 +276,31 @@ class StringsCs extends Strings {
   @override
   String hobDeleted(String hob) => 'Hobík $hob je smazaný';
   @override
+  String get duplicateHob => 'Duplikovat';
+  @override
+  String hobCopyTitle(String hob) => '$hob (kopie)';
+  @override
+  String hobDuplicating(String hob) => 'Kopíruji Hobíka $hob…';
+  @override
+  String hobDuplicated(String copy) => 'Hobík $copy je vytvořený';
+  @override
+  String hobDuplicateFailed(String reason) =>
+      'Hobíka se nepodařilo zkopírovat: $reason';
+  @override
+  String get hobDuplicateNoName => 'Pro kopii není volné jméno.';
+  @override
+  String get hobGroupsMenu => 'Skupinové chaty…';
+  @override
+  String hobGroupsTitle(String hob) => 'Skupinové chaty Hobíka $hob';
+  @override
+  String get hobNoGroups => 'Hobík zatím není v žádném skupinovém chatu.';
+  @override
+  String newGroupWith(String hob) => 'Nová skupina s Hobíkem $hob';
+  @override
+  String get hobGroupsHint =>
+      'Členy existující skupiny server měnit nedovoluje. Pro jiné složení '
+      'založ novou skupinu.';
+  @override
   String hobDeleteFailed(String reason) =>
       'Hobíka se nepodařilo smazat: $reason';
 
@@ -881,6 +906,18 @@ class StringsCs extends Strings {
   String get scheduledRun => 'Naplánovaná úloha';
   @override
   String scheduledRunPrompt(String job) => 'Naplánovaná úloha: $job';
+  @override
+  String messageFromHob(String? sender) =>
+      sender == null ? 'Zpráva od jiného Hobíka' : 'Zpráva od $sender';
+  @override
+  String replyTo(String? sender) =>
+      sender == null ? 'Odpověď' : 'Odpověď pro $sender';
+  @override
+  String get withReply => 's odpovědí';
+  @override
+  String get delegationDone => 'Úloha na pozadí je hotová';
+  @override
+  String get processDone => 'Proces na pozadí skončil';
 
   // --- biometric lock ------------------------------------------------------
   @override

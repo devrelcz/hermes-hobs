@@ -337,6 +337,138 @@ class HobSetup {
 
 enum ChatRole { user, assistant, activity, notice, error }
 
+/// Kinds of turns the gateway hands a Hob in the user's place.
+enum SystemTurnKind {
+  /// Another Hob wrote (its `message_agent` tool): "Message from 🤖 …".
+  agentMessage,
+
+  /// A background subagent the Hob dispatched is done.
+  delegationDone,
+
+  /// A background process the Hob started has ended.
+  processDone,
+}
+
+/// A user turn the gateway wrote rather than the user: a message from
+/// another Hob, or a note that background work finished. The dashboard
+/// marks these rows with `display_kind` (`internal_notification`,
+/// `async_delegation_complete`, `process_complete`) and shows them as
+/// quiet, folded lines; their text is recognised as well, for history rows
+/// that come without the mark.
+class SystemTurn {
+  const SystemTurn({
+    required this.kind,
+    this.sender,
+    this.handle,
+    this.summary = '',
+  });
+
+  final SystemTurnKind kind;
+
+  /// For [SystemTurnKind.agentMessage]: the writer's name and profile.
+  final String? sender;
+  final String? handle;
+
+  /// One line saying what it is about: the dashboard's `display_text`, the
+  /// subagent's goal or the process's command.
+  final String summary;
+
+  static final _fromHob = RegExp(
+    r'^Message from 🤖\s*(.+?)\s*\(@([^)\s]+)\):\s*',
+  );
+  static final _fromHobLoose = RegExp(r'^Message from 🤖\s*([^:\n]+):\s*');
+  static final _fromAgent = RegExp(r"^Message from agent '([^']+)':\s*");
+  static final _delegation = RegExp(r'^\[ASYNC DELEGATION COMPLETE\b');
+  static final _process = RegExp(r'^\[IMPORTANT: Background process\b');
+  static final _goal = RegExp(r'^Original goal:\s*(.+)$', multiLine: true);
+  static final _command = RegExp(r'^Command:\s*(.+)$', multiLine: true);
+
+  /// What [text] is, with the body to show, or null for the user's own
+  /// words. [kind] and [meta] are the row's `display_kind` and
+  /// `display_metadata` when the server sends them.
+  static ({SystemTurn turn, String body})? parse(
+    String text, {
+    String? kind,
+    Object? meta,
+  }) {
+    final t = text.trim();
+    final display = meta is Map ? meta['display_text']?.toString() : null;
+    var m = _fromHob.firstMatch(t);
+    if (m != null) {
+      return (
+        turn: SystemTurn(
+          kind: SystemTurnKind.agentMessage,
+          sender: m.group(1)!.trim(),
+          handle: m.group(2),
+          summary: display ?? '',
+        ),
+        body: t.substring(m.end).trim(),
+      );
+    }
+    m = _fromAgent.firstMatch(t) ?? _fromHobLoose.firstMatch(t);
+    if (m != null) {
+      final who = m.group(1)!.trim();
+      return (
+        turn: SystemTurn(
+          kind: SystemTurnKind.agentMessage,
+          sender: who,
+          handle: _fromAgent.hasMatch(t) ? who : null,
+          summary: display ?? '',
+        ),
+        body: t.substring(m.end).trim(),
+      );
+    }
+    if (kind == 'async_delegation_complete' || _delegation.hasMatch(t)) {
+      return (
+        turn: SystemTurn(
+          kind: SystemTurnKind.delegationDone,
+          summary: _goal.firstMatch(t)?.group(1)?.trim() ?? display ?? '',
+        ),
+        body: t,
+      );
+    }
+    if (kind == 'process_complete' || _process.hasMatch(t)) {
+      return (
+        turn: SystemTurn(
+          kind: SystemTurnKind.processDone,
+          summary: _command.firstMatch(t)?.group(1)?.trim() ?? display ?? '',
+        ),
+        body: t,
+      );
+    }
+    if (kind == 'internal_notification') {
+      return (
+        turn: SystemTurn(
+          kind: SystemTurnKind.agentMessage,
+          summary: display ?? '',
+        ),
+        body: t,
+      );
+    }
+    return null;
+  }
+
+  /// The row's heading: "Message from CTO", "Background task done", …
+  /// [name] is the writer as the roster names it, when known.
+  String title(Strings s, {String? name}) => switch (kind) {
+    SystemTurnKind.agentMessage => s.messageFromHob(name ?? sender),
+    SystemTurnKind.delegationDone => s.delegationDone,
+    SystemTurnKind.processDone => s.processDone,
+  };
+
+  /// The writer and the start of the message from a session preview that
+  /// begins with another Hob's message, or null.
+  static ({String sender, String text})? ofPreview(String preview) {
+    final p = preview.trim();
+    final m =
+        _fromHob.firstMatch(p) ??
+        _fromAgent.firstMatch(p) ??
+        _fromHobLoose.firstMatch(p);
+    if (m == null) return null;
+    return (sender: m.group(1)!.trim(), text: p.substring(m.end).trim());
+  }
+}
+
 /// A scheduled job's output that the gateway hands to the Hob whose chat
 /// the job delivers to, as a user turn headed like
 ///
@@ -401,6 +533,15 @@ class ChatMessage {
   /// For a user row that is a scheduled job's output handed to the Hob
   /// (see [ScheduledOutput]): the job's name. [text] is then the output.
   String? scheduledJob;
+
+  /// For a user row the gateway wrote, not the user (see [SystemTurn]):
+  /// what it is. [text] is then its body.
+  SystemTurn? system;
+
+  /// For a [SystemTurn.agentMessage] row: the Hob's answer to the other
+  /// Hob, folded into the same row ([replyTools] are the tools it used).
+  String? reply;
+  final List<ToolActivity> replyTools = [];
 
   /// Images, files and links sent with a user message.
   final List<ChatAttachment> attachments = [];
