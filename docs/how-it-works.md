@@ -74,7 +74,11 @@ The app fires **local** notifications (`flutter_local_notifications`; no push,
 no APNs/FCM, nothing on the server) when:
 
 - a Hob finishes a reply in its Bot Chat (`message.complete`): the Hob's name
-  and a short preview;
+  and a short preview. Not when the reply answers another Hob: for a turn
+  this device did not start, the app reads the session's newest rows
+  (`GET /api/sessions/<stored id>/messages?profile=<hob>&limit=40&order=latest`)
+  and stays quiet when the newest user turn is a message from another Hob
+  (see *Turns from the gateway*). If that read fails, it notifies as usual;
 - a Hob waits for you: an approval (`approval.request` event or `approval`
   server request) or a question (`clarify.request` / `clarify`). The Hob is
   blocked until someone answers, so these matter most;

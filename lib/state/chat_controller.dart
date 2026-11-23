@@ -31,6 +31,7 @@ class ChatController extends ChangeNotifier {
     this.onTurnSettled,
     this.onAlert,
     this.onPromptSent,
+    this.answersHob,
     this.roster,
     this._watchOnly = false,
     this.queue,
@@ -105,6 +106,15 @@ class ChatController extends ChangeNotifier {
 
   /// The user sent a prompt (a good moment to ask for notifications).
   final void Function()? onPromptSent;
+
+  /// Whether the turn that just ended answered another Hob's message: the
+  /// newest user turn of the stored session [storedId]. Such a reply is
+  /// for the other Hob, not the user, so it does not notify. Null alerts
+  /// on every reply.
+  final Future<bool> Function(Hob hob, String storedId)? answersHob;
+
+  /// This chat sent the running turn's prompt itself.
+  bool _ownTurn = false;
 
   /// The Hobs this one can @-mention (the visible roster).
   final List<Hob> Function()? roster;
@@ -544,6 +554,7 @@ class ChatController extends ChangeNotifier {
       _hob.name,
     );
     phase = ChatPhase.running;
+    _ownTurn = true;
     error = null;
     statusText = null;
     _notify();
@@ -1162,11 +1173,18 @@ class ChatController extends ChangeNotifier {
         // chat never saw start): render it, but don't alert.
         final live = phase == ChatPhase.running;
         _completeTurn(p);
+        final own = _ownTurn;
+        _ownTurn = false;
         if (live && p['status'] != 'interrupted') {
-          _alertReply(
-            _lastAssistantText(),
-            key: gen != null ? 'turn:$gen' : null,
-          );
+          final reply = _lastAssistantText();
+          final key = gen != null ? 'turn:$gen' : null;
+          final check = answersHob;
+          final stored = _storedId;
+          if (own || check == null || stored == null) {
+            _alertReply(reply, key: key);
+          } else {
+            unawaited(_alertUnlessForHob(check, stored, reply, key));
+          }
         }
       case 'request.cancel':
         final id = p['id'];
@@ -1269,6 +1287,20 @@ class ChatController extends ChangeNotifier {
       }
     }
     return '';
+  }
+
+  /// Alerts a reply that nobody in this chat asked for, unless it answers
+  /// another Hob. When the check fails, the alert goes out as usual.
+  Future<void> _alertUnlessForHob(
+    Future<bool> Function(Hob hob, String storedId) check,
+    String stored,
+    String reply,
+    String? key,
+  ) async {
+    try {
+      if (await check(_hob, stored)) return;
+    } catch (_) {}
+    if (!_disposed) _alertReply(reply, key: key);
   }
 
   void _alertReply(String text, {required String? key}) {

@@ -37,7 +37,8 @@ No server yet? [Try the demo](#try-it-without-a-server).
   shows up in the Hob's chat as a card of its own.
 - **Messages between Hobs.** When one Hob writes to another, the message and
   the answer fold into one line in the chat, and so do notes that background
-  work finished. Tap the line to read them.
+  work finished. Tap the line to read them. A Hob's answer to another Hob
+  does not send you a notification.
 - **Per-chat settings.** Switch the model, reasoning level and approval mode
   from the composer.
 - **Attachments.** Send photos, files up to 16 MB and links, or share them

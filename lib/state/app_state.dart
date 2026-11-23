@@ -1380,6 +1380,7 @@ class AppState extends ChangeNotifier {
     },
     onAlert: _onAlert,
     onPromptSent: () => unawaited(_askNotificationPermissionOnce()),
+    answersHob: _answersHob,
     watchOnly: watchOnly,
     queue: _watchQueue.run,
   );
@@ -1949,6 +1950,31 @@ class AppState extends ChangeNotifier {
   /// Draws a Hob's face as PNG for its notifications; set by the app (the
   /// state layer knows no widgets). Null leaves notifications without it.
   Future<Uint8List?> Function(Hob hob)? faceBitmap;
+
+  /// Whether the newest user turn of [hob]'s stored session [storedId] is
+  /// another Hob's message: the reply that just ended answers that Hob, not
+  /// the user. Reads the latest rows over REST, since the gateway does not
+  /// stream turns that other Hobs start.
+  Future<bool> _answersHob(Hob hob, String storedId) async {
+    final http = _http;
+    if (http == null) return false;
+    final res = await http.getJson(
+      '/api/sessions/${Uri.encodeComponent(storedId)}/messages',
+      query: {'profile': hob.name, 'limit': '40', 'order': 'latest'},
+    );
+    final rows = res is Map ? res['messages'] : null;
+    if (rows is! List) return false;
+    for (final r in rows.reversed.whereType<Map>()) {
+      if (r['role'] != 'user') continue;
+      final turn = SystemTurn.parse(
+        (r['content'] ?? r['text'])?.toString() ?? '',
+        kind: r['display_kind']?.toString(),
+        meta: r['display_metadata'],
+      );
+      return turn?.turn.kind == SystemTurnKind.agentMessage;
+    }
+    return false;
+  }
 
   void _onAlert(Hob hob, HobAlert alert) {
     if (!notificationsEnabled || _chatVisible(hob.name)) return;
