@@ -1314,6 +1314,58 @@ class AppState extends ChangeNotifier {
         Hob(name: name, displayName: shown, description: mission, shape: shape);
   }
 
+  /// Copies [source] into a new Hob, like the dashboard's Duplicate: the
+  /// first free `<name>-2`, `<name>-3`, … cloned from it (its config,
+  /// skills and SOUL.md), with its description and its look, titled
+  /// "`<name>` (copy)". Returns the copy.
+  Future<Hob> duplicateHob(Hob source) async {
+    final rpc = _connected;
+    String? name;
+    for (var i = 2; i < 100; i++) {
+      final suffix = '-$i';
+      final room = 64 - suffix.length;
+      final stem = source.name.length <= room
+          ? source.name
+          : source.name.substring(0, room);
+      final candidate = '$stem$suffix';
+      if (!hobNameTaken(candidate)) {
+        name = candidate;
+        break;
+      }
+    }
+    if (name == null) throw StateError(Strings.current.hobDuplicateNoName);
+    await rpc.requestWith('profiles.create', {
+      'name': name,
+      'clone_from': source.name,
+      'description': source.description,
+    }, timeout: const Duration(seconds: 60));
+    final title = Strings.current.hobCopyTitle(source.displayName);
+    // As with a new Hob, the look is a nicety: a refused write leaves the
+    // copy as it is.
+    try {
+      await rpc.request('profiles.configure', {
+        'name': name,
+        'ui_meta': {
+          Hob.metaKey: {
+            for (final e in source.meta.entries)
+              if (e.key != 'chat' && e.key != 'created') e.key: e.value,
+            'title': title,
+            'created': DateTime.now().millisecondsSinceEpoch,
+          },
+        },
+      });
+    } catch (_) {}
+    await refreshHobs(silent: true);
+    return hobNamed(name) ??
+        Hob(name: name, displayName: title, description: source.description);
+  }
+
+  /// The group chats [hob] has a seat in.
+  List<GroupRoom> groupsOf(Hob hob) => [
+    for (final r in groups)
+      if (r.members.any((m) => m.profile == hob.name)) r,
+  ];
+
   static void _checkCli(Object? res) {
     if (res is! Map) return;
     final code = res['code'];
