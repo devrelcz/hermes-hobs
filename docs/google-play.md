@@ -10,16 +10,16 @@ Store page: https://play.google.com/store/apps/details?id=com.hobcrew.app
 **Rename, November 24, 2026.** Until then the app was listed as *Hermes Hobs*
 (`cz.devrel.hermeshobs`). Hermes Agent is Nous Research's software and their
 mark, so the app was renamed HobCrew and gets a new listing under the new
-package name; a package name cannot change on Play. The old listing is to be
-unpublished once the new one is live. The current state and release history
-below are the old listing's until the new one has its first release.
+package name; a package name cannot change on Play. HobCrew went live in
+production on November 24, 2026; the old listing is to be unpublished. Its
+state and history are kept below under *Hermes Hobs (old listing)*.
 
 New listing, November 24, 2026: app HobCrew created in the Daniel Rataj
-developer account (free, app, en-US default). Internal testing is active
-with 1.0.0 (versionCode 171), tester list *Internal - Home*; opt-in link
-https://play.google.com/apps/internaltest/4701499315991673751. Uploads are
-signed with the same upload key as Hermes Hobs. The account is personal, so
-production needs a closed test with at least 12 testers for 14 days first.
+developer account (free, app, en-US default). Uploads are signed with the
+same upload key as Hermes Hobs. Internal testing opt-in link:
+https://play.google.com/apps/internaltest/4701499315991673751. Production
+needed no closed test first: the account was allowed to release straight to
+production.
 
 The HobCrew listing and App content were filled in the same day, mostly with
 the answers below (App content answers), with these differences:
@@ -38,13 +38,11 @@ the answers below (App content answers), with these differences:
 
 | | |
 |---|---|
-| Published version | 1.0.4 (versionCode 145), live November 22, 2026, full rollout; first release was 1.0.0 (versionCode 101), November 2026 |
-| In review | 1.0.5 (versionCode 158), production, full rollout, sent November 23, 2026 |
-| Store listing | Says the app is unofficial and not from Nous Research (short and full descriptions, en-US and cs-CZ), live November 22, 2026 |
+| Published version | 1.0.0 (versionCode 174), production, full rollout, live November 24, 2026 |
+| Internal testing | 1.0.0 (versionCode 174), tester list *Internal - Home* |
 | Production | Full rollout, 178 countries / regions |
-| Internal testing | 1.0.0 (versionCode 101), tester list *Internal - Home* |
+| Store listing | English (en-US) only; HobCrew icon and feature graphic, old Hermes Hobs screenshots |
 | Managed publishing | Off: an approved release goes live on its own |
-| Listing languages | English (en-US, default) and Czech (cs-CZ) |
 
 ## Upload key
 
@@ -110,6 +108,29 @@ Production can also take a new bundle directly (Production > Create new
 release, upload there), skipping internal testing; 1.0.2 went that way.
 
 ## Release history
+
+| Version | versionCode | Track | What changed |
+|---|---|---|---|
+| 1.0.0 | 171 | Internal testing | First HobCrew build: new name, package `com.hobcrew.app`, HobCrew icons and colors |
+| 1.0.0 | 174 | Production, internal testing | First HobCrew release; the team catalog comes only from the HobCrew API (no jsDelivr fallback) |
+
+## Hermes Hobs (old listing)
+
+Package `cz.devrel.hermeshobs`, store page
+https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs. To be
+unpublished now that HobCrew is live. State before the rename:
+
+| | |
+|---|---|
+| Published version | 1.0.4 (versionCode 145), live November 22, 2026, full rollout; first release was 1.0.0 (versionCode 101), November 2026 |
+| In review | 1.0.5 (versionCode 158), production, full rollout, sent November 23, 2026 |
+| Store listing | Says the app is unofficial and not from Nous Research (short and full descriptions, en-US and cs-CZ), live November 22, 2026 |
+| Production | Full rollout, 178 countries / regions |
+| Internal testing | 1.0.0 (versionCode 101), tester list *Internal - Home* |
+| Managed publishing | Off: an approved release goes live on its own |
+| Listing languages | English (en-US, default) and Czech (cs-CZ) |
+
+Release history:
 
 | Version | versionCode | Track | What changed |
 |---|---|---|---|
