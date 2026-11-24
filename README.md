@@ -33,9 +33,7 @@ No server yet? [Try the demo](#try-it-without-a-server).
 - **Ready-made teams.** Add a whole team in one tap, such as a dev team
   with a head of IT, analyst, developer, tester and DevOps. Each Hob gets its
   role and instructions, the team gets its own folder and group chat. Teams
-  come from the HobCrew catalog (`hobcrew.com/api/marketplace/v1/`), with the
-  [Hobs Marketplace](https://github.com/devrelcz/hobs-marketplace) on jsDelivr
-  as a fallback.
+  come from the HobCrew catalog (`hobcrew.com/api/marketplace/v1/`).
 - **Hob profiles.** Change a Hob's face, color, title, description, model and
   SOUL.md. Edits go straight to the bot on your server.
 - **Scheduled jobs.** See a Hob's jobs, switch them on and off, run one
