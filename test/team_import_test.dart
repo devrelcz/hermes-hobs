@@ -182,6 +182,40 @@ void main() {
       );
     });
 
+    test('falls back to the mirror when the main catalog fails', () async {
+      final mirror = Uri.parse('https://mirror.example/catalog/');
+      final mirrored = {
+        for (final e in _files().entries)
+          mirror.resolve(e.key.toString().substring(_root.toString().length)):
+              e.value,
+      };
+      final log = <Uri>[];
+      final client = TeamCatalogClient(
+        root: _root,
+        fallback: mirror,
+        fetch: (uri) async {
+          log.add(uri);
+          final body = mirrored[uri];
+          if (body == null) throw TeamCatalogException('404 $uri');
+          return body;
+        },
+      );
+      final cards = await client.fetchIndex();
+      expect(log, [_root.resolve('index.json'), mirror.resolve('index.json')]);
+      expect(
+        client.coverOf(cards.single),
+        mirror.resolve('teams/dev-team/cover.webp'),
+      );
+      final team = await client.fetchTeam(cards.single, 'en');
+      expect(team.members.first.soul, startsWith('# cto (en)'));
+    });
+
+    test('the official catalog is HobCrew with jsDelivr behind it', () {
+      expect(TeamCatalogClient.defaultRoot.host, 'hobcrew.com');
+      expect(TeamCatalogClient().root, TeamCatalogClient.defaultRoot);
+      expect(TeamCatalogClient.fallbackRoot.host, 'cdn.jsdelivr.net');
+    });
+
     test('an unknown catalog format is an error', () async {
       final client = _client({
         _root.resolve('index.json'): jsonEncode({'schema': 9, 'teams': []}),
