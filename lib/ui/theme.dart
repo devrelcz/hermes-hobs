@@ -29,7 +29,8 @@ abstract final class HobsTheme {
         onSecondary: const Color(0xFFFBFDF9),
         secondaryContainer: const Color(0xFFDCE8DE),
         onSecondaryContainer: const Color(0xFF15261B),
-        tertiary: const Color(0xFFF2B33D),
+        // The amber of the HobCrew mark (the hat in the logo).
+        tertiary: const Color(0xFFFFAC02),
         onTertiary: const Color(0xFF2B1E00),
         tertiaryContainer: const Color(0xFFFFE7B3),
         onTertiaryContainer: const Color(0xFF4A3300),
@@ -69,7 +70,7 @@ abstract final class HobsTheme {
         onSecondary: const Color(0xFF223529),
         secondaryContainer: const Color(0xFF2E3F33),
         onSecondaryContainer: const Color(0xFFD3E4D6),
-        tertiary: const Color(0xFFF6C863),
+        tertiary: const Color(0xFFFFAC02),
         onTertiary: const Color(0xFF3A2A00),
         tertiaryContainer: const Color(0xFF5A4100),
         onTertiaryContainer: const Color(0xFFFFE7B3),
@@ -231,7 +232,7 @@ class HobsColors extends ThemeExtension<HobsColors> {
 
   static const dark = HobsColors(
     working: Color(0xFF6FD49B),
-    lantern: Color(0xFFF6C863),
+    lantern: Color(0xFFFFAC02),
   );
 
   static HobsColors of(BuildContext context) =>
