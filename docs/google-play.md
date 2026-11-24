@@ -11,8 +11,9 @@ Store page: https://play.google.com/store/apps/details?id=com.hobcrew.app
 (`cz.devrel.hermeshobs`). Hermes Agent is Nous Research's software and their
 mark, so the app was renamed HobCrew and gets a new listing under the new
 package name; a package name cannot change on Play. HobCrew went live in
-production on November 24, 2026; the old listing is to be unpublished. Its
-state and history are kept below under *Hermes Hobs (old listing)*.
+production on November 24, 2026, and the old listing was unpublished the
+same day. Its state and history are kept below under *Hermes Hobs (old
+listing)*.
 
 New listing, November 24, 2026: app HobCrew created in the Daniel Rataj
 developer account (free, app, en-US default). Uploads are signed with the
@@ -117,8 +118,10 @@ release, upload there), skipping internal testing; 1.0.2 went that way.
 ## Hermes Hobs (old listing)
 
 Package `cz.devrel.hermeshobs`, store page
-https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs. To be
-unpublished now that HobCrew is live. State before the rename:
+https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs.
+Unpublished November 24, 2026 (Advanced settings > App availability): new
+users cannot find or install it, existing users keep it and still get
+updates. Not deleted. State before the rename:
 
 | | |
 |---|---|
