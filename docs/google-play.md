@@ -192,7 +192,7 @@ over the Edge panel handle on the right.
 The demo Hobs and chats are in English in both sets.
 
 Store settings: app, free, category Productivity. Contact email: the
-developer account's address; website: https://github.com/devrelcz/hermes-hobs.
+developer account's address; website: https://github.com/hobcrew-com/hobcrew-app.
 
 AI asset declaration: *Don't label assets*. The form covers only images, and
 the icon, graphic and screenshots are not AI-generated.
@@ -201,7 +201,7 @@ The demo (*Try the demo, no server needed* on the sign-in screen,
 `lib/demo/`) is how reviewers and people without a server see the app.
 
 Privacy policy URL:
-https://github.com/devrelcz/hermes-hobs/blob/master/docs/privacy-policy.md
+https://github.com/hobcrew-com/hobcrew-app/blob/master/docs/privacy-policy.md
 
 ### English (en-US)
 

@@ -60,5 +60,5 @@ The app is not directed at children.
 ## Changes and contact
 
 Changes to this policy are published in this file, in the app's public
-repository: https://github.com/devrelcz/hermes-hobs. Questions go to the
+repository: https://github.com/hobcrew-com/hobcrew-app. Questions go to the
 repository's issue tracker.
