@@ -41,6 +41,7 @@ the answers below (App content answers), with these differences:
 | | |
 |---|---|
 | Published version | 1.0.0 (versionCode 174), production, full rollout, live November 24, 2026 |
+| In review | 1.0.1 (versionCode 179), production, full rollout, sent November 24, 2026 |
 | Internal testing | 1.0.0 (versionCode 174), tester list *Internal - Home* |
 | Production | Full rollout, 178 countries / regions |
 | Store listing | English (en-US, default) and Czech (cs-CZ, sent for review November 24, 2026); HobCrew icon and feature graphic shared by both, old Hermes Hobs screenshots per language (`phone-*.png`, `cs/phone-*.png`) |
@@ -115,6 +116,7 @@ release, upload there), skipping internal testing; 1.0.2 went that way.
 |---|---|---|---|
 | 1.0.0 | 171 | Internal testing | First HobCrew build: new name, package `com.hobcrew.app`, HobCrew icons and colors |
 | 1.0.0 | 174 | Production, internal testing | First HobCrew release; the team catalog comes only from the HobCrew API (no jsDelivr fallback) |
+| 1.0.1 | 179 | Production (in review) | Released under the Functional Source License (FSL-1.1-ALv2); the app itself is unchanged |
 
 ## Hermes Hobs (old listing)
 
