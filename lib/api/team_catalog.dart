@@ -1,5 +1,6 @@
-/// Ready-made teams of Hobs from the marketplace repository
-/// (github.com/devrelcz/hobs-marketplace), served by jsDelivr.
+/// Ready-made teams of Hobs from the HobCrew catalog
+/// (hobcrew.com/api/marketplace/v1/), with the marketplace repository
+/// (github.com/devrelcz/hobs-marketplace) on jsDelivr as a fallback.
 ///
 /// `index.json` lists one card per team; a team's `team.json` and its SOUL
 /// files are fetched only when the team is opened. Parsing is lenient: an
@@ -337,18 +338,35 @@ class TeamCatalogException implements Exception {
 
 /// Reads the marketplace: the index, then a team with its SOULs.
 class TeamCatalogClient {
-  TeamCatalogClient({Uri? root, CatalogFetch? fetch})
-    : root = root ?? defaultRoot,
-      _fetch = fetch ?? _httpGet;
+  /// Without [root], the official catalog is read, and its jsDelivr mirror
+  /// when the official one cannot be reached. A [root] given here is read
+  /// alone unless a [fallback] is given too.
+  TeamCatalogClient({Uri? root, Uri? fallback, CatalogFetch? fetch})
+    : _primary = root ?? defaultRoot,
+      _fallback = root == null ? (fallback ?? fallbackRoot) : fallback,
+      _fetch = fetch ?? _httpGet {
+    _root = _primary;
+  }
 
-  /// The official catalog, pinned to its major version: jsDelivr serves the
-  /// newest `v1.x.y` tag, so nothing reaches users before it is tagged.
+  /// The official catalog, served by the HobCrew API. Its layout is the
+  /// marketplace repository's, and its format version is in the path.
   static final defaultRoot = Uri.parse(
+    'https://hobcrew.com/api/marketplace/v1/',
+  );
+
+  /// The marketplace repository through jsDelivr, pinned to its major
+  /// version tag. Read when [defaultRoot] cannot be reached.
+  static final fallbackRoot = Uri.parse(
     'https://cdn.jsdelivr.net/gh/devrelcz/hobs-marketplace@v1/',
   );
 
-  final Uri root;
+  final Uri _primary;
+  final Uri? _fallback;
+  late Uri _root;
   final CatalogFetch _fetch;
+
+  /// The catalog the last [fetchIndex] read; teams and covers come from it.
+  Uri get root => _root;
 
   /// A SOUL.md larger than this is refused; the repository's limit is 16 KB.
   static const maxSoulBytes = 64 * 1024;
@@ -359,16 +377,29 @@ class TeamCatalogClient {
     return cover == null ? null : root.resolve(cover);
   }
 
-  /// The teams the catalog lists, in its order.
+  /// The teams the catalog lists, in its order. Tries the main catalog
+  /// first every time, and the fallback when the main one fails.
   Future<List<TeamCard>> fetchIndex() async {
-    final json = await _json(root.resolve('index.json'));
+    try {
+      return await _fetchIndex(_primary);
+    } on Object {
+      final fallback = _fallback;
+      if (fallback == null) rethrow;
+      return _fetchIndex(fallback);
+    }
+  }
+
+  Future<List<TeamCard>> _fetchIndex(Uri from) async {
+    final json = await _json(from.resolve('index.json'));
     if (json is! Map || json['schema'] != teamSchemaVersion) {
       throw const TeamCatalogException('Unsupported catalog');
     }
-    return (json['teams'] as List? ?? const [])
+    final cards = (json['teams'] as List? ?? const [])
         .map(TeamCard.fromJson)
         .nonNulls
         .toList();
+    _root = from;
+    return cards;
   }
 
   /// The team [card] points at, with the SOUL of every member in [lang]
