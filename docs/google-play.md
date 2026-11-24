@@ -27,7 +27,8 @@ the answers below (App content answers), with these differences:
 - Store settings: category Productivity, contact info@hobcrew.com, website
   https://hobcrew.com.
 - Content rating contact: info@hobcrew.com.
-- Store listing: en-US only so far; `icon-512.png` and `feature-graphic.png`
+- Store listing: en-US, and cs-CZ added later the same day with the Czech
+  texts below and `cs/phone-*.png`; `icon-512.png` and `feature-graphic.png`
   are rendered from the new HobCrew mark and labelled as AI-generated assets.
   The phone screenshots are still the Hermes Hobs ones and need retaking.
 - Sign in details: the demo instructions use the current button text, "Try
@@ -42,7 +43,7 @@ the answers below (App content answers), with these differences:
 | Published version | 1.0.0 (versionCode 174), production, full rollout, live November 24, 2026 |
 | Internal testing | 1.0.0 (versionCode 174), tester list *Internal - Home* |
 | Production | Full rollout, 178 countries / regions |
-| Store listing | English (en-US) only; HobCrew icon and feature graphic, old Hermes Hobs screenshots |
+| Store listing | English (en-US, default) and Czech (cs-CZ, sent for review November 24, 2026); HobCrew icon and feature graphic shared by both, old Hermes Hobs screenshots per language (`phone-*.png`, `cs/phone-*.png`) |
 | Managed publishing | Off: an approved release goes live on its own |
 
 ## Upload key
