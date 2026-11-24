@@ -99,5 +99,12 @@ your data.
 
 ## License
 
-HobCrew is released under the [MIT License](LICENSE). The bundled Geist
-fonts keep their own [SIL Open Font License](assets/fonts/OFL.txt).
+HobCrew is released under the [Functional Source License 1.1, Apache 2.0
+Future License](LICENSE.md) (FSL-1.1-ALv2). You may use, change and
+redistribute the app for anything except offering it, or a product built on
+it, as a commercial product that competes with HobCrew. Each version becomes
+Apache 2.0 two years after its release. Versions released before this change
+stay under the MIT License they came with.
+
+The bundled Geist fonts keep their own
+[SIL Open Font License](assets/fonts/OFL.txt).
