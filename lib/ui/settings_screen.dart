@@ -201,7 +201,7 @@ class _About extends StatelessWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => showLicensePage(
                 context: context,
-                applicationName: 'Hermes Hobs',
+                applicationName: 'HobCrew',
                 applicationVersion: version,
                 applicationLegalese:
                     '${s.unofficialApp}. ${s.unofficialAppHint}',

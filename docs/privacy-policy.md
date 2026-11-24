@@ -1,14 +1,14 @@
-# Hermes Hobs privacy policy
+# HobCrew privacy policy
 
 Last updated: 22 November 2026
 
-Hermes Hobs is a chat app for a Hermes Agent server that you run or have
+HobCrew is a chat app for a Hermes Agent server that you run or have
 access to. This policy explains what the app does with your data.
 
 ## Who receives your data
 
 The app talks only to the Hermes servers you add to it. The developer of
-Hermes Hobs runs no server for the app and receives none of your data. The
+HobCrew runs no server for the app and receives none of your data. The
 app has no analytics, advertising or crash-reporting SDKs.
 
 What you send in a chat (messages, photos, files, links) goes to the Hermes

@@ -1,15 +1,15 @@
-# Hermes Hobs
+# HobCrew
 
 Talk to your Hobs from wherever you are.
 
-Hermes Hobs is a chat app for Hermes Agent. Every bot from your dashboard's
+HobCrew is a chat app for Hermes Agent. Every bot from your dashboard's
 Bot Mode shows up here as a **Hob**, with its own chat. Same bots, a friendlier
 name. It runs on Android, iPhone, iPad and Mac.
 
-Hermes Hobs is an unofficial community app. It is not made, endorsed or
+HobCrew is an unofficial community app. It is not made, endorsed or
 supported by Nous Research, the makers of Hermes Agent.
 
-<a href="https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80" alt="Get it on Google Play"></a>
+<a href="https://play.google.com/store/apps/details?id=com.hobcrew.app"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80" alt="Get it on Google Play"></a>
 
 No server yet? [Try the demo](#try-it-without-a-server).
 
@@ -60,7 +60,7 @@ No server yet? [Try the demo](#try-it-without-a-server).
 
 ## Get started
 
-1. Install the app from [Google Play](https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs).
+1. Install the app from [Google Play](https://play.google.com/store/apps/details?id=com.hobcrew.app).
 2. Enter your Hermes Agent dashboard's address.
 3. Sign in with the dashboard's username and password. Your bots appear as
    Hobs.
@@ -101,5 +101,5 @@ your data.
 
 ## License
 
-Hermes Hobs is released under the [MIT License](LICENSE). The bundled Geist
+HobCrew is released under the [MIT License](LICENSE). The bundled Geist
 fonts keep their own [SIL Open Font License](assets/fonts/OFL.txt).

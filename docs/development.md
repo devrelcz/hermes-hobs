@@ -1,12 +1,12 @@
 # Development
 
-How to build, run and test Hermes Hobs. For what the app does, see the
+How to build, run and test HobCrew. For what the app does, see the
 [README](../README.md). For how it works inside, see
 [how-it-works.md](how-it-works.md).
 
 ## Platforms
 
-Hermes Hobs is a Flutter app. It ships for iOS, Android and macOS, and the
+HobCrew is a Flutter app. It ships for iOS, Android and macOS, and the
 same code can be built for Windows and Linux too.
 
 Web is not a target: browser CORS and cookie rules block cross-origin access

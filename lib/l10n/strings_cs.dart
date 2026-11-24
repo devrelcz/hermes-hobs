@@ -144,10 +144,10 @@ class StringsCs extends Strings {
   String get scanNotPairing => 'Tohle není párovací kód Hermes.';
   @override
   String get scanNewerVersion =>
-      'Kód je pro novější verzi aplikace. Aktualizujte Hermes Hobs.';
+      'Kód je pro novější verzi aplikace. Aktualizujte HobCrew.';
   @override
   String get scanNoPermission =>
-      'Fotoaparát není povolený. Povolte ho pro Hermes Hobs v nastavení systému, nebo údaje zadejte ručně.';
+      'Fotoaparát není povolený. Povolte ho pro HobCrew v nastavení systému, nebo údaje zadejte ručně.';
   @override
   String get scanNoCamera =>
       'Fotoaparát tu nejde použít. Zadejte přihlašovací údaje ručně.';

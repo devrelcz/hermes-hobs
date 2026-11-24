@@ -36,7 +36,7 @@ void main() {
         child: const MaterialApp(home: LoginScreen()),
       ),
     );
-    expect(find.text('Hermes Hobs'), findsOneWidget);
+    expect(find.text('HobCrew'), findsOneWidget);
     expect(find.byType(HobGlyph), findsOneWidget);
     expect(find.text('https://hermes.devrel.cz'), findsNothing);
     await tester.tap(find.text('Zadat údaje ručně'));

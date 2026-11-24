@@ -140,10 +140,10 @@ class StringsEn extends Strings {
   String get scanNotPairing => 'This is not a Hermes pairing code.';
   @override
   String get scanNewerVersion =>
-      'This code is for a newer version of the app. Update Hermes Hobs.';
+      'This code is for a newer version of the app. Update HobCrew.';
   @override
   String get scanNoPermission =>
-      'The camera is not allowed. Allow it for Hermes Hobs in the system settings, or type the sign-in details.';
+      'The camera is not allowed. Allow it for HobCrew in the system settings, or type the sign-in details.';
   @override
   String get scanNoCamera =>
       'The camera cannot be used here. Type the sign-in details instead.';
