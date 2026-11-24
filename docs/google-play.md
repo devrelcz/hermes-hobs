@@ -14,6 +14,13 @@ package name; a package name cannot change on Play. The old listing is to be
 unpublished once the new one is live. The current state and release history
 below are the old listing's until the new one has its first release.
 
+New listing, November 24, 2026: app HobCrew created in the Daniel Rataj
+developer account (free, app, en-US default). Internal testing is active
+with 1.0.0 (versionCode 171), tester list *Internal - Home*; opt-in link
+https://play.google.com/apps/internaltest/4701499315991673751. Uploads are
+signed with the same upload key as Hermes Hobs. The account is personal, so
+production needs a closed test with at least 12 testers for 14 days first.
+
 ## Current state
 
 | | |
