@@ -21,6 +21,19 @@ https://play.google.com/apps/internaltest/4701499315991673751. Uploads are
 signed with the same upload key as Hermes Hobs. The account is personal, so
 production needs a closed test with at least 12 testers for 14 days first.
 
+The HobCrew listing and App content were filled in the same day, mostly with
+the answers below (App content answers), with these differences:
+- Store settings: category Productivity, contact info@hobcrew.com, website
+  https://hobcrew.com.
+- Content rating contact: info@hobcrew.com.
+- Store listing: en-US only so far; `icon-512.png` and `feature-graphic.png`
+  are rendered from the new HobCrew mark and labelled as AI-generated assets.
+  The phone screenshots are still the Hermes Hobs ones and need retaking.
+- Sign in details: the demo instructions use the current button text, "Try
+  the demo, no server needed", and the details under "Type the details".
+- Data safety: same answers, the outside accounts are described as created
+  "By the operator of the user's own Hermes Agent server".
+
 ## Current state
 
 | | |
