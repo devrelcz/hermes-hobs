@@ -374,7 +374,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                         padding: const EdgeInsets.all(12),
-                        child: const CustomPaint(painter: HobGlyphPainter()),
+                        child: const HobGlyph(),
                       ),
                     ),
                     const SizedBox(height: 20),
