@@ -92,6 +92,18 @@ release, upload there), skipping internal testing; 1.0.2 went that way.
 | 1.0.3 | 129 | Production | Settings > About and the licenses page say the app is an unofficial community app, not from Nous Research |
 | 1.0.4 | 145 | Production | Manage a Hob's scheduled jobs (switch, run now, history, delete, new job) and show their output as cards in the chat; add another server by scanning its QR code |
 | 1.0.5 | 158 | Production (in review) | Marketplace with ready-made teams of Hobs (dev, personal, marketing, editorial, startup) added in one tap; duplicate a Hob and see its group chats from the Hob menu; messages between Hobs fold into quiet lines and no longer notify |
+| 1.0.6 | 166 | Built, not uploaded | The Marketplace reads its teams from the HobCrew API (hobcrew.com/api/marketplace/v1/), with jsDelivr as a fallback |
+
+Release notes for 1.0.6:
+
+```text
+<en-US>
+The Marketplace now loads its ready-made teams from HobCrew, so new teams reach you without an app update.
+</en-US>
+<cs-CZ>
+Marketplace teď načítá hotové týmy z HobCrew, takže nové týmy dostanete bez aktualizace aplikace.
+</cs-CZ>
+```
 
 Release notes for 1.0.5:
 
