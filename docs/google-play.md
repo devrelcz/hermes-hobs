@@ -1,11 +1,18 @@
 # Google Play release
 
-How Hermes Hobs is built, signed and listed on Google Play, and what is set
-in Play Console. Package name: `cz.devrel.hermeshobs`. The app uses Play App
+How the HobCrew app is built, signed and listed on Google Play, and what is
+set in Play Console. Package name: `com.hobcrew.app`. The app uses Play App
 Signing: Google holds the app signing key, we sign uploads with our own
 upload key.
 
-Store page: https://play.google.com/store/apps/details?id=cz.devrel.hermeshobs
+Store page: https://play.google.com/store/apps/details?id=com.hobcrew.app
+
+**Rename, November 24, 2026.** Until then the app was listed as *Hermes Hobs*
+(`cz.devrel.hermeshobs`). Hermes Agent is Nous Research's software and their
+mark, so the app was renamed HobCrew and gets a new listing under the new
+package name; a package name cannot change on Play. The old listing is to be
+unpublished once the new one is live. The current state and release history
+below are the old listing's until the new one has its first release.
 
 ## Current state
 
@@ -45,7 +52,7 @@ tool/build_play.sh
 ```
 
 The script refuses to run with uncommitted changes, builds a signed App
-Bundle and copies it to `build/hermes-hobs-<version>-<build>.aab`. The
+Bundle and copies it to `build/hobcrew-<version>-<build>.aab`. The
 versionCode is the commit count, so it rises with every commit on master;
 the versionName is the `version:` in `pubspec.yaml`. Bump that before a
 release users will see.
@@ -178,7 +185,7 @@ https://github.com/devrelcz/hermes-hobs/blob/master/docs/privacy-policy.md
 
 ### English (en-US)
 
-App name (30): `Hermes Hobs`
+App name (30): `HobCrew`
 
 Short description (80):
 `Unofficial app for your Hermes Agent bots, here called Hobs. One chat each.`
@@ -186,11 +193,11 @@ Short description (80):
 Full description:
 
 ```text
-Hermes Hobs is a chat app for your Hermes Agent server. Each bot in Hermes
+HobCrew is a chat app for your Hermes Agent server. Each bot in Hermes
 Bot Mode (a profile on the server) is a Hob here, and every Hob gets its own
 chat.
 
-Hermes Hobs is an unofficial community app. It is not made, endorsed or
+HobCrew is an unofficial community app. It is not made, endorsed or
 supported by Nous Research, the makers of Hermes Agent.
 
 • One chat per Hob. Replies stream in as the Hob writes them, with the tools
@@ -216,7 +223,7 @@ nothing to the developer.
 
 ### Czech (cs-CZ)
 
-Název (30): `Hermes Hobs`
+Název (30): `HobCrew`
 
 Krátký popis (80):
 `Neoficiální aplikace pro boty z Hermes Agent. Zde Hobíci, každý má svůj chat.`
@@ -224,11 +231,11 @@ Krátký popis (80):
 Úplný popis:
 
 ```text
-Hermes Hobs je chatovací aplikace pro váš server Hermes Agent. Každý bot
+HobCrew je chatovací aplikace pro váš server Hermes Agent. Každý bot
 z Hermes Bot Mode (profil na serveru) je tu Hobík a každý Hobík má vlastní
 chat.
 
-Hermes Hobs je neoficiální komunitní aplikace. Nevytváří ji, nepodporuje ani
+HobCrew je neoficiální komunitní aplikace. Nevytváří ji, nepodporuje ani
 neschvaluje Nous Research, autoři Hermes Agent.
 
 • Jeden chat na Hobíka. Odpovědi přibývají, jak je Hobík píše, i s nástroji,

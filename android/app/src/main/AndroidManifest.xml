@@ -4,7 +4,7 @@
     <!-- Local notifications when a Hob finishes or waits (Android 13+ asks). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
-        android:label="Hermes Hobs"
+        android:label="HobCrew"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

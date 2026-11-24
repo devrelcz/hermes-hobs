@@ -5,9 +5,28 @@ import 'package:hobs/state/app_state.dart';
 import 'package:hobs/ui/hob_avatar.dart';
 import 'package:hobs/ui/format.dart';
 import 'package:hobs/ui/login_screen.dart';
+import 'package:hobs/ui/splash_screen.dart';
 import 'package:provider/provider.dart';
 
 void main() {
+  testWidgets('the splash displays the bundled HobCrew mark', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: SplashScreen()));
+    final mark = find.byType(HobGlyph);
+    expect(tester.getSize(mark), const Size.square(160));
+    final image = find.descendant(of: mark, matching: find.byType(Image));
+    final context = tester.element(image);
+    await tester.runAsync(() async {
+      await precacheImage(tester.widget<Image>(image).image, context);
+    });
+    await tester.pumpAndSettle();
+    final rendered = find.descendant(
+      of: image,
+      matching: find.byType(RawImage),
+    );
+    expect(tester.widget<RawImage>(rendered).image, isNotNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('login screen asks for a server, with no default', (
     tester,
   ) async {
@@ -17,7 +36,8 @@ void main() {
         child: const MaterialApp(home: LoginScreen()),
       ),
     );
-    expect(find.text('Hermes Hobs'), findsOneWidget);
+    expect(find.text('HobCrew'), findsOneWidget);
+    expect(find.byType(HobGlyph), findsOneWidget);
     expect(find.text('https://hermes.devrel.cz'), findsNothing);
     await tester.tap(find.text('Zadat údaje ručně'));
     await tester.pump();

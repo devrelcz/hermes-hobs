@@ -1,5 +1,5 @@
 // Share Extension: hands what the user shared (photos, files, links, text)
-// to Hermes Hobs, which then asks which Hob gets it.
+// to HobCrew, which then asks which Hob gets it.
 //
 // Writes the same hand-over the receive_sharing_intent plugin reads in the
 // app (Apache-2.0, https://github.com/KasemJaffer/receive_sharing_intent):

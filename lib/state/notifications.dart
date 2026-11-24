@@ -271,7 +271,7 @@ class LocalNotifier implements Notifier {
   }
 
   /// Android bundles the Hobs' notifications under one summary.
-  static const _group = 'cz.devrel.hermeshobs.chats';
+  static const _group = 'com.hobcrew.app.chats';
   static const _summaryId = 0;
 
   /// The payload's target and, for an approval, its request id.
@@ -345,7 +345,7 @@ class LocalNotifier implements Notifier {
     final s = Strings.current;
     await _plugin.show(
       id: _summaryId,
-      title: 'Hermes Hobs',
+      title: 'HobCrew',
       body: null,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(

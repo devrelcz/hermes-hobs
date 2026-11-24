@@ -374,12 +374,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                         padding: const EdgeInsets.all(12),
-                        child: const CustomPaint(painter: HobGlyphPainter()),
+                        child: const HobGlyph(),
                       ),
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Hermes Hobs',
+                      'HobCrew',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w700,
