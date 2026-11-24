@@ -15,7 +15,7 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "cz.devrel.hermeshobs"
+    namespace = "com.hobcrew.app"
     // receive_sharing_intent 1.9 (share sheet) compiles against API 37.
     compileSdk = maxOf(flutter.compileSdkVersion, 37)
     ndkVersion = flutter.ndkVersion
@@ -28,7 +28,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "cz.devrel.hermeshobs"
+        applicationId = "com.hobcrew.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

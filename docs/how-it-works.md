@@ -1,4 +1,4 @@
-# How Hermes Hobs works
+# How HobCrew works
 
 Details behind the features in the [README](../README.md): server accounts,
 the biometric lock, notifications, the calls the app makes to Hermes, and
@@ -282,13 +282,13 @@ them or a drag.
   (quality 85) when larger or in a format the server refuses (HEIC).
 - Sent messages, and the history after `session.resume`, show image
   thumbnails (tap for full screen), file chips and links.
-- **Share to Hob**: Hermes Hobs is a share target for photos, files, links and
+- **Share to Hob**: HobCrew is a share target for photos, files, links and
   text (iOS Share Extension in `ios/ShareExtension`, Android `SEND` /
   `SEND_MULTIPLE` intent filters, both through `receive_sharing_intent`).
   The share waits until the Hob list is on screen (signed in, unlocked), asks
   which Hob gets it and opens that chat with everything in the composer.
   Nothing is sent until you tap send.
 - iOS setup: the Runner and the extension share the app group
-  `group.cz.devrel.hermeshobs` (`CUSTOM_GROUP_ID`); a signed device build needs that
+  `group.com.hobcrew.app` (`CUSTOM_GROUP_ID`); a signed device build needs that
   group registered for the team. The extension writes the hand-over the
-  plugin reads and opens `ShareMedia-cz.devrel.hermeshobs:share`.
+  plugin reads and opens `ShareMedia-com.hobcrew.app:share`.

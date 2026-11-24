@@ -27,6 +27,6 @@ flutter build appbundle --release \
   --dart-define=BUILD_TIME="$STAMP"
 
 AAB=build/app/outputs/bundle/release/app-release.aab
-OUT=build/hermes-hobs-$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')-$BUILD.aab
+OUT=build/hobcrew-$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')-$BUILD.aab
 cp "$AAB" "$OUT"
 echo "Built $OUT (versionCode $BUILD, $SHA, $STAMP)."

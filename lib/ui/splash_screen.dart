@@ -6,7 +6,7 @@ class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   static const moss = Color(0xFF2F6B4A);
-  static const ink = Color(0xFF2C2C2A);
+  static const ink = Color(0xFF232723);
   static const amber = Color(0xFFFFAC02);
 
   @override

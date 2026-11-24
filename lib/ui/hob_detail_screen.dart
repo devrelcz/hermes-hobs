@@ -798,7 +798,7 @@ class _Swatch extends StatelessWidget {
         ? cs.onSurfaceVariant
         : (fill.computeLuminance() < 0.25
               ? Colors.white
-              : const Color(0xFF2C2C2A));
+              : const Color(0xFF232723));
     return Semantics(
       button: true,
       selected: selected,

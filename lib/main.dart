@@ -103,7 +103,7 @@ class _HobsAppState extends State<HobsApp> with WidgetsBindingObserver {
       (s) => s.locked && s.phase == AuthPhase.signedIn,
     );
     return MaterialApp(
-      title: 'Hermes Hobs',
+      title: 'HobCrew',
       debugShowCheckedModeBanner: false,
       // No explicit locale: follow the device's preferred languages.
       locale: language == null ? null : Locale(language),
