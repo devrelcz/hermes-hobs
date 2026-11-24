@@ -80,12 +80,7 @@ class _LockScreenState extends State<LockScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Center(
-                    child: CustomPaint(
-                      size: Size.square(120),
-                      painter: HobGlyphPainter(),
-                    ),
-                  ),
+                  const Center(child: HobGlyph(size: 120)),
                   const SizedBox(height: 16),
                   Text(
                     s.locked,
