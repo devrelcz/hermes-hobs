@@ -139,7 +139,8 @@ class StringsCs extends Strings {
   String get scanTitle => 'Naskenujte QR kód';
   @override
   String get scanInstruction =>
-      'Na serveru spusťte ./pair.sh a namiřte fotoaparát na kód, který ukáže.';
+      'Namiř fotoaparát na přihlašovací QR kód ze stránky své posádky. '
+      'Pokud používáš vlastní server, naskenuj jeho přihlašovací QR kód.';
   @override
   String get scanNotPairing => 'Tohle není párovací kód Hermes.';
   @override
