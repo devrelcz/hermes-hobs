@@ -40,8 +40,8 @@ the answers below (App content answers), with these differences:
 
 | | |
 |---|---|
-| Published version | 1.0.1 (versionCode 179), production, full rollout, live by November 25, 2026 |
-| In review | 1.0.2 (versionCode 182), production, full rollout, sent November 25, 2026 |
+| Published version | 1.0.2 (versionCode 182), production, full rollout, live November 25, 2026 |
+| In review | 1.0.3 (versionCode 184), production, full rollout, sent November 25, 2026 |
 | Internal testing | 1.0.0 (versionCode 174), tester list *Internal - Home* |
 | Production | Full rollout, 178 countries / regions |
 | Store listing | English (en-US, default) and Czech (cs-CZ, sent for review November 24, 2026); HobCrew icon and feature graphic shared by both, old Hermes Hobs screenshots per language (`phone-*.png`, `cs/phone-*.png`) |
@@ -117,8 +117,8 @@ release, upload there), skipping internal testing; 1.0.2 went that way.
 | 1.0.0 | 171 | Internal testing | First HobCrew build: new name, package `com.hobcrew.app`, HobCrew icons and colors |
 | 1.0.0 | 174 | Production, internal testing | First HobCrew release; the team catalog comes only from the HobCrew API (no jsDelivr fallback) |
 | 1.0.1 | 179 | Production | Released under the Functional Source License (FSL-1.1-ALv2); the app itself is unchanged |
-| 1.0.2 | 182 | Production (in review) | The QR scanner tells HobCrew customers to scan the sign-in code from their crew's page; own-server users scan their server's code |
-| 1.0.3 | 184 | Built, not uploaded yet | A link or QR code from the HobCrew website connects a crew: the app exchanges the one-time code at hobcrew.com for the crew's sign-in details (`https://hobcrew.com/pair`, `hobcrew://pair/...`) |
+| 1.0.2 | 182 | Production | The QR scanner tells HobCrew customers to scan the sign-in code from their crew's page; own-server users scan their server's code |
+| 1.0.3 | 184 | Production (in review) | A link or QR code from the HobCrew website connects a crew: the app exchanges the one-time code at hobcrew.com for the crew's sign-in details (`https://hobcrew.com/pair`, `hobcrew://pair/...`) |
 
 Release notes for 1.0.2:
 
