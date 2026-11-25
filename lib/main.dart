@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +11,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/strings.dart';
 import 'state/app_state.dart';
 import 'state/network_status.dart';
+import 'state/pairing.dart';
 import 'state/share_inbox.dart';
 import 'ui/avatar_bitmap.dart';
 import 'ui/hobs_screen.dart';
@@ -26,6 +30,9 @@ void main() {
     ], await rootBundle.loadString('assets/fonts/OFL.txt'));
   });
   final binding = WidgetsFlutterBinding.ensureInitialized();
+  final appLinks = defaultTargetPlatform == TargetPlatform.android
+      ? AppLinks().uriLinkStream
+      : null;
   Strings.current = Strings.forLocale(
     Strings.resolve(binding.platformDispatcher.locales),
   );
@@ -52,29 +59,109 @@ void main() {
           },
         ),
       ],
-      child: const HobsApp(),
+      child: HobsApp(pairingLinks: appLinks),
     ),
   );
 }
 
 class HobsApp extends StatefulWidget {
-  const HobsApp({super.key});
+  const HobsApp({super.key, this.pairingLinks});
+
+  final Stream<Uri>? pairingLinks;
 
   @override
   State<HobsApp> createState() => _HobsAppState();
 }
 
 class _HobsAppState extends State<HobsApp> with WidgetsBindingObserver {
+  final _navigator = GlobalKey<NavigatorState>();
+  final _messenger = GlobalKey<ScaffoldMessengerState>();
+  late final AppState _app;
+  StreamSubscription<Uri>? _links;
+  MobilePairingLink? _pendingPairing;
+  bool _pairing = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _app = context.read<AppState>()..addListener(_schedulePairing);
+    _links = widget.pairingLinks?.listen((uri) {
+      final link = MobilePairingLink.tryParse(uri);
+      if (link == null) return;
+      _pendingPairing = link;
+      _schedulePairing();
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _app.removeListener(_schedulePairing);
+    unawaited(_links?.cancel());
     super.dispose();
+  }
+
+  void _schedulePairing() {
+    if (_pendingPairing == null || _pairing) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openPairing());
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  Future<void> _openPairing() async {
+    final link = _pendingPairing;
+    final nav = _navigator.currentState;
+    if (!mounted ||
+        link == null ||
+        nav == null ||
+        _app.locked ||
+        _pairing ||
+        _app.phase == AuthPhase.loading) {
+      return;
+    }
+    final strings = Strings.current;
+    _pendingPairing = null;
+    _pairing = true;
+    try {
+      if (_app.phase == AuthPhase.signedIn) {
+        final accepted = await showDialog<bool>(
+          context: nav.context,
+          builder: (context) => AlertDialog(
+            title: Text(strings.mobilePairingTitle),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  MaterialLocalizations.of(context).cancelButtonLabel,
+                ),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(strings.signIn),
+              ),
+            ],
+          ),
+        );
+        if (accepted != true || !mounted || _app.locked) return;
+      }
+      final code = await link.redeem();
+      if (!mounted || _app.locked) return;
+      await _app.login(
+        serverUrl: code.serverUrl,
+        username: code.username,
+        password: code.password,
+        rememberPassword: true,
+      );
+      // Existing nested screens belong to the previous account.
+      _navigator.currentState?.popUntil((route) => route.isFirst);
+    } catch (_) {
+      _messenger.currentState?.showSnackBar(
+        SnackBar(content: Text(Strings.current.mobilePairingUnavailable)),
+      );
+    } finally {
+      _pairing = false;
+      if (mounted) _schedulePairing();
+    }
   }
 
   @override
@@ -104,6 +191,8 @@ class _HobsAppState extends State<HobsApp> with WidgetsBindingObserver {
     );
     return MaterialApp(
       title: 'HobCrew',
+      navigatorKey: _navigator,
+      scaffoldMessengerKey: _messenger,
       debugShowCheckedModeBanner: false,
       // No explicit locale: follow the device's preferred languages.
       locale: language == null ? null : Locale(language),

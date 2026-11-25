@@ -28,6 +28,20 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="hobcrew.com" android:path="/pair" />
+                <data android:scheme="http" android:host="hobcrew.com" android:path="/pair" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="hobcrew" android:host="pair" />
+            </intent-filter>
             <!-- Share sheet: text, links, images and files go to a Hob
                  (receive_sharing_intent). singleTask keeps one activity. -->
             <intent-filter>
