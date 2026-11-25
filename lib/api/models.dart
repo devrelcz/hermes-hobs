@@ -392,6 +392,10 @@ class SystemTurn {
     Object? meta,
   }) {
     final t = text.trim();
+    // A scheduled job's output carries the same `internal_notification`
+    // mark as a message from another Hob, but it is this Hob's own job:
+    // it has its own card (see [ScheduledOutput]).
+    if (ScheduledOutput.jobOf(t) != null) return null;
     final display = meta is Map ? meta['display_text']?.toString() : null;
     var m = _fromHob.firstMatch(t);
     if (m != null) {
