@@ -7,9 +7,10 @@ access to. This policy explains what the app does with your data.
 
 ## Who receives your data
 
-The app talks only to the Hermes servers you add to it. The developer of
-HobCrew runs no server for the app and receives none of your data. The
-app has no analytics, advertising or crash-reporting SDKs.
+The app connects to the Hermes servers you add. If you use a link or QR
+code from the HobCrew website to connect a crew, the app sends that
+one-time code to HobCrew over HTTPS to get the crew's sign-in details.
+The app has no analytics, advertising or crash-reporting SDKs.
 
 What you send in a chat (messages, photos, files, links) goes to the Hermes
 server you are signed in to, and that server's operator decides how it is
@@ -50,8 +51,9 @@ stored on the device.
   only to send them to your Hermes server.
 - **Camera**: to scan the QR code your Hermes server shows for signing in, and
   to take a photo you send to a Hob. The picture is read on the device while
-  you scan; it is not stored or sent anywhere. The address, user name and
-  password from the code are kept like the ones you type.
+  you scan; it is not stored or sent anywhere. Only a one-time code from
+  the HobCrew website is sent to HobCrew for pairing. The resulting address,
+  user name and password are kept like the ones you type.
 
 ## Children
 

@@ -136,6 +136,11 @@ class StringsCs extends Strings {
   @override
   String get back => 'Zpět';
   @override
+  String get mobilePairingTitle => 'Připojit posádku z odkazu?';
+  @override
+  String get mobilePairingUnavailable =>
+      'Posádku se nepodařilo připojit. Vytvoř nový kód na webu HobCrew.';
+  @override
   String get scanTitle => 'Naskenujte QR kód';
   @override
   String get scanInstruction =>

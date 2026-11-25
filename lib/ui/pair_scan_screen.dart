@@ -39,32 +39,47 @@ class _PairScanScreenState extends State<PairScanScreen> {
 
   /// Set once a code was accepted: the camera keeps reporting it.
   bool _done = false;
+  bool _exchanging = false;
 
   /// Why the last code was refused. Built at paint time.
   String Function(Strings s)? _refused;
 
-  void _onDetect(BarcodeCapture capture) {
-    if (_done) return;
+  Future<void> _onDetect(BarcodeCapture capture) async {
+    if (_done || _exchanging) return;
     PairingFailure? failure;
     for (final barcode in capture.barcodes) {
       final raw = barcode.rawValue;
       if (raw == null) continue;
       try {
-        final code = PairingCode.parse(raw);
+        final uri = Uri.tryParse(raw.trim());
+        final link = uri == null ? null : MobilePairingLink.tryParse(uri);
+        _exchanging = link != null;
+        final code = link == null
+            ? PairingCode.parse(raw)
+            : await link.redeem();
+        if (!mounted) return;
         _done = true;
         Navigator.of(context).pop(code);
         return;
       } on PairingException catch (e) {
         // A newer format says more than "not a pairing code".
+        if (e.failure == PairingFailure.unavailable) {
+          failure = e.failure;
+          break;
+        }
         if (failure != PairingFailure.newerVersion) failure = e.failure;
+      } finally {
+        _exchanging = false;
       }
     }
     if (failure == null || !mounted) return;
     final shown = failure;
     setState(
-      () => _refused = (s) => shown == PairingFailure.newerVersion
-          ? s.scanNewerVersion
-          : s.scanNotPairing,
+      () => _refused = (s) => switch (shown) {
+        PairingFailure.newerVersion => s.scanNewerVersion,
+        PairingFailure.unavailable => s.mobilePairingUnavailable,
+        PairingFailure.notPairing => s.scanNotPairing,
+      },
     );
   }
 
