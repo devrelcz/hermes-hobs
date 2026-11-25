@@ -135,7 +135,8 @@ class StringsEn extends Strings {
   String get scanTitle => 'Scan the QR code';
   @override
   String get scanInstruction =>
-      'Run ./pair.sh on your server and point the camera at the code it shows.';
+      'Point your camera at the sign-in QR code on your crew’s page. '
+      'If you use your own server, scan its sign-in QR code.';
   @override
   String get scanNotPairing => 'This is not a Hermes pairing code.';
   @override
