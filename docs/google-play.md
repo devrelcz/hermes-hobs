@@ -118,6 +118,7 @@ release, upload there), skipping internal testing; 1.0.2 went that way.
 | 1.0.0 | 174 | Production, internal testing | First HobCrew release; the team catalog comes only from the HobCrew API (no jsDelivr fallback) |
 | 1.0.1 | 179 | Production | Released under the Functional Source License (FSL-1.1-ALv2); the app itself is unchanged |
 | 1.0.2 | 182 | Production (in review) | The QR scanner tells HobCrew customers to scan the sign-in code from their crew's page; own-server users scan their server's code |
+| 1.0.3 | 184 | Built, not uploaded yet | A link or QR code from the HobCrew website connects a crew: the app exchanges the one-time code at hobcrew.com for the crew's sign-in details (`https://hobcrew.com/pair`, `hobcrew://pair/...`) |
 
 Release notes for 1.0.2:
 
@@ -127,6 +128,17 @@ The QR scanner now tells you where to find your sign-in code: on your crew's pag
 </en-US>
 <cs-CZ>
 Skener QR kódu teď radí, kde najdete přihlašovací kód: na stránce vaší posádky v HobCrew. Pokud máte vlastní server, naskenujte jeho přihlašovací QR kód.
+</cs-CZ>
+```
+
+Release notes for 1.0.3:
+
+```text
+<en-US>
+Connect your crew with one tap: open the link or scan the QR code from your crew's page at HobCrew and the app signs you in.
+</en-US>
+<cs-CZ>
+Připojte posádku jedním klepnutím: otevřete odkaz nebo naskenujte QR kód ze stránky vaší posádky v HobCrew a aplikace vás přihlásí.
 </cs-CZ>
 ```
 

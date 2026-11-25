@@ -132,6 +132,11 @@ class StringsEn extends Strings {
   @override
   String get back => 'Back';
   @override
+  String get mobilePairingTitle => 'Connect a crew from this link?';
+  @override
+  String get mobilePairingUnavailable =>
+      'Couldn’t connect the crew. Create a new code on the HobCrew website.';
+  @override
   String get scanTitle => 'Scan the QR code';
   @override
   String get scanInstruction =>

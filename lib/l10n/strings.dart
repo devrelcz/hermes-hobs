@@ -112,6 +112,8 @@ abstract class Strings {
   String get scanQr;
   String get enterManually;
   String get back;
+  String get mobilePairingTitle;
+  String get mobilePairingUnavailable;
   String get scanTitle;
   String get scanInstruction;
   String get scanNotPairing;
