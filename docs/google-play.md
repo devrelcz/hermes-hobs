@@ -117,6 +117,18 @@ release, upload there), skipping internal testing; 1.0.2 went that way.
 | 1.0.0 | 171 | Internal testing | First HobCrew build: new name, package `com.hobcrew.app`, HobCrew icons and colors |
 | 1.0.0 | 174 | Production, internal testing | First HobCrew release; the team catalog comes only from the HobCrew API (no jsDelivr fallback) |
 | 1.0.1 | 179 | Production (in review) | Released under the Functional Source License (FSL-1.1-ALv2); the app itself is unchanged |
+| 1.0.2 | 182 | Production (to upload) | The QR scanner tells HobCrew customers to scan the sign-in code from their crew's page; own-server users scan their server's code |
+
+Release notes for 1.0.2:
+
+```text
+<en-US>
+The QR scanner now tells you where to find your sign-in code: on your crew's page at HobCrew. If you run your own server, scan its sign-in QR code.
+</en-US>
+<cs-CZ>
+Skener QR kódu teď radí, kde najdete přihlašovací kód: na stránce vaší posádky v HobCrew. Pokud máte vlastní server, naskenujte jeho přihlašovací QR kód.
+</cs-CZ>
+```
 
 ## Hermes Hobs (old listing)
 
