@@ -120,6 +120,34 @@ void main() {
       expect(rows.last.text, 'Monitoring je nastavený.');
     });
 
+    test("a scheduled job's output is a job card, its answer a bubble", () {
+      const header =
+          '[Cronjob "[bot:posta] Hodinová kontrola e-mailů" output — '
+          'scheduled job, not the user. Review it, act on anything that '
+          'needs action, and summarize for the chat.]';
+      expect(
+        SystemTurn.parse(
+          '$header\n\nNic nového',
+          kind: 'internal_notification',
+        ),
+        isNull,
+      );
+      final rows = ChatController.historyToMessages([
+        {
+          'role': 'user',
+          'display_kind': 'internal_notification',
+          'text': '$header\n\nZásilkovna převzala zásilku.',
+        },
+        {'role': 'assistant', 'text': 'Balík je na cestě.'},
+      ]);
+      expect(rows.first.system, isNull);
+      expect(rows.first.scheduledJob, '[bot:posta] Hodinová kontrola e-mailů');
+      expect(rows.first.text, 'Zásilkovna převzala zásilku.');
+      expect(rows.first.reply, isNull);
+      expect(rows.last.role, ChatRole.assistant);
+      expect(rows.last.text, 'Balík je na cestě.');
+    });
+
     test('hidden scaffolding stays out', () {
       final rows = ChatController.historyToMessages([
         {
