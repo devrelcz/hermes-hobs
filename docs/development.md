@@ -38,6 +38,26 @@ the commit and the build time, so you can tell which build is installed.
 `tool/build_play.sh` builds the signed App Bundle. Signing, the store listing
 and the App content answers are in [google-play.md](google-play.md).
 
+## macOS download
+
+`tool/release_macos.sh` builds the disk image offered for download outside
+the Mac App Store: signed with the Developer ID certificate, notarized by
+Apple and stapled, so it opens without a Gatekeeper warning. It needs two
+things, set up once on the Mac that makes the release:
+
+- a *Developer ID Application* certificate in the keychain (Xcode > Settings >
+  Accounts > Manage Certificates, or developer.apple.com);
+- the notarization credentials under the keychain profile `hobcrew-notary`,
+  with an app-specific password from account.apple.com:
+
+```bash
+xcrun notarytool store-credentials hobcrew-notary --apple-id <apple id> --team-id <team id>
+```
+
+The result is `build/hobcrew-macos-<version>-<build>.dmg`. To try the build
+without the certificate, `tool/release_macos.sh --local` signs ad hoc and
+skips notarization; that image only opens on the Mac that built it.
+
 ## Demo server
 
 The in-app demo (*Try the demo* on the sign-in screen) runs a stand-in Hermes
