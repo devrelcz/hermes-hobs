@@ -359,13 +359,27 @@ class ToolActivity {
 class ChatMessage {
   ChatMessage({
     required this.role,
-    this.text = '',
+    String text = '',
+    String Function()? localized,
     this.streaming = false,
     DateTime? time,
-  }) : time = time ?? DateTime.now();
+  }) : _text = text, // ignore: prefer_initializing_formals
+       _localized = localized, // ignore: prefer_initializing_formals
+       time = time ?? DateTime.now();
 
   final ChatRole role;
-  String text;
+  String _text;
+
+  /// The app's own text (a notice, a fallback error), worded in the current
+  /// language each time it is read.
+  String Function()? _localized;
+
+  String get text => _localized?.call() ?? _text;
+  set text(String value) {
+    _text = value;
+    _localized = null;
+  }
+
   bool streaming;
   DateTime time;
   final List<ToolActivity> tools = [];

@@ -354,3 +354,16 @@ class _StringsDelegate extends LocalizationsDelegate<Strings> {
   @override
   bool shouldReload(_StringsDelegate old) => false;
 }
+
+/// An error whose text follows the app language: it is worded each time it
+/// is shown, not when it is thrown.
+class LocalizedError implements Exception {
+  const LocalizedError(this._text);
+
+  final String Function(Strings s) _text;
+
+  String get message => _text(Strings.current);
+
+  @override
+  String toString() => message;
+}

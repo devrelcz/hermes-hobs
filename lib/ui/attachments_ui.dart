@@ -125,7 +125,9 @@ class AttachButton extends StatelessWidget {
             if (await x.length() > maxAttachmentBytes) {
               draft.addFailed(
                 x.name,
-                s.attachmentTooLarge(maxAttachmentBytes ~/ (1024 * 1024)),
+                () => Strings.current.attachmentTooLarge(
+                  maxAttachmentBytes ~/ (1024 * 1024),
+                ),
               );
               continue;
             }

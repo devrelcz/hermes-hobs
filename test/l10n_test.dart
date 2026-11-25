@@ -1,19 +1,23 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hobs/api/models.dart';
 import 'package:hobs/l10n/strings.dart';
 import 'package:hobs/l10n/strings_cs.dart';
 import 'package:hobs/state/app_state.dart';
+import 'package:hobs/state/chat_controller.dart';
+import 'package:hobs/state/composer_draft.dart';
 import 'package:hobs/ui/format.dart';
 import 'package:hobs/ui/login_screen.dart';
 import 'package:hobs/ui/settings_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'credentials_test.dart' show settle;
+import 'credentials_test.dart' show settle, waitFor;
 import 'fake_hermes_server.dart';
 
 Widget _app(AppState state, Widget home) => ChangeNotifierProvider.value(
@@ -116,5 +120,97 @@ void main() {
 
     await app.setLanguage('en');
     expect(app.hobsError, startsWith("Can't reach the server: "));
+  });
+
+  test('app texts in a chat follow a language switch', () async {
+    final app = AppState();
+    addTearDown(app.dispose);
+    await app.setLanguage('cs');
+
+    final notice = ChatMessage(
+      role: ChatRole.notice,
+      localized: () => Strings.current.interruptedNotice,
+    );
+    final draft = ComposerDraft(null);
+    addTearDown(draft.dispose);
+    draft.addFile(Uint8List(maxAttachmentBytes + 1), 'huge.bin');
+    final unconfirmed = LocalizedError((s) => s.groupSendUnconfirmed);
+    expect(notice.text, const StringsCs().interruptedNotice);
+    expect(draft.items.single.error, const StringsCs().attachmentTooLarge(16));
+    expect(unconfirmed.toString(), const StringsCs().groupSendUnconfirmed);
+
+    await app.setLanguage('en');
+    expect(notice.text, Strings.current.interruptedNotice);
+    expect(notice.text, isNot(const StringsCs().interruptedNotice));
+    expect(draft.items.single.error, Strings.current.attachmentTooLarge(16));
+    expect(unconfirmed.toString(), Strings.current.groupSendUnconfirmed);
+
+    // Text the server sent stays as it was.
+    notice.text = 'from the server';
+    await app.setLanguage('cs');
+    expect(notice.text, 'from the server');
+  });
+
+  test('a group chat error follows a language switch', () async {
+    HttpOverrides.global = null;
+    FlutterSecureStorage.setMockInitialValues({});
+    final server = FakeHermesServer();
+    server.roster.add({
+      'name': 'posta',
+      'ui_meta': {
+        'hermes-bots': {'title': 'Pošta'},
+      },
+    });
+    await server.start();
+    final app = AppState();
+    addTearDown(app.dispose);
+    await app.setLanguage('cs');
+    await app.login(
+      serverUrl: server.baseUrl.toString(),
+      username: 'u',
+      password: 'p',
+    );
+    await settle(app);
+    await waitFor(() => app.groupsSupported != null);
+    final room = await app.createGroup([
+      app.hobNamed('cto')!,
+      app.hobNamed('posta')!,
+    ]);
+    final chat = app.groupChatFor(room);
+    await waitFor(() => !chat.loading);
+
+    await server.stop();
+    await server.dropConnections();
+    await chat.refresh();
+    expect(chat.error, startsWith('Skupinový chat se nepodařilo načíst: '));
+
+    await app.setLanguage('en');
+    expect(chat.error, startsWith('Could not load the group chat: '));
+  });
+
+  test('a chat error follows a language switch', () async {
+    HttpOverrides.global = null;
+    FlutterSecureStorage.setMockInitialValues({});
+    final server = FakeHermesServer();
+    await server.start();
+    final app = AppState();
+    addTearDown(app.dispose);
+    await app.setLanguage('cs');
+    await app.login(
+      serverUrl: server.baseUrl.toString(),
+      username: 'u',
+      password: 'p',
+    );
+    await settle(app);
+    final chat = app.chatFor(app.hobNamed('cto')!);
+    await waitFor(() => chat.phase == ChatPhase.idle);
+
+    await server.stop();
+    await server.dropConnections();
+    await chat.setReasoningEffort('low');
+    expect(chat.error, startsWith('Změna úrovně uvažování selhala: '));
+
+    await app.setLanguage('en');
+    expect(chat.error, startsWith("Couldn't change the reasoning level: "));
   });
 }

@@ -128,8 +128,18 @@ class ChatController extends ChangeNotifier {
 
   final List<ChatMessage> messages = [];
   ChatPhase phase = ChatPhase.starting;
-  String? error;
-  String? statusText;
+
+  /// Why the last action failed, in the current language.
+  String? get error => _error?.call();
+
+  /// Kept as builders, not text, so a language switch re-words them.
+  String Function()? _error;
+
+  /// What the Hob is doing right now (a tool, a status line).
+  String? get statusText => _status?.call();
+  String Function()? _status;
+
+  void _setStatus(String? text) => _status = text == null ? null : () => text;
 
   /// The model this session runs on, and its provider. A session-only
   /// switch shows here, not in the hob's profile.
@@ -228,7 +238,7 @@ class ChatController extends ChangeNotifier {
   Future<void> _open() async {
     if (_disposed) return;
     phase = ChatPhase.starting;
-    error = null;
+    _error = null;
     _notify();
     try {
       await rpc.connect();
@@ -248,7 +258,7 @@ class ChatController extends ChangeNotifier {
       await _createCanonical();
     } catch (e) {
       phase = ChatPhase.failed;
-      error = Strings.current.openChatFailed(e);
+      _error = () => Strings.current.openChatFailed(e);
       _notify();
     }
   }
@@ -409,7 +419,7 @@ class ChatController extends ChangeNotifier {
         onTurnSettled?.call(_hob);
       }
     } catch (e) {
-      error = Strings.current.recoverFailed(e);
+      _error = () => Strings.current.recoverFailed(e);
       _notify();
     }
   }
@@ -470,7 +480,7 @@ class ChatController extends ChangeNotifier {
     final trimmed = text.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
     if (_sessionId == null) {
-      error = Strings.current.chatNotReady;
+      _error = () => Strings.current.chatNotReady;
       _notify();
       return;
     }
@@ -486,8 +496,8 @@ class ChatController extends ChangeNotifier {
       _hob.name,
     );
     phase = ChatPhase.running;
-    error = null;
-    statusText = null;
+    _error = null;
+    _status = null;
     _notify();
     onPromptSent?.call();
     try {
@@ -552,7 +562,7 @@ class ChatController extends ChangeNotifier {
         }),
       );
     } catch (e) {
-      error = Strings.current.interruptFailed(e);
+      _error = () => Strings.current.interruptFailed(e);
       _notify();
     }
   }
@@ -593,7 +603,7 @@ class ChatController extends ChangeNotifier {
       }
     } catch (e) {
       reasoningEffort = previous;
-      error = Strings.current.reasoningChangeFailed(e);
+      _error = () => Strings.current.reasoningChangeFailed(e);
       _notify();
     }
   }
@@ -620,7 +630,7 @@ class ChatController extends ChangeNotifier {
       _notify();
     } catch (e) {
       approvalMode = previous;
-      error = Strings.current.approvalModeChangeFailed(e);
+      _error = () => Strings.current.approvalModeChangeFailed(e);
       _notify();
     }
   }
@@ -711,14 +721,14 @@ class ChatController extends ChangeNotifier {
       modelProvider = choice.provider;
       final deferred = res is Map && res['status'] == 'deferred';
       _deferredModel = deferred ? choice : null;
-      error = null;
+      _error = null;
       _notify();
       if (!deferred) unawaited(loadModels());
       return deferred ? const ModelSwitch.deferred() : const ModelSwitch.done();
     } catch (e) {
       model = previous?.model;
       modelProvider = previous?.provider;
-      error = Strings.current.modelChangeFailed(e);
+      _error = () => Strings.current.modelChangeFailed(e);
       _notify();
       return const ModelSwitch.failed();
     }
@@ -810,7 +820,7 @@ class ChatController extends ChangeNotifier {
             }),
           )
           .catchError((Object e) {
-            error = Strings.current.approvalAnswerFailed(e);
+            _error = () => Strings.current.approvalAnswerFailed(e);
             _notify();
             return null;
           });
@@ -840,7 +850,7 @@ class ChatController extends ChangeNotifier {
               }),
             )
             .catchError((Object err) {
-              error = Strings.current.clarifyAnswerFailed(err);
+              _error = () => Strings.current.clarifyAnswerFailed(err);
               _notify();
               return null;
             });
@@ -1048,7 +1058,7 @@ class ChatController extends ChangeNotifier {
           }
           _segmentBreak = false;
           m.text += t;
-          statusText = null;
+          _status = null;
         } else {
           _segmentBreak = true;
         }
@@ -1066,7 +1076,8 @@ class ChatController extends ChangeNotifier {
           messages.add(ChatMessage(role: ChatRole.assistant, text: t));
         }
       case 'tool.generating':
-        statusText = Strings.current.preparingTool(p['name']?.toString());
+        final tool = p['name']?.toString();
+        _status = () => Strings.current.preparingTool(tool);
       case 'tool.start':
         final row = _activityRow();
         row.tools.add(
@@ -1076,7 +1087,7 @@ class ChatController extends ChangeNotifier {
             preview: (p['preview'] ?? p['context'])?.toString(),
           ),
         );
-        statusText = p['name']?.toString();
+        _setStatus(p['name']?.toString());
       case 'tool.progress':
         final tool = _findTool(p['tool_id']?.toString());
         if (tool != null) {
@@ -1090,13 +1101,13 @@ class ChatController extends ChangeNotifier {
           tool.durationS = (p['duration_s'] as num?)?.toDouble();
           tool.progress = null;
         }
-        statusText = null;
+        _status = null;
       case 'status.update':
         final t = p['text']?.toString();
-        statusText = (t == null || t.isEmpty) ? null : t;
+        _setStatus((t == null || t.isEmpty) ? null : t);
       case 'thinking.delta':
         final t = p['text']?.toString();
-        if (t != null && t.trim().isNotEmpty) statusText = t.trim();
+        if (t != null && t.trim().isNotEmpty) _setStatus(t.trim());
       case 'session.info':
         _applyInfo(p);
       case 'message.complete':
@@ -1124,8 +1135,15 @@ class ChatController extends ChangeNotifier {
         _approvalRequest = null;
         approval = null;
       case 'error':
-        final msg = p['message']?.toString() ?? Strings.current.unknownError;
-        messages.add(ChatMessage(role: ChatRole.error, text: msg));
+        final msg = p['message']?.toString();
+        messages.add(
+          msg == null
+              ? ChatMessage(
+                  role: ChatRole.error,
+                  localized: () => Strings.current.unknownError,
+                )
+              : ChatMessage(role: ChatRole.error, text: msg),
+        );
         if (phase == ChatPhase.running) _finishTurn();
       case 'notice':
         final t = (p['text'] ?? p['message'])?.toString();
@@ -1172,16 +1190,21 @@ class ChatController extends ChangeNotifier {
         messages.add(
           ChatMessage(
             role: ChatRole.notice,
-            text: Strings.current.interruptedNotice,
+            localized: () => Strings.current.interruptedNotice,
           ),
         );
       }
     } else if (status == 'error') {
       final err = p['error'];
-      final msg = err is Map
-          ? (err['message'] ?? err.toString())
-          : (err ?? Strings.current.replyFailed);
-      messages.add(ChatMessage(role: ChatRole.error, text: msg.toString()));
+      final msg = err is Map ? (err['message'] ?? err.toString()) : err;
+      messages.add(
+        msg == null
+            ? ChatMessage(
+                role: ChatRole.error,
+                localized: () => Strings.current.replyFailed,
+              )
+            : ChatMessage(role: ChatRole.error, text: msg.toString()),
+      );
     }
     final w = p['warning'];
     if (w is String && w.trim().isNotEmpty) {
@@ -1243,7 +1266,7 @@ class ChatController extends ChangeNotifier {
     _current = null;
     _clearPrompts();
     _forgetRequestAlerts();
-    statusText = null;
+    _status = null;
     phase = ChatPhase.idle;
     // A watcher keeps only the tail: nobody reads its transcript.
     if (_watchOnly && messages.length > 4) {

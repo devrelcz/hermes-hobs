@@ -132,7 +132,12 @@ class DraftAttachment {
 
   /// 0..1 while uploading.
   double progress = 0;
-  String? error;
+
+  /// Why the upload failed, in the current language.
+  String? get error => errorText?.call();
+
+  /// Kept as a builder, not text, so a language switch re-words it.
+  String Function()? errorText;
   ChatAttachment? uploaded;
   UploadCancel? _cancel;
   Future<void> Function()? _start;
@@ -206,7 +211,9 @@ class ComposerDraft extends ChangeNotifier {
     if (bytes.length > maxAttachmentBytes) {
       return addFailed(
         name,
-        Strings.current.attachmentTooLarge(maxAttachmentBytes ~/ (1024 * 1024)),
+        () => Strings.current.attachmentTooLarge(
+          maxAttachmentBytes ~/ (1024 * 1024),
+        ),
       );
     }
     final a = DraftAttachment._(AttachmentKind.file, name);
@@ -224,11 +231,11 @@ class ComposerDraft extends ChangeNotifier {
   }
 
   /// A file that cannot be attached (too large): shown with its reason.
-  void addFailed(String name, String error) {
+  void addFailed(String name, String Function() error) {
     items.add(
       DraftAttachment._(AttachmentKind.file, name)
         ..phase = UploadPhase.failed
-        ..error = error,
+        ..errorText = error,
     );
     _notify();
   }
@@ -273,12 +280,12 @@ class ComposerDraft extends ChangeNotifier {
     a
       ..phase = UploadPhase.preparing
       ..progress = 0
-      ..error = null;
+      ..errorText = null;
     _notify();
     if (u == null) {
       a
         ..phase = UploadPhase.failed
-        ..error = Strings.current.chatNotReady;
+        ..errorText = () => Strings.current.chatNotReady;
       _notify();
       return;
     }
@@ -295,7 +302,7 @@ class ComposerDraft extends ChangeNotifier {
       if (cancel.cancelled) return;
       a
         ..phase = UploadPhase.failed
-        ..error = Strings.current.uploadFailed(
+        ..errorText = () => Strings.current.uploadFailed(
           e is HermesHttpException ? e.message : e,
         );
     }

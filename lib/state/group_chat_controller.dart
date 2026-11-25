@@ -60,7 +60,12 @@ class GroupChatController extends ChangeNotifier {
   int? _epoch;
   bool loading = true;
   bool disbanded = false;
-  String? error;
+
+  /// Why the last load or action failed, in the current language.
+  String? get error => _error?.call();
+
+  /// Kept as a builder, not text, so a language switch re-words it.
+  String Function()? _error;
 
   /// A message on its way: shown until the log carries it.
   String? pendingText;
@@ -117,7 +122,7 @@ class GroupChatController extends ChangeNotifier {
       if (room is Map && room['disbanded_at'] != null) {
         disbanded = true;
         driver = null;
-        error = null;
+        _error = null;
         return;
       }
       final parsed = GroupRoom.fromJson(room);
@@ -139,11 +144,11 @@ class GroupChatController extends ChangeNotifier {
         pendingText = null;
         _pendingThread = null;
       }
-      error = null;
+      _error = null;
       loaded = true;
     } catch (e) {
       if (_disposed) return;
-      error = Strings.current.groupLoadFailed(_describe(e));
+      _error = () => Strings.current.groupLoadFailed(_describe(e));
     } finally {
       if (!_disposed) {
         loading = false;
@@ -281,7 +286,7 @@ class GroupChatController extends ChangeNotifier {
     final eventId = uuidV4();
     pendingText = body;
     _pendingThread = eventId;
-    error = null;
+    _error = null;
     onSent?.call();
     await _act(
       () async {
@@ -296,7 +301,7 @@ class GroupChatController extends ChangeNotifier {
             ((res.containsKey('accepted') && res['accepted'] != true) ||
                 (res.containsKey('client_event_id') &&
                     res['client_event_id'] != eventId))) {
-          throw StateError(Strings.current.groupSendUnconfirmed);
+          throw LocalizedError((s) => s.groupSendUnconfirmed);
         }
       },
       onError: () {
@@ -393,7 +398,7 @@ class GroupChatController extends ChangeNotifier {
       await body();
     } catch (e) {
       onError?.call();
-      error = _describe(e);
+      _error = () => _describe(e);
     } finally {
       acting = false;
       _notify();
