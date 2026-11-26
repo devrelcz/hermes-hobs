@@ -58,6 +58,12 @@ The result is `build/hobcrew-macos-<version>-<build>.dmg`. To try the build
 without the certificate, `tool/release_macos.sh --local` signs ad hoc and
 skips notarization; that image only opens on the Mac that built it.
 
+## App Store (iOS)
+
+`tool/release_ios.sh` archives the iOS app, signs it with automatic
+provisioning and uploads it to App Store Connect for TestFlight and the App
+Store. Setup, listing and review notes are in [app-store.md](app-store.md).
+
 ## Demo server
 
 The in-app demo (*Try the demo* on the sign-in screen) runs a stand-in Hermes
