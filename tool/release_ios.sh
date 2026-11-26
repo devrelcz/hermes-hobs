@@ -8,17 +8,19 @@
 #   tool/release_ios.sh --local   archive and export the .ipa without
 #                                 uploading; uncommitted changes allowed
 #
-# Signing is automatic: Xcode creates the Apple Distribution certificate,
-# the App IDs, the app group and the provisioning profiles itself. It signs
-# in with an App Store Connect API key (Users and Access > Integrations >
-# App Store Connect API, role App Manager), set up once:
+# Signing is automatic: Xcode creates the App IDs, the app group and the
+# provisioning profiles itself, and signs with the Apple Distribution
+# certificate Apple keeps in the cloud. Only the Account Holder (or an Admin)
+# may use that certificate, so by default the script signs and uploads
+# through the account signed in under Xcode > Settings > Accounts.
+#
+# An App Store Connect API key (App Manager) signs without that account,
+# for example on another Mac, once an Apple Distribution certificate with
+# its private key is in the keychain:
 #
 #   ~/.appstoreconnect/private_keys/AuthKey_<key id>.p8
 #   ASC_KEY_ID=<key id> ASC_ISSUER_ID=<issuer id>   (environment, or in
 #                                                    ~/.appstoreconnect/hobcrew.env)
-#
-# Without the key (--local only), Xcode uses the account signed in under
-# Xcode > Settings > Accounts.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -34,7 +36,9 @@ ENV_FILE=$HOME/.appstoreconnect/hobcrew.env
 [ -f "$ENV_FILE" ] && . "$ENV_FILE"
 
 AUTH=()
-if [ -n "${ASC_KEY_ID:-}" ] && [ -n "${ASC_ISSUER_ID:-}" ]; then
+if [ -n "${ASC_KEY_ID:-}" ] && [ -n "${ASC_ISSUER_ID:-}" ] &&
+  security find-identity -v -p codesigning |
+    grep -q "Apple Distribution: .*(WHD54925U2)"; then
   KEY=${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8}
   if [ ! -f "$KEY" ]; then
     echo "API key $KEY is missing, see docs/app-store.md." >&2
@@ -43,9 +47,6 @@ if [ -n "${ASC_KEY_ID:-}" ] && [ -n "${ASC_ISSUER_ID:-}" ]; then
   AUTH=(-authenticationKeyPath "$KEY"
     -authenticationKeyID "$ASC_KEY_ID"
     -authenticationKeyIssuerID "$ASC_ISSUER_ID")
-elif [ "$LOCAL" = 0 ]; then
-  echo "ASC_KEY_ID and ASC_ISSUER_ID are not set, see docs/app-store.md." >&2
-  exit 1
 fi
 
 if [ "$LOCAL" = 0 ] && ! git diff --quiet HEAD --; then

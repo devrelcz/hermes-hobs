@@ -19,8 +19,10 @@ the iPhone window, and the listing needs no iPad screenshots.
   `tool/release_ios.sh --local` (November 26, 2026, build 191) created the
   Apple Distribution certificate, the App IDs and the app group in the
   developer account through Xcode, and exported a signed `.ipa`.
-- Not done yet: the app record in App Store Connect, the API key, the first
-  upload, the listing and review.
+- App record created and API key set up on November 26, 2026. First upload
+  the same day: 1.0.5 build 192 (branch `ios-app-store`, PR #80), signed and
+  uploaded through the Xcode account.
+- Not done yet: listing, screenshots, App Privacy, review.
 
 ## Set up once
 
@@ -35,16 +37,27 @@ the iPhone window, and the listing needs no iPad screenshots.
    name *HobCrew*, primary language English (U.S.), bundle ID
    `com.hobcrew.app`, SKU `hobcrew-ios`, full access.
 
-3. **API key** for the script. App Store Connect > Users and Access >
-   Integrations > App Store Connect API > Team Keys > +, access *App
-   Manager*. Download the `.p8` (only once) to
-   `~/.appstoreconnect/private_keys/AuthKey_<key id>.p8`, and write the ids to
+3. **Xcode account.** Xcode > Settings > Accounts signed in with the Account
+   Holder's Apple ID. The script signs with the Apple Distribution
+   certificate Apple keeps in the cloud, and only the Account Holder or an
+   Admin may use it.
+
+4. **API key** (optional, set up on November 26, 2026). App Store Connect >
+   Users and Access > Integrations > App Store Connect API > Team Keys, access
+   *App Manager*. The `.p8` is in
+   `~/.appstoreconnect/private_keys/AuthKey_<key id>.p8`, the ids in
    `~/.appstoreconnect/hobcrew.env`:
 
    ```bash
    ASC_KEY_ID=<key id>
    ASC_ISSUER_ID=<issuer id>
    ```
+
+   An App Manager key may not use the cloud certificate ("Cloud signing
+   permission error"), so the script uses the key only when an Apple
+   Distribution certificate with its private key is in the keychain (Xcode >
+   Settings > Accounts > Manage Certificates > + Apple Distribution). The key
+   also reads the build status from the App Store Connect API.
 
 ## Build and upload
 
@@ -55,7 +68,7 @@ tool/release_ios.sh
 The script refuses a dirty tree (build from a temporary `git worktree` of the
 commit to leave work in progress alone). It compiles the Dart code with
 `flutter build ios --config-only`, archives with `xcodebuild`, signs with
-automatic provisioning through the API key and uploads the build. The build
+automatic provisioning and uploads the build. The build
 number is the commit count, the same number the Android and macOS builds of
 that commit get; the version comes from `pubspec.yaml`. A version that is
 already live on the App Store needs a new version in `pubspec.yaml` first.
