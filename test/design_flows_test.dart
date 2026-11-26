@@ -231,9 +231,18 @@ void main() {
     expect(app.hobNamed('posta')!.hidden, isFalse);
   });
 
-  testWidgets('settings end with the app version and the licenses', (
+  testWidgets('settings show the platform and open its project and license', (
     tester,
   ) async {
+    const launcher = MethodChannel('plugins.flutter.io/url_launcher');
+    final opened = <String>[];
+    final messenger = tester.binding.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(launcher, (call) async {
+      expect(call.method, 'launch');
+      opened.add(call.arguments['url'] as String);
+      return true;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(launcher, null));
     await tester.pumpWidget(
       ChangeNotifierProvider.value(
         value: signedIn()..username = 'daniel',
@@ -241,12 +250,24 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Licence'), 200);
+    await tester.scrollUntilVisible(find.text('Licence MIT'), 200);
+    await tester.pumpAndSettle();
     expect(find.text('O aplikaci'), findsOneWidget);
-    expect(find.text('Neoficiální komunitní aplikace'), findsOneWidget);
+    expect(find.text('Použité technologie'), findsOneWidget);
     expect(find.textContaining('Nous Research'), findsOneWidget);
     expect(find.text('Přihlášen jako'), findsOneWidget);
     expect(find.text('daniel'), findsOneWidget);
+    for (final label in ['Projekt Hermes Agent', 'Licence MIT']) {
+      final link = find.text(label);
+      await tester.ensureVisible(link);
+      await tester.pumpAndSettle();
+      await tester.tap(link);
+      await tester.pump();
+    }
+    expect(opened, [
+      'https://github.com/NousResearch/hermes-agent',
+      'https://github.com/NousResearch/hermes-agent/blob/main/LICENSE',
+    ]);
   });
 
   testWidgets('a Hob face renders to a PNG for notifications', (tester) async {

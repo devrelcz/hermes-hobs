@@ -10,7 +10,7 @@ class StringsCs extends Strings {
 
   // --- login ---------------------------------------------------------------
   @override
-  String get loginSubtitle => 'Přihlášení k Hermes Agent dashboardu';
+  String get loginSubtitle => 'Připoj se ke své posádce';
   @override
   String get welcomeTitle => 'Vítej u Hobíků';
   @override
@@ -25,9 +25,10 @@ class StringsCs extends Strings {
   @override
   String get welcomeStart => 'Začít';
   @override
-  String get serverLabel => 'Server';
+  String get serverLabel => 'Adresa serveru';
   @override
-  String get serverInvalid => 'Zadej URL, např. https://hermes.example.com';
+  String get serverInvalid =>
+      'Zadej adresu serveru, třeba https://posadka.example.com';
   @override
   String get usernameLabel => 'Uživatel';
   @override
@@ -147,7 +148,9 @@ class StringsCs extends Strings {
       'Namiř fotoaparát na přihlašovací QR kód ze stránky své posádky. '
       'Pokud používáš vlastní server, naskenuj jeho přihlašovací QR kód.';
   @override
-  String get scanNotPairing => 'Tohle není párovací kód Hermes.';
+  String get scanNotPairing =>
+      'Tento kód nejde použít k přihlášení. '
+      'Naskenuj přihlašovací QR kód ze stránky posádky nebo z vlastního serveru.';
   @override
   String get scanNewerVersion =>
       'Kód je pro novější verzi aplikace. Aktualizujte HobCrew.';
@@ -979,11 +982,15 @@ class StringsCs extends Strings {
   @override
   String get licensesHint => 'Písmo Geist a knihovny s otevřeným kódem';
   @override
-  String get unofficialApp => 'Neoficiální komunitní aplikace';
+  String get technologies => 'Použité technologie';
   @override
-  String get unofficialAppHint =>
-      'Nevytváří ji, nepodporuje ani neschvaluje Nous Research, autoři '
-      'Hermes Agent.';
+  String get hermesAttribution =>
+      'Hobíci běží na platformě Hermes Agent s otevřeným kódem od Nous Research. '
+      'Platforma je dostupná pod licencí MIT.';
+  @override
+  String get hermesProjectLink => 'Projekt Hermes Agent';
+  @override
+  String get hermesLicenseLink => 'Licence MIT';
   @override
   String get language => 'Jazyk';
   @override
