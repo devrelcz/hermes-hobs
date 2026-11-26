@@ -30,10 +30,13 @@ void main() {
     ], await rootBundle.loadString('assets/fonts/OFL.txt'));
   });
   final binding = WidgetsFlutterBinding.ensureInitialized();
-  // A Mac has no camera pointed at the screen: the crew page opens the app
-  // there with a hobcrew:// link instead of a QR code.
+  // Pairing links: https://hobcrew.com/pair opens the app on a phone
+  // (App Links, Universal Links). A Mac has no camera pointed at the screen:
+  // the crew page opens the app there with a hobcrew:// link instead of a QR
+  // code.
   final appLinks =
       defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS ||
           defaultTargetPlatform == TargetPlatform.macOS
       ? AppLinks().uriLinkStream
       : null;
