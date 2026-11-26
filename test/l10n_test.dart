@@ -111,11 +111,13 @@ void main() {
     tester.platformDispatcher.localesTestValue = const [Locale('en', 'US')];
     addTearDown(tester.platformDispatcher.clearLocalesTestValue);
     await tester.pumpWidget(_app(AppState(), const LoginScreen()));
+    expect(find.text('Connect to your crew'), findsOneWidget);
     expect(find.text('Type the details'), findsOneWidget);
     expect(find.text('Zadat údaje ručně'), findsNothing);
 
     tester.platformDispatcher.localesTestValue = const [Locale('cs', 'CZ')];
     await tester.pumpAndSettle();
+    expect(find.text('Připoj se ke své posádce'), findsOneWidget);
     expect(find.text('Zadat údaje ručně'), findsOneWidget);
   });
 

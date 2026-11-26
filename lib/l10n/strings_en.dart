@@ -10,7 +10,7 @@ class StringsEn extends Strings {
 
   // --- login ---------------------------------------------------------------
   @override
-  String get loginSubtitle => 'Sign in to your Hermes Agent dashboard';
+  String get loginSubtitle => 'Connect to your crew';
   @override
   String get welcomeTitle => 'Welcome to the Hobs';
   @override
@@ -25,9 +25,10 @@ class StringsEn extends Strings {
   @override
   String get welcomeStart => 'Get started';
   @override
-  String get serverLabel => 'Server';
+  String get serverLabel => 'Server address';
   @override
-  String get serverInvalid => 'Enter a URL, like https://hermes.example.com';
+  String get serverInvalid =>
+      'Enter a server address, such as https://crew.example.com';
   @override
   String get usernameLabel => 'Username';
   @override
@@ -143,7 +144,9 @@ class StringsEn extends Strings {
       'Point your camera at the sign-in QR code on your crew’s page. '
       'If you use your own server, scan its sign-in QR code.';
   @override
-  String get scanNotPairing => 'This is not a Hermes pairing code.';
+  String get scanNotPairing =>
+      'This code can’t sign you in. '
+      'Scan the sign-in QR code from your crew page or your own server.';
   @override
   String get scanNewerVersion =>
       'This code is for a newer version of the app. Update HobCrew.';
@@ -947,11 +950,15 @@ class StringsEn extends Strings {
   @override
   String get licensesHint => 'The Geist typeface and open-source libraries';
   @override
-  String get unofficialApp => 'Unofficial community app';
+  String get technologies => 'Technology';
   @override
-  String get unofficialAppHint =>
-      'Not made, endorsed or supported by Nous Research, the makers of '
-      'Hermes Agent.';
+  String get hermesAttribution =>
+      'Hobs run on Hermes Agent, an open-source platform by Nous Research '
+      'available under the MIT license.';
+  @override
+  String get hermesProjectLink => 'Hermes Agent project';
+  @override
+  String get hermesLicenseLink => 'MIT license';
   @override
   String get language => 'Language';
   @override

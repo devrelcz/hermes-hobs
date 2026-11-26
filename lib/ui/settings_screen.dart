@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
@@ -146,6 +147,24 @@ class _About extends StatelessWidget {
 
   final AppState app;
 
+  static Future<void> _openTechnologyLink(
+    BuildContext context,
+    String path,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final failed = Strings.of(context).linkOpenFailed;
+    try {
+      final opened = await launchUrl(
+        Uri.https('github.com', '/NousResearch/hermes-agent$path'),
+        mode: LaunchMode.externalApplication,
+      );
+      if (opened) return;
+    } catch (_) {}
+    if (messenger.mounted) {
+      messenger.showSnackBar(SnackBar(content: Text(failed)));
+    }
+  }
+
   /// "a1b2c3d · 21. 11. 18:47", or null when the build carries neither.
   static String? _buildLine() {
     final when = DateTime.tryParse(_buildTime);
@@ -171,11 +190,6 @@ class _About extends StatelessWidget {
             : '${info.version} (${info.buildNumber})';
         return Column(
           children: [
-            ListTile(
-              leading: const Icon(Icons.groups_outlined),
-              title: Text(s.unofficialApp),
-              subtitle: Text(s.unofficialAppHint),
-            ),
             ListTile(
               leading: const Icon(Icons.info_outline),
               title: Text(s.appVersion),
@@ -203,8 +217,30 @@ class _About extends StatelessWidget {
                 context: context,
                 applicationName: 'HobCrew',
                 applicationVersion: version,
-                applicationLegalese:
-                    '${s.unofficialApp}. ${s.unofficialAppHint}',
+                applicationLegalese: s.hermesAttribution,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.code_outlined),
+              title: Text(s.technologies),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(s.hermesAttribution),
+                  Wrap(
+                    children: [
+                      TextButton(
+                        onPressed: () => _openTechnologyLink(context, ''),
+                        child: Text(s.hermesProjectLink),
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            _openTechnologyLink(context, '/blob/main/LICENSE'),
+                        child: Text(s.hermesLicenseLink),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ],

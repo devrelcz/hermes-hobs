@@ -2,12 +2,9 @@
 
 Talk to your Hobs from wherever you are.
 
-HobCrew is a chat app for Hermes Agent. Every bot from your dashboard's
-Bot Mode shows up here as a **Hob**, with its own chat. Same bots, a friendlier
-name. It runs on Android, iPhone, iPad and Mac.
-
-HobCrew is an unofficial community app. It is not made, endorsed or
-supported by Nous Research, the makers of Hermes Agent.
+Give your **Hobs** tasks, bring several into a group chat, and get a
+notification when a Hob replies or needs your approval. HobCrew runs on
+Android, iPhone, iPad and Mac.
 
 <a href="https://play.google.com/store/apps/details?id=com.hobcrew.app"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="80" alt="Get it on Google Play"></a>
 
@@ -49,7 +46,7 @@ No server yet? [Try the demo](#try-it-without-a-server).
   into a Hob from any other app.
 - **Notifications.** Hear about it when a Hob finishes a reply or waits for
   you, in a Hob chat or a group chat.
-- **Several servers.** Add each Hermes server as its own account with a name
+- **Several servers.** Add each server as its own account with a name
   and color, and switch between them from your avatar.
 - **Offline bar.** Without internet, a bar asks you to turn on Wi-Fi or
   mobile data, and the chats reconnect as soon as it is back.
@@ -59,9 +56,14 @@ No server yet? [Try the demo](#try-it-without-a-server).
 ## Get started
 
 1. Install the app from [Google Play](https://play.google.com/store/apps/details?id=com.hobcrew.app).
-2. Enter your Hermes Agent dashboard's address.
-3. Sign in with the dashboard's username and password. Your bots appear as
-   Hobs.
+2. Scan the sign-in QR code on your HobCrew crew page. For a compatible server
+   you run yourself, scan that server's sign-in code or enter its address and
+   sign-in details manually.
+
+Hobs run on [Hermes Agent](https://github.com/NousResearch/hermes-agent), an
+open-source platform by Nous Research under the [MIT license](https://github.com/NousResearch/hermes-agent/blob/main/LICENSE).
+HobCrew is developed independently. On a compatible self-hosted server,
+profiles in Hermes Agent's Bot Mode appear as Hobs.
 
 To add another server, tap your avatar and pick *Add server*. Only the
 account you are in stays connected and sends notifications.

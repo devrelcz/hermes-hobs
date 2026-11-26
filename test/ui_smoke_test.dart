@@ -44,6 +44,17 @@ void main() {
     await tester.tap(find.text('Přihlásit'));
     await tester.pump();
     expect(find.text('Povinné'), findsNWidgets(3));
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Adresa serveru'),
+      'posadka',
+    );
+    final submit = find.text('Přihlásit');
+    await tester.ensureVisible(submit);
+    await tester.pumpAndSettle();
+    await tester.tap(submit);
+    await tester.pump();
+    expect(find.textContaining('https://posadka.example.com'), findsOneWidget);
   });
 
   testWidgets('password can be shown and hidden again', (tester) async {
