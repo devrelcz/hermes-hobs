@@ -4,9 +4,16 @@ import XCTest
 
 class RunnerTests: XCTestCase {
 
-  func testExample() {
-    // If you add code to the Runner application, consider adding tests here.
-    // See https://developer.apple.com/documentation/xctest for more information about using XCTest.
+  func testBundleNamesMatchTheApplicationName() {
+    XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String, "Hobs")
+    XCTAssertEqual(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String, "Hobs")
+  }
+
+  @MainActor
+  func testMainWindowUsesTheApplicationName() throws {
+    let appDelegate = try XCTUnwrap(NSApp.delegate as? FlutterAppDelegate)
+    let window = try XCTUnwrap(appDelegate.mainFlutterWindow)
+    XCTAssertEqual(window.title, "Hobs")
   }
 
 }
