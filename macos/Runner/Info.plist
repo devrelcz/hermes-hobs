@@ -18,9 +18,9 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleDisplayName</key>
-	<string>HobCrew</string>
+	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundleName</key>
-	<string>HobCrew</string>
+	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
