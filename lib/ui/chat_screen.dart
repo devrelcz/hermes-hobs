@@ -17,6 +17,7 @@ import 'attachments_ui.dart';
 import '../state/mentions.dart';
 import 'hob_avatar.dart';
 import 'offline_bar.dart';
+import 'message_links.dart';
 import 'model_picker.dart';
 import 'hob_detail_screen.dart';
 import 'cron_sheet.dart';
@@ -880,13 +881,13 @@ class _MessageRow extends StatefulWidget {
 class _MessageRowState extends State<_MessageRow> {
   bool _hover = false;
 
-  /// [child] read as one message, its author first.
+  /// Announce the author while keeping each link and action accessible.
   static Widget _spoken(BuildContext context, String who, Widget child) =>
-      MergeSemantics(
-        child: Semantics(
-          label: Strings.of(context).messageFrom(who),
-          child: child,
-        ),
+      Semantics(
+        container: true,
+        explicitChildNodes: true,
+        label: Strings.of(context).messageFrom(who),
+        child: child,
       );
 
   @override
@@ -953,9 +954,10 @@ class _MessageRowState extends State<_MessageRow> {
                             ),
                           ),
                         if (message.text.isNotEmpty)
-                          Text.rich(
-                            _withMentions(
-                              message.text,
+                          MessageText(
+                            message.text,
+                            plainSpan: (text) => _withMentions(
+                              text,
                               controller,
                               const TextStyle(fontWeight: FontWeight.w600),
                             ),
@@ -977,7 +979,7 @@ class _MessageRowState extends State<_MessageRow> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              MarkdownBody(
+              MessageMarkdown(
                 data: message.text + (message.streaming ? ' ▍' : ''),
                 styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
                   p: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
@@ -1155,7 +1157,7 @@ class _ScheduledOutputCardState extends State<_ScheduledOutputCard> {
             ),
             if (text.isNotEmpty) ...[
               const SizedBox(height: 6),
-              MarkdownBody(
+              MessageMarkdown(
                 data: text,
                 styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
                   p: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
@@ -1251,7 +1253,7 @@ class _SystemTurnRow extends StatelessWidget {
           ),
           if (body.isNotEmpty) ...[
             const SizedBox(height: 4),
-            MarkdownBody(data: body, styleSheet: sheet),
+            MessageMarkdown(data: body, styleSheet: sheet),
           ],
         ],
       ),

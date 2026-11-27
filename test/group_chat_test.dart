@@ -119,6 +119,32 @@ void main() {
       expect(server.rooms, isEmpty);
     });
 
+    test('gateway preserves URLs in group messages', () async {
+      const url = 'https://example.org/a%20b?next=%2Fdocs&lang=cs#intro';
+      const question = 'Podívej se na ($url).';
+      const answer = '[Návod]($url)';
+      server.memberReply = (_) => answer;
+      final room = await app.createGroup([
+        app.hobNamed('cto')!,
+        app.hobNamed('posta')!,
+      ]);
+      final chat = app.groupChatFor(room);
+      app.setOpenGroup(room.roomId);
+      await waitFor(() => !chat.loading);
+
+      await chat.send(question);
+      await waitFor(() => chat.lastSeq == 6);
+
+      expect(lastCall('groups.send')['payload']['text'], question);
+      expect(chat.log.map((event) => event.text), contains(question));
+      expect(
+        chat.log
+            .where((event) => event.isMemberMessage)
+            .map((event) => event.text),
+        [answer, answer],
+      );
+    });
+
     test('a gateway without group chats hides them', () async {
       final s2 = FakeHermesServer()..groupsEnabled = false;
       await s2.start();

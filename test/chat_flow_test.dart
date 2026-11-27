@@ -350,6 +350,33 @@ void main() {
       http.close();
     });
 
+    test('gateway preserves URLs in chat history and replies', () async {
+      const url = 'https://example.org/a%20b?next=%2Fdocs&lang=cs#intro';
+      const question = 'Podívej se na ($url).';
+      const answer = '[Návod]($url)';
+      server.history = [
+        {'role': 'user', 'text': question},
+        {'role': 'assistant', 'content': answer},
+      ];
+      server.replyText = answer;
+      final http = await signedIn();
+      final rpc = HermesRpc(http);
+      final chat = ChatController(rpc: rpc, hob: (await roster(rpc)).first);
+      addTearDown(() async {
+        chat.dispose();
+        await rpc.dispose();
+        http.close();
+      });
+
+      await chat.start();
+      expect(chat.messages.map((m) => m.text), [question, answer]);
+
+      await chat.send(question);
+      await waitFor(() => chat.phase == ChatPhase.idle);
+      expect(chat.lastPrompt, question);
+      expect(chat.messages.last.text, answer);
+    });
+
     test('first chat creates Bot Chat with canonical params', () async {
       final http = await signedIn();
       final rpc = HermesRpc(http);

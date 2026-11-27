@@ -15,6 +15,7 @@ import 'prompt_card.dart';
 import 'sheets.dart';
 import 'format.dart';
 import 'hob_avatar.dart';
+import 'message_links.dart';
 import 'offline_bar.dart';
 import 'theme.dart';
 
@@ -587,7 +588,7 @@ class _UserBubble extends StatelessWidget {
                       bottomRight: Radius.circular(6),
                     ),
                   ),
-                  child: Text(
+                  child: MessageText(
                     text,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: cs.onPrimaryContainer,
@@ -692,7 +693,7 @@ class _MemberMessageState extends State<_MemberMessage> {
                         ),
                     ],
                   ),
-                  MarkdownBody(
+                  MessageMarkdown(
                     data: text,
                     styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
                       p: theme.textTheme.bodyMedium?.copyWith(height: 1.5),

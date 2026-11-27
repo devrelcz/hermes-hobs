@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -319,6 +320,47 @@ void main() {
       );
       return app;
     }
+
+    testWidgets('chat history links have separate screen reader actions', (
+      tester,
+    ) async {
+      const first = 'https://example.org/a%20b?next=%2Fdocs&lang=cs';
+      const second = 'https://example.org/details';
+      server.history = [
+        {
+          'role': 'assistant',
+          'text': '[Guide]($first) and [Details]($second)',
+          'timestamp': 1795186010,
+        },
+      ];
+      final app = await signIn(tester);
+      final cto = app.hobNamed('cto')!;
+      final chat = (await tester.runAsync(() async => app.chatFor(cto)))!;
+      final semantics = tester.ensureSemantics();
+      const launcher = MethodChannel('plugins.flutter.io/url_launcher');
+      final messenger = tester.binding.defaultBinaryMessenger;
+      final opened = <String>[];
+      messenger.setMockMethodCallHandler(launcher, (call) async {
+        opened.add(call.arguments['url'] as String);
+        return true;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(launcher, null));
+
+      try {
+        await tester.pumpWidget(wrap(app, ChatScreen(hob: cto)));
+        await pumpUntil(tester, () => chat.phase == ChatPhase.idle);
+        await tester.pumpAndSettle();
+
+        tester.semantics.tap(find.semantics.byLabel('Guide'));
+        tester.semantics.tap(find.semantics.byLabel('Details'));
+        await tester.pump();
+        expect(opened, [first, second]);
+      } finally {
+        semantics.dispose();
+        await tester.pumpWidget(const SizedBox());
+        await tester.runAsync(() async => app.dispose());
+      }
+    });
 
     testWidgets('history shows images, files and links of user messages', (
       tester,
