@@ -13,6 +13,25 @@ import 'image_prep.dart';
 /// Largest file the app attaches, like the dashboard's browser client.
 const maxAttachmentBytes = 16 * 1024 * 1024;
 
+abstract interface class ComposerAttachmentUploader {
+  Future<ChatAttachment> uploadImage(
+    Uint8List bytes,
+    String name,
+    String? mime, {
+    void Function(double progress)? onProgress,
+    UploadCancel? cancel,
+    void Function(PreparedImage prepared)? onPrepared,
+  });
+
+  Future<ChatAttachment> uploadFile(
+    Uint8List bytes,
+    String name,
+    String? mime, {
+    void Function(double progress)? onProgress,
+    UploadCancel? cancel,
+  });
+}
+
 /// Uploads attachments to a Hob's profile the way the dashboard does:
 ///
 /// - images: `POST /api/chat/image-upload?profile=` with
@@ -20,13 +39,14 @@ const maxAttachmentBytes = 16 * 1024 * 1024;
 ///   `cache/images/`, the only place `prompt.submit.attachments` accepts);
 /// - files: multipart `POST /api/chat/file-upload?profile=` (field `file`)
 ///   -> `{path, staged_upload}`, later handed to `file.attach`.
-class AttachmentUploader {
+class AttachmentUploader implements ComposerAttachmentUploader {
   AttachmentUploader(this.http, this.profile, {this.prepare = prepareImage});
 
   final HermesHttp http;
   final String profile;
   final ImagePreparer prepare;
 
+  @override
   Future<ChatAttachment> uploadImage(
     Uint8List bytes,
     String name,
@@ -65,6 +85,7 @@ class AttachmentUploader {
     );
   }
 
+  @override
   Future<ChatAttachment> uploadFile(
     Uint8List bytes,
     String name,
@@ -145,9 +166,12 @@ class DraftAttachment {
 /// picked (with progress, cancel and retry) and go out with the next send.
 /// [prefill] carries text shared from another app into the input field.
 class ComposerDraft extends ChangeNotifier {
-  ComposerDraft(this._uploader);
+  ComposerDraft(this._uploader, {this.maxFileBytes = maxAttachmentBytes});
 
-  AttachmentUploader? _uploader;
+  ComposerAttachmentUploader? _uploader;
+  final int maxFileBytes;
+
+  int get maxFileMegabytes => (maxFileBytes / 1000000).floor();
   final List<DraftAttachment> items = [];
 
   /// Text for the input field (share sheet); the chat view takes it once.
@@ -155,7 +179,7 @@ class ComposerDraft extends ChangeNotifier {
 
   bool _disposed = false;
 
-  set uploader(AttachmentUploader? u) => _uploader = u;
+  set uploader(ComposerAttachmentUploader? u) => _uploader = u;
 
   /// Adds shared text for the input field.
   void appendText(String text) {
@@ -203,10 +227,10 @@ class ComposerDraft extends ChangeNotifier {
   }
 
   void addFile(Uint8List bytes, String name, {String? mime}) {
-    if (bytes.length > maxAttachmentBytes) {
+    if (bytes.length > maxFileBytes) {
       return addFailed(
         name,
-        Strings.current.attachmentTooLarge(maxAttachmentBytes ~/ (1024 * 1024)),
+        Strings.current.attachmentTooLarge(maxFileMegabytes),
       );
     }
     final a = DraftAttachment._(AttachmentKind.file, name);
@@ -266,7 +290,11 @@ class ComposerDraft extends ChangeNotifier {
 
   Future<void> _run(
     DraftAttachment a,
-    Future<ChatAttachment> Function(AttachmentUploader u, UploadCancel c) job,
+    Future<ChatAttachment> Function(
+      ComposerAttachmentUploader u,
+      UploadCancel c,
+    )
+    job,
   ) async {
     final u = _uploader;
     final cancel = a._cancel = UploadCancel();

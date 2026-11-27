@@ -3,13 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../demo/demo_hermes.dart';
 import '../l10n/strings.dart';
+import '../state/app_state.dart';
 import '../state/network_status.dart';
 
-/// True when [NetworkStatus] says the device is offline. False when there is
-/// no [NetworkStatus] above [context] (tests, previews).
-bool isOffline(BuildContext context) =>
-    context.watch<NetworkStatus?>()?.offline ?? false;
+/// Whether the current account needs an internet connection and the device
+/// has lost it. The demo runs entirely on this device.
+bool isOffline(BuildContext context) {
+  final demo = context.select<AppState?, bool>(
+    (app) => DemoHermes.isDemo(app?.serverUrl ?? ''),
+  );
+  final offline = context.watch<NetworkStatus?>()?.offline ?? false;
+  return !demo && offline;
+}
 
 /// Puts an offline bar above [child] while the device has no internet.
 ///

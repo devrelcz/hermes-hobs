@@ -5,6 +5,7 @@
 /// step lands in an append-only log read with `groups.log`.
 library;
 
+import 'group_attachments.dart';
 import 'models.dart';
 
 /// One seat of a room.
@@ -122,6 +123,13 @@ class GroupEvent {
   final DateTime? createdAt;
 
   String get text => (payload['text'] ?? payload['content'] ?? '').toString();
+  List<GroupAttachment> get attachments {
+    final entries = payload['attachments'];
+    return entries is List
+        ? entries.map(GroupAttachment.fromJson).nonNulls.toList()
+        : const [];
+  }
+
   String get memberId => (payload['member_id'] ?? '').toString();
   String get threadId => (payload['thread_id'] ?? '').toString();
   String get discussionId => (payload['discussion_event_id'] ?? '').toString();

@@ -58,10 +58,18 @@ enum _Pick { camera, gallery, files, link, paste }
 
 /// The composer's "+" button: camera, gallery, files, link, paste.
 class AttachButton extends StatelessWidget {
-  const AttachButton({super.key, required this.draft, required this.enabled});
+  const AttachButton({
+    super.key,
+    required this.draft,
+    required this.enabled,
+    this.allowLinks = true,
+    this.maxItems,
+  });
 
   final ComposerDraft draft;
   final bool enabled;
+  final bool allowLinks;
+  final int? maxItems;
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +86,7 @@ class AttachButton extends StatelessWidget {
           _item(_Pick.camera, Icons.photo_camera_outlined, s.takePhoto),
         _item(_Pick.gallery, Icons.photo_library_outlined, s.choosePhotos),
         _item(_Pick.files, Icons.attach_file, s.chooseFiles),
-        _item(_Pick.link, Icons.link, s.addLink),
+        if (allowLinks) _item(_Pick.link, Icons.link, s.addLink),
         if (pickers.canPasteImage)
           _item(_Pick.paste, Icons.content_paste, s.pasteImage),
       ],
@@ -92,7 +100,9 @@ class AttachButton extends StatelessWidget {
           children: [
             Icon(icon, size: 20),
             const SizedBox(width: 12),
-            Text(label),
+            Flexible(
+              child: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
+            ),
           ],
         ),
       );
@@ -109,6 +119,14 @@ class AttachButton extends StatelessWidget {
     final s = Strings.of(context);
     final messenger = ScaffoldMessenger.of(context);
     final pickers = AttachmentPickers.current;
+    bool canAdd() {
+      final limit = maxItems;
+      if (limit == null || draft.items.length < limit) return true;
+      messenger.showSnackBar(SnackBar(content: Text(s.groupAttachmentLimits)));
+      return false;
+    }
+
+    if (!canAdd()) return;
     try {
       switch (p) {
         case _Pick.camera || _Pick.gallery:
@@ -116,22 +134,30 @@ class AttachButton extends StatelessWidget {
               ? await pickers.photo()
               : await pickers.gallery();
           for (final (i, x) in xs.indexed) {
+            if (!context.mounted || !canAdd()) return;
+            final bytes = await x.readAsBytes();
+            if (!context.mounted) return;
             draft.addImage(
-              await x.readAsBytes(),
+              bytes,
               _photoName(x.name, i, xs.length),
               mime: x.mimeType,
             );
           }
         case _Pick.files:
           for (final x in await pickers.files()) {
-            if (await x.length() > maxAttachmentBytes) {
+            if (!context.mounted || !canAdd()) return;
+            final size = await x.length();
+            if (!context.mounted) return;
+            if (size > draft.maxFileBytes) {
               draft.addFailed(
                 x.name,
-                s.attachmentTooLarge(maxAttachmentBytes ~/ (1024 * 1024)),
+                s.attachmentTooLarge(draft.maxFileMegabytes),
               );
               continue;
             }
-            draft.addFile(await x.readAsBytes(), x.name, mime: x.mimeType);
+            final bytes = await x.readAsBytes();
+            if (!context.mounted) return;
+            draft.addFile(bytes, x.name, mime: x.mimeType);
           }
         case _Pick.link:
           if (!context.mounted) return;
@@ -154,9 +180,10 @@ class AttachButton extends StatelessWidget {
               return ok ? null : s.linkInvalid;
             },
           );
-          if (url != null) draft.addUrl(url);
+          if (context.mounted && url != null) draft.addUrl(url);
         case _Pick.paste:
           final bytes = await pickers.clipboardImage();
+          if (!context.mounted) return;
           if (bytes == null || bytes.isEmpty) {
             messenger.showSnackBar(
               SnackBar(content: Text(s.noImageInClipboard)),
@@ -166,7 +193,9 @@ class AttachButton extends StatelessWidget {
           draft.addImage(bytes, 'pasted-image.png');
       }
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(s.pickFailed(e))));
+      if (context.mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(s.pickFailed(e))));
+      }
     }
   }
 }

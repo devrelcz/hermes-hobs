@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../api/group_attachments.dart';
 import '../api/group_models.dart';
 import '../api/hermes_rpc.dart';
 import '../l10n/strings.dart';
+import 'composer_draft.dart';
+import 'group_attachment_uploader.dart';
 
 /// How a member's latest turn in the current discussion went.
 enum MemberState { idle, queued, working, replied, passed, failed, cancelled }
@@ -28,7 +31,10 @@ class GroupChatController extends ChangeNotifier {
     this.onSent,
   }) {
     _eventSub = rpc.events.listen(_onEvent);
-    _reconnectSub = rpc.onReconnected.listen((_) => refresh());
+    _reconnectSub = rpc.onReconnected.listen((_) {
+      _attachmentMethods = null;
+      refresh();
+    });
     _statusSub = rpc.statusStream.listen((_) => _notify());
   }
 
@@ -65,6 +71,20 @@ class GroupChatController extends ChangeNotifier {
   /// A message on its way: shown until the log carries it.
   String? pendingText;
   String? _pendingThread;
+  List<GroupAttachment> pendingAttachments = const [];
+  String? sendError;
+  ({String id, String text, List<String> attachments})? _lastSubmission;
+
+  late final attachmentApi = GroupAttachmentApi(rpc, profile, roomId);
+  late final draft = ComposerDraft(
+    GroupAttachmentUploader(attachmentApi),
+    maxFileBytes: maxGroupAttachmentBytes,
+  );
+  Set<String>? _attachmentMethods;
+  bool get canUploadAttachments =>
+      _attachmentMethods?.contains(groupAttachmentUpload) ?? false;
+  bool get canDownloadAttachments =>
+      _attachmentMethods?.contains(groupAttachmentDownload) ?? false;
 
   /// True while a send, stop or another action is in flight.
   bool acting = false;
@@ -112,6 +132,9 @@ class GroupChatController extends ChangeNotifier {
     try {
       await rpc.connect();
       final res = await rpc.request('groups.state', _params());
+      if (!_disposed && _attachmentMethods == null) {
+        await _loadAttachmentMethods();
+      }
       if (_disposed || res is! Map) return;
       final room = res['room'];
       if (room is Map && room['disbanded_at'] != null) {
@@ -134,10 +157,8 @@ class GroupChatController extends ChangeNotifier {
       if (_room.latestSeq > lastSeq) {
         grew = await _fetchLog();
       }
-      if (_pendingThread != null &&
-          log.any((e) => e.isUserMessage && e.threadId == _pendingThread)) {
-        pendingText = null;
-        _pendingThread = null;
+      if (_pendingThread != null && _hasMessage(_pendingThread!)) {
+        _clearPending();
       }
       error = null;
       loaded = true;
@@ -153,6 +174,30 @@ class GroupChatController extends ChangeNotifier {
         if (loaded) onLoaded?.call(this);
       }
     }
+  }
+
+  Future<void> _loadAttachmentMethods() async {
+    try {
+      final result = await rpc.requestWith('groups.capabilities', {
+        'profile': profile,
+      }, timeout: const Duration(seconds: 5));
+      final methods = result is Map ? result['methods'] : null;
+      _attachmentMethods = methods is List
+          ? methods.whereType<String>().toSet()
+          : {};
+    } on RpcException catch (e) {
+      if (e.local == null) _attachmentMethods = {};
+    }
+  }
+
+  bool _hasMessage(String eventId) => log.any(
+    (e) => e.isUserMessage && (e.eventId == eventId || e.threadId == eventId),
+  );
+
+  void _clearPending() {
+    pendingText = null;
+    pendingAttachments = const [];
+    _pendingThread = null;
   }
 
   /// Appends events after [lastSeq]. False when there was nothing new.
@@ -256,11 +301,17 @@ class GroupChatController extends ChangeNotifier {
 
   /// Newest message text, for the roster row.
   String get preview {
-    if (pendingText != null) return pendingText!;
+    final pending = pendingText;
+    if (pending != null) {
+      return pending.isNotEmpty
+          ? pending
+          : pendingAttachments.map((file) => file.name).join(', ');
+    }
     for (final e in log.reversed) {
-      if ((e.isUserMessage || e.isMemberMessage) && e.text.trim().isNotEmpty) {
-        return e.text;
-      }
+      if (!e.isUserMessage && !e.isMemberMessage) continue;
+      if (e.text.trim().isNotEmpty) return e.text;
+      final files = e.attachments;
+      if (files.isNotEmpty) return files.map((file) => file.name).join(', ');
     }
     return '';
   }
@@ -274,36 +325,87 @@ class GroupChatController extends ChangeNotifier {
 
   // --- actions --------------------------------------------------------------
 
-  /// Posts [text] to the room; `@handle` at the start assigns it to a member.
-  Future<void> send(String text) async {
+  /// Posts text and the uploaded room manifest. A retry uses the same event ID
+  /// so the gateway can recognize a message whose response was lost.
+  Future<bool> send(
+    String text, {
+    List<GroupAttachment> attachments = const [],
+  }) async {
     final body = text.trim();
-    if (body.isEmpty || acting) return;
-    final eventId = uuidV4();
+    if (acting ||
+        disbanded ||
+        _disposed ||
+        (body.isEmpty && attachments.isEmpty)) {
+      return false;
+    }
+
+    final s = Strings.current;
+    sendError = null;
+    if (attachments.isNotEmpty && !canUploadAttachments) {
+      sendError = s.groupAttachmentsUnavailable;
+    } else if (attachments.length > maxGroupAttachments ||
+        attachments.fold(0, (size, file) => size + file.size) >
+            maxGroupMessageAttachmentBytes) {
+      sendError = s.groupAttachmentLimits;
+    }
+    if (sendError != null) {
+      _notify();
+      return false;
+    }
+
+    final ids = attachments.map((file) => file.id).toList();
+    final last = _lastSubmission;
+    final eventId =
+        last != null && body == last.text && listEquals(ids, last.attachments)
+        ? last.id
+        : uuidV4();
+    _lastSubmission = (id: eventId, text: body, attachments: ids);
     pendingText = body;
+    pendingAttachments = List.unmodifiable(attachments);
     _pendingThread = eventId;
-    error = null;
+    acting = true;
+    _notify();
     onSent?.call();
-    await _act(
-      () async {
+
+    try {
+      await rpc.connect();
+      if (!_hasMessage(eventId)) {
         final res = await rpc.request(
           'groups.send',
           _params({
             'event_id': eventId,
-            'payload': {'text': body, 'attachments': [], 'thread_id': eventId},
+            'payload': {
+              'text': body,
+              'attachments': attachments.map((file) => file.toJson()).toList(),
+              'thread_id': eventId,
+            },
           }),
         );
-        if (res is Map &&
-            ((res.containsKey('accepted') && res['accepted'] != true) ||
-                (res.containsKey('client_event_id') &&
-                    res['client_event_id'] != eventId))) {
-          throw StateError(Strings.current.groupSendUnconfirmed);
+        final response = res is Map ? res : const {};
+        final accepted = response['accepted'];
+        final receivedId = response['client_event_id'];
+        final confirmed = accepted == true && receivedId == eventId;
+        final rejected =
+            (response.containsKey('accepted') && accepted != true) ||
+            (response.containsKey('client_event_id') && receivedId != eventId);
+        if (rejected || (attachments.isNotEmpty && !confirmed)) {
+          throw StateError(s.groupSendUnconfirmed);
         }
-      },
-      onError: () {
-        pendingText = null;
-        _pendingThread = null;
-      },
-    );
+      }
+    } catch (_) {
+      await refresh();
+      if (!_hasMessage(eventId)) {
+        _clearPending();
+        sendError = s.groupSendUnconfirmed;
+        return false;
+      }
+    } finally {
+      acting = false;
+      _notify();
+    }
+    _lastSubmission = null;
+    unawaited(refresh());
+    return true;
   }
 
   /// Cancels the running round.
@@ -422,6 +524,7 @@ class GroupChatController extends ChangeNotifier {
     _eventSub.cancel();
     _reconnectSub.cancel();
     _statusSub.cancel();
+    draft.dispose();
     super.dispose();
   }
 }

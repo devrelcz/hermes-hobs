@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'group_attachments.dart';
 import 'hermes_rpc.dart';
 
 /// What a chat attachment is, as the dashboard composer models it.
@@ -21,6 +22,7 @@ class ChatAttachment {
     this.mime,
     this.preview,
     this.stagedUpload,
+    this.groupAttachment,
   });
 
   final AttachmentKind kind;
@@ -40,6 +42,7 @@ class ChatAttachment {
 
   /// Receipt of `POST /api/chat/file-upload`, handed to `file.attach`.
   final Map<String, dynamic>? stagedUpload;
+  final GroupAttachment? groupAttachment;
 
   /// Line the dashboard puts in front of the user text for this attachment.
   /// Images travel separately; files get their ref from `file.attach`.

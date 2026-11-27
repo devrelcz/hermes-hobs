@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../api/group_attachments.dart';
 import '../api/group_models.dart';
 import '../api/hermes_rpc.dart';
 import '../api/models.dart';
 import '../l10n/strings.dart';
 import '../state/app_state.dart';
 import '../state/group_chat_controller.dart';
+import 'attachments_ui.dart';
 import 'placeholders.dart';
 import 'prompt_card.dart';
 import 'sheets.dart';
@@ -70,14 +73,30 @@ class _GroupChatViewState extends State<_GroupChatView> {
     super.dispose();
   }
 
-  void _send(GroupChatController c) {
+  Future<void> _send(GroupChatController c) async {
     final text = _input.text;
-    if (text.trim().isEmpty || c.acting || c.disbanded) return;
-    _input.clear();
+    final draft = c.draft;
+    if (c.loading ||
+        c.acting ||
+        c.busy ||
+        c.disbanded ||
+        c.connection != ConnectionStatus.connected ||
+        !draft.ready ||
+        (text.trim().isEmpty && draft.isEmpty)) {
+      return;
+    }
+    final items = draft.items.toList();
+    final files = [for (final item in items) ?item.uploaded?.groupAttachment];
     HapticFeedback.lightImpact();
-    c.send(text);
-    _focus.requestFocus();
     if (_scroll.hasClients) _scroll.jumpTo(0);
+    final accepted = await c.send(text, attachments: files);
+    if (!accepted) return;
+    for (final item in items) {
+      draft.remove(item);
+    }
+    if (!mounted) return;
+    if (_input.text == text) _input.clear();
+    _focus.requestFocus();
   }
 
   /// Puts `@handle` in front of the draft (once).
@@ -140,6 +159,10 @@ class _GroupChatViewState extends State<_GroupChatView> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final s = Strings.of(context);
+    final keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
+    final showMembers =
+        keyboardHeight == 0 ||
+        MediaQuery.sizeOf(context).height - keyboardHeight >= 500;
     final members = c.room.members;
     final working = [
       for (final m in members)
@@ -221,16 +244,18 @@ class _GroupChatViewState extends State<_GroupChatView> {
               actionLabel: s.reconnectNow,
               onAction: app.onAppResumed,
             ),
-          _MemberStrip(chat: c, onMention: _mention),
-          const Divider(height: 1),
+          if (showMembers) ...[
+            _MemberStrip(chat: c, onMention: _mention),
+            const Divider(height: 1),
+          ],
           Expanded(child: _buildLog(c, app, theme)),
-          if (c.error != null)
+          if (c.sendError != null || c.error != null)
             Container(
               width: double.infinity,
               color: cs.errorContainer,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text(
-                c.error!,
+                (c.sendError ?? c.error)!,
                 style: TextStyle(color: cs.onErrorContainer),
               ),
             ),
@@ -291,7 +316,12 @@ class _GroupChatViewState extends State<_GroupChatView> {
     final continuable = c.continuable;
     final items = <Widget>[
       if (c.pendingText != null)
-        _UserBubble(text: c.pendingText!, time: null, pending: true),
+        _UserBubble(
+          text: c.pendingText!,
+          time: null,
+          pending: true,
+          attachments: _GroupMessageFiles(files: c.pendingAttachments),
+        ),
       ...rows.reversed,
     ];
     final working = [
@@ -327,18 +357,31 @@ class _GroupChatViewState extends State<_GroupChatView> {
     DateTime? lastDay;
     for (final e in c.log) {
       final at = e.createdAt;
+      final files = e.attachments;
+      final hasContent = e.text.trim().isNotEmpty || files.isNotEmpty;
+      final attachments = _GroupMessageFiles(
+        files: files,
+        chat: c,
+        eventId: e.eventId,
+      );
       if (at != null &&
           (e.isUserMessage || e.isMemberMessage) &&
-          e.text.trim().isNotEmpty &&
+          hasContent &&
           (lastDay == null || !sameDay(lastDay, at))) {
         rows.add(DaySeparator(label: dayLabel(at)));
         lastDay = at;
       }
       if (e.isUserMessage) {
-        if (e.text.trim().isEmpty) continue;
-        rows.add(_UserBubble(text: e.text, time: e.createdAt));
+        if (!hasContent) continue;
+        rows.add(
+          _UserBubble(
+            text: e.text,
+            time: e.createdAt,
+            attachments: attachments,
+          ),
+        );
       } else if (e.isMemberMessage) {
-        if (e.text.trim().isEmpty) continue;
+        if (!hasContent) continue;
         final m = byId[e.memberId.isNotEmpty ? e.memberId : e.actorId];
         rows.add(
           _MemberMessage(
@@ -346,6 +389,7 @@ class _GroupChatViewState extends State<_GroupChatView> {
             name: m == null ? e.actorId : app.memberName(m),
             text: e.text,
             time: e.createdAt,
+            attachments: attachments,
           ),
         );
       } else if (e.kind == 'turn.failed') {
@@ -548,12 +592,114 @@ class _MemberStrip extends StatelessWidget {
   }
 }
 
+class _GroupMessageFiles extends StatelessWidget {
+  const _GroupMessageFiles({required this.files, this.chat, this.eventId = ''});
+
+  final List<GroupAttachment> files;
+  final GroupChatController? chat;
+  final String eventId;
+
+  @override
+  Widget build(BuildContext context) {
+    if (files.isEmpty) return const SizedBox.shrink();
+    return Wrap(
+      spacing: 6,
+      children: [
+        for (final file in files)
+          _GroupFileChip(
+            key: ValueKey(file.id),
+            file: file,
+            onDownload:
+                chat?.canDownloadAttachments == true && eventId.isNotEmpty
+                ? () => chat!.attachmentApi.download(eventId, file)
+                : null,
+          ),
+      ],
+    );
+  }
+}
+
+class _GroupFileChip extends StatefulWidget {
+  const _GroupFileChip({super.key, required this.file, this.onDownload});
+
+  final GroupAttachment file;
+  final Future<Uint8List> Function()? onDownload;
+
+  @override
+  State<_GroupFileChip> createState() => _GroupFileChipState();
+}
+
+class _GroupFileChipState extends State<_GroupFileChip> {
+  bool _downloading = false;
+
+  Future<void> _open() async {
+    if (_downloading) return;
+    final file = widget.file;
+    setState(() => _downloading = true);
+    try {
+      final bytes = await widget.onDownload!();
+      if (!mounted) return;
+      final box = context.findRenderObject() as RenderBox?;
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile.fromData(bytes, mimeType: file.mime)],
+          fileNameOverrides: [file.name],
+          sharePositionOrigin: box == null
+              ? null
+              : box.localToGlobal(Offset.zero) & box.size,
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(Strings.of(context).groupAttachmentDownloadFailed),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final file = widget.file;
+    final icon = switch (file.kind) {
+      'image' => Icons.image_outlined,
+      'pdf' => Icons.picture_as_pdf_outlined,
+      _ => Icons.attach_file,
+    };
+    final label = Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis);
+    final download = widget.onDownload;
+    if (download == null) {
+      return Chip(avatar: Icon(icon, size: 18), label: label);
+    }
+    return ActionChip(
+      avatar: _downloading
+          ? const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon, size: 18),
+      label: label,
+      onPressed: _downloading ? null : _open,
+    );
+  }
+}
+
 class _UserBubble extends StatelessWidget {
-  const _UserBubble({required this.text, this.time, this.pending = false});
+  const _UserBubble({
+    required this.text,
+    required this.attachments,
+    this.time,
+    this.pending = false,
+  });
 
   final String text;
   final DateTime? time;
   final bool pending;
+  final Widget attachments;
 
   @override
   Widget build(BuildContext context) {
@@ -588,11 +734,19 @@ class _UserBubble extends StatelessWidget {
                       bottomRight: Radius.circular(6),
                     ),
                   ),
-                  child: MessageText(
-                    text,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: cs.onPrimaryContainer,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (text.isNotEmpty)
+                        MessageText(
+                          text,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: cs.onPrimaryContainer,
+                          ),
+                        ),
+                      attachments,
+                    ],
                   ),
                 ),
               ),
@@ -620,12 +774,14 @@ class _MemberMessage extends StatefulWidget {
     required this.name,
     required this.text,
     this.time,
+    required this.attachments,
   });
 
   final Hob? hob;
   final String name;
   final String text;
   final DateTime? time;
+  final Widget attachments;
 
   @override
   State<_MemberMessage> createState() => _MemberMessageState();
@@ -693,20 +849,22 @@ class _MemberMessageState extends State<_MemberMessage> {
                         ),
                     ],
                   ),
-                  MessageMarkdown(
-                    data: text,
-                    styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-                      p: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
-                      code: theme.textTheme.bodySmall?.copyWith(
-                        fontFamily: HobsTheme.monoFamily,
-                        backgroundColor: cs.surfaceContainerHighest,
-                      ),
-                      codeblockDecoration: BoxDecoration(
-                        color: cs.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(8),
+                  if (text.isNotEmpty)
+                    MessageMarkdown(
+                      data: text,
+                      styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                        p: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+                        code: theme.textTheme.bodySmall?.copyWith(
+                          fontFamily: HobsTheme.monoFamily,
+                          backgroundColor: cs.surfaceContainerHighest,
+                        ),
+                        codeblockDecoration: BoxDecoration(
+                          color: cs.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
-                  ),
+                  widget.attachments,
                 ],
               ),
             ),
@@ -936,58 +1094,87 @@ class _GroupComposer extends StatelessWidget {
     final s = Strings.of(context);
     final ready =
         !chat.loading && chat.connection == ConnectionStatus.connected;
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 2, 4, 2),
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerLowest,
-            border: Border.all(color: cs.outline.withValues(alpha: 0.5)),
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+    final draft = chat.draft;
+    return ListenableBuilder(
+      listenable: draft,
+      builder: (context, _) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: CallbackShortcuts(
-                  bindings: {
-                    const SingleActivator(LogicalKeyboardKey.enter): onSend,
-                  },
-                  child: TextField(
-                    key: const ValueKey('group-input'),
-                    controller: controller,
-                    focusNode: focusNode,
-                    minLines: 1,
-                    maxLines: 6,
-                    textInputAction: TextInputAction.newline,
-                    decoration: InputDecoration(
-                      hintText: ready ? s.groupMessageHint : s.connecting,
-                      filled: false,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      disabledBorder: InputBorder.none,
-                      isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
+              if (!draft.isEmpty)
+                IgnorePointer(
+                  ignoring: chat.acting,
+                  child: DraftStrip(draft: draft),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(4),
-                child: chat.busy
-                    ? IconButton.filledTonal(
-                        tooltip: s.stop,
-                        onPressed: chat.acting ? null : chat.stop,
-                        icon: const Icon(Icons.stop, size: 20),
-                      )
-                    : IconButton.filled(
-                        tooltip: s.send,
-                        onPressed: ready && !chat.acting ? onSend : null,
-                        icon: const Icon(Icons.arrow_upward, size: 20),
+              Container(
+                padding: const EdgeInsets.fromLTRB(14, 2, 4, 2),
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerLowest,
+                  border: Border.all(color: cs.outline.withValues(alpha: 0.5)),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Row(
+                  children: [
+                    if (chat.canUploadAttachments)
+                      AttachButton(
+                        draft: draft,
+                        enabled: ready && !chat.acting,
+                        allowLinks: false,
+                        maxItems: maxGroupAttachments,
                       ),
+                    Expanded(
+                      child: CallbackShortcuts(
+                        bindings: {
+                          const SingleActivator(LogicalKeyboardKey.enter):
+                              onSend,
+                        },
+                        child: TextField(
+                          key: const ValueKey('group-input'),
+                          controller: controller,
+                          readOnly: chat.acting,
+                          focusNode: focusNode,
+                          minLines: 1,
+                          maxLines: 6,
+                          textInputAction: TextInputAction.newline,
+                          decoration: InputDecoration(
+                            hintText: ready ? s.groupMessageHint : s.connecting,
+                            filled: false,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            disabledBorder: InputBorder.none,
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: chat.busy
+                          ? IconButton.filledTonal(
+                              tooltip: s.stop,
+                              onPressed: chat.acting ? null : chat.stop,
+                              icon: const Icon(Icons.stop, size: 20),
+                            )
+                          : IconButton.filled(
+                              tooltip: draft.uploading
+                                  ? s.waitForUploads
+                                  : s.send,
+                              onPressed: ready && !chat.acting && draft.ready
+                                  ? onSend
+                                  : null,
+                              icon: const Icon(Icons.arrow_upward, size: 20),
+                            ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

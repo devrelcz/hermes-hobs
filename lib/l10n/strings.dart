@@ -303,6 +303,10 @@ abstract class Strings {
   String get removeAttachment;
   String uploadFailed(Object error);
   String get uploadNoPath;
+  String get groupAttachmentUploadFailed;
+  String get groupAttachmentsUnavailable;
+  String get groupAttachmentLimits;
+  String get groupAttachmentDownloadFailed;
   String attachmentTooLarge(int mb);
   String pickFailed(Object error);
   String get waitForUploads;

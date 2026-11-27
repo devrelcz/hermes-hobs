@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hobs/demo/demo_hermes.dart';
+import 'package:hobs/state/app_state.dart';
 import 'package:hobs/state/network_status.dart';
 import 'package:hobs/ui/offline_bar.dart';
 import 'package:provider/provider.dart';
@@ -129,5 +131,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Nejste připojeni k internetu'), findsNothing);
     expect(net.restored, 1);
+  });
+  testWidgets('the offline bar stays hidden for an offline demo account', (
+    tester,
+  ) async {
+    final net = _Net(radio: _none);
+    final demo = AppState()..serverUrl = DemoHermes.url;
+    addTearDown(demo.dispose);
+    addTearDown(net.status.dispose);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: demo),
+          ChangeNotifierProvider.value(value: net.status),
+        ],
+        child: MaterialApp(
+          builder: (context, child) => OfflineGate(child: child!),
+          home: const Scaffold(body: Text('demo')),
+        ),
+      ),
+    );
+    net.status.start();
+    await tester.pumpAndSettle();
+    expect(net.status.offline, isTrue);
+    expect(find.text('Nejste připojeni k internetu'), findsNothing);
+    expect(find.text('demo'), findsOneWidget);
   });
 }

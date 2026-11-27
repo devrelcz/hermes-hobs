@@ -523,6 +523,18 @@ class StringsEn extends Strings {
   @override
   String get uploadNoPath => 'The server did not return a path for the upload.';
   @override
+  String get groupAttachmentUploadFailed =>
+      'The file could not be added to this group chat.';
+  @override
+  String get groupAttachmentsUnavailable =>
+      'This Hermes server does not support adding files to this group.';
+  @override
+  String get groupAttachmentLimits =>
+      'A message can contain up to 8 files with a total size of 25 MB.';
+  @override
+  String get groupAttachmentDownloadFailed =>
+      'The file could not be opened. Try again.';
+  @override
   String attachmentTooLarge(int mb) => 'The file is larger than $mb MB.';
   @override
   String pickFailed(Object error) => 'Could not open the picker: $error';

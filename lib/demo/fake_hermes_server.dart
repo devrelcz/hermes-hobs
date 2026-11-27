@@ -368,6 +368,9 @@ class FakeHermesServer {
 
   /// Group chats (`groups.*`): room id -> room, and each room's log.
   bool groupsEnabled = true;
+  bool groupAttachmentsEnabled = true;
+  bool rejectNextGroupSend = false;
+  final _groupUploads = <(String, String), Map<String, Object>>{};
   final Map<String, Map<String, dynamic>> rooms = {};
   final Map<String, List<Map<String, dynamic>>> roomLogs = {};
 
@@ -385,13 +388,14 @@ class FakeHermesServer {
     String id,
     String kind,
     Map<String, dynamic> actor,
-    Map<String, dynamic> payload,
-  ) {
+    Map<String, dynamic> payload, {
+    String? eventId,
+  }) {
     final log = roomLogs[id]!;
     log.add({
       'room_id': id,
       'seq': log.length + 1,
-      'event_id': '$kind:${log.length + 1}',
+      'event_id': eventId ?? '$kind:${log.length + 1}',
       'kind': kind,
       'actor': actor,
       'authority_epoch': 1,
@@ -1137,6 +1141,10 @@ class FakeHermesServer {
                 'groups.log',
                 'groups.create',
                 'groups.send',
+                if (groupAttachmentsEnabled) ...[
+                  'groups.attachment.upload',
+                  'groups.attachment.download',
+                ],
                 'groups.stop',
                 'groups.rename',
                 'groups.disband',
@@ -1214,14 +1222,86 @@ class FakeHermesServer {
               'tombstone': {'room_id': rid, 'disbanded_at': 1795206000.5},
             },
           });
+        case 'groups.attachment.upload'
+            when groupsEnabled && groupAttachmentsEnabled:
+          final rid = params['room_id'] as String;
+          final data = params['data_base64'] as String;
+          final bytes = base64Decode(data);
+          if (!rooms.containsKey(rid) ||
+              bytes.isEmpty ||
+              bytes.length > 15000000) {
+            send({
+              'id': id,
+              'error': {'code': -32602, 'message': 'invalid_params'},
+            });
+            break;
+          }
+          final attachmentId =
+              'att_${_groupUploads.length.toRadixString(16).padLeft(32, '0')}';
+          final manifest = {
+            'attachment_id': attachmentId,
+            'kind': params['kind'] as String,
+            'name': params['name'] as String,
+            'mime': params['mime'] as String,
+            'size': bytes.length,
+          };
+          _groupUploads[(rid, attachmentId)] = {
+            ...manifest,
+            'data_base64': data,
+          };
+          send({'id': id, 'result': manifest});
+        case 'groups.attachment.download'
+            when groupsEnabled && groupAttachmentsEnabled:
+          final rid = params['room_id'] as String;
+          final attachmentId = params['attachment_id'] as String;
+          final allowed =
+              roomLogs[rid]?.any(
+                (event) =>
+                    event['event_id'] == params['event_id'] &&
+                    ((event['payload'] as Map)['attachments'] as List? ?? [])
+                        .any(
+                          (file) =>
+                              file is Map &&
+                              file['attachment_id'] == attachmentId,
+                        ),
+              ) ??
+              false;
+          final attachment = allowed
+              ? _groupUploads[(rid, attachmentId)]
+              : null;
+          if (attachment == null) {
+            send({
+              'id': id,
+              'error': {'code': -32602, 'message': 'invalid_params'},
+            });
+          } else {
+            send({'id': id, 'result': attachment});
+          }
         case 'groups.send' when groupsEnabled:
           final rid = params['room_id'] as String;
           final eventId = params['event_id'] as String;
           final payload = (params['payload'] as Map).cast<String, dynamic>();
-          _appendRoom(rid, 'message.user', {
-            'id': 'desktop',
-            'kind': 'user',
-          }, payload);
+          final attachments = payload['attachments'] as List? ?? const [];
+          if (rejectNextGroupSend ||
+              attachments.any(
+                (file) =>
+                    file is! Map ||
+                    !_groupUploads.containsKey((rid, file['attachment_id'])),
+              )) {
+            rejectNextGroupSend = false;
+            send({
+              'id': id,
+              'error': {'code': -32602, 'message': 'invalid_params'},
+            });
+            break;
+          }
+          _appendRoom(
+            rid,
+            'message.user',
+            {'id': 'desktop', 'kind': 'user'},
+            payload,
+            eventId: eventId,
+          );
           final discussion = roomLogs[rid]!.last['event_id'];
           send({
             'id': id,

@@ -83,7 +83,9 @@ replies are canned, and the demo starts fresh each time you open the app.
   chat you read elsewhere still shows as unread here; *Mark all as read* in
   the account menu clears it.
 - Not supported yet: the SESSIONS tab, group chats with Hobs from another
-  gateway, routing settings, and attachments in group chats.
+  gateway and routing settings.
+- Group chat files and photos are available when your Hermes server supports
+  room attachments.
 - There is no web version.
 
 ## Privacy

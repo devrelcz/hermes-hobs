@@ -533,6 +533,18 @@ class StringsCs extends Strings {
   @override
   String get uploadNoPath => 'Server nevrátil cestu k nahranému souboru.';
   @override
+  String get groupAttachmentUploadFailed =>
+      'Soubor se nepodařilo přidat do skupinového chatu.';
+  @override
+  String get groupAttachmentsUnavailable =>
+      'Tento server Hermes nepodporuje přidávání souborů do skupiny.';
+  @override
+  String get groupAttachmentLimits =>
+      'Do zprávy můžeš přidat až 8 souborů o celkové velikosti nejvýše 25 MB.';
+  @override
+  String get groupAttachmentDownloadFailed =>
+      'Soubor se nepodařilo otevřít. Zkus to znovu.';
+  @override
   String attachmentTooLarge(int mb) => 'Soubor je větší než $mb MB.';
   @override
   String pickFailed(Object error) => 'Výběr se nepodařilo otevřít: $error';
